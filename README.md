@@ -4,7 +4,7 @@
 
 **Entanglement: Redux** is an open-source revival and complete overhaul of the classic *BONEWORKS* multiplayer mod. 
 
-With the deprecation of the Discord Game SDK, the original Entanglement mod was left without a functioning networking backend. *Redux* brings the mod back to life by migrating the entire networking architecture to **Steamworks.NET**, while completely rewriting the physics engine to match modern VR multiplayer standards.
+With the deprecation of the Discord Game SDK, the original Entanglement mod was left without a functioning networking backend. Entanglement *Redux* brings the mod back to life by migrating the entire networking architecture to **Steamworks.NET**, while completely rewriting the physics engine to match modern VR multiplayer standards.
 
 ### ⚠️ Status: Work In Progress (WIP)
 This project is currently in **active development**. While the core Steamworks migration and physics overhauls are implemented, you will encounter bugs, desyncs, and missing features. It is not yet ready for a full public release, but developers and testers are welcome to compile and test it!
