@@ -1,14 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Entanglement.Data;
 using Entanglement.Extensions;
 using Entanglement.Objects;
-
-using StressLevelZero.Pool;
 
 using UnityEngine;
 
@@ -23,11 +19,11 @@ namespace Entanglement.Network
         {
             NetworkMessage message = new NetworkMessage();
 
-            message.messageData = new byte[sizeof(ushort) * 2 + SimplifiedTransform.size];
+            // FIXED: Only allocate space for one ushort (objectId) + the simplified transform size
+            message.messageData = new byte[sizeof(ushort) + SimplifiedTransform.size];
 
             int index = 0;
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.objectId), ref index);
-
             message.messageData = message.messageData.AddBytes(data.simplifiedTransform.GetBytes(), ref index);
 
             return message;
@@ -48,8 +44,6 @@ namespace Entanglement.Network
 
                     SimplifiedTransform simpleTransform = SimplifiedTransform.FromBytes(message.messageData.ToList().GetRange(index, SimplifiedTransform.size).ToArray());
                     syncObj.ApplyTransform(simpleTransform);
-
-                    GameObject go = syncObj.gameObject;
                 }
             }
 

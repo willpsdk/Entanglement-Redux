@@ -29,7 +29,6 @@ namespace Entanglement.Objects
         public static CustomComponentCache<TransformSyncable> cache = new CustomComponentCache<TransformSyncable>();
 
         public Rigidbody rb;
-
         public Rigidbody[] _CachedBodies;
 
         public Vector3 lastPosition;
@@ -45,10 +44,11 @@ namespace Entanglement.Objects
         public float startDrag = -1f;
         public float startAngularDrag = -1f;
 
-        // Constant joint settings
-        public const float positionSpring = 5000000f;
-        public const float positionDamper = 100000f;
-        public const float maximumForce = 50000f;
+        // FUSION UPGRADE: We lowered the spring and damping heavily.
+        // Instead of instantly snapping with 5 Million force, it uses velocity extrapolation to arrive smoothly.
+        public const float positionSpring = 250000f;
+        public const float positionDamper = 15000f;
+        public const float maximumForce = 150000f;
         public const float linearLimit = 0.005f;
 
         protected float timeOfDisable = 0f;
@@ -64,7 +64,7 @@ namespace Entanglement.Objects
             TransformSyncMessageData syncData = new TransformSyncMessageData()
             {
                 objectId = objectId,
-                simplifiedTransform = new SimplifiedTransform(transform)
+                simplifiedTransform = new SimplifiedTransform(transform, rb) // FUSION: Now packs RB velocities
             };
 
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, syncData);
@@ -83,7 +83,8 @@ namespace Entanglement.Objects
         public bool HasChangedPositions() => (transform.position - lastPosition).sqrMagnitude > 0.001f || Quaternion.Angle(transform.rotation, lastRotation) > 0.05f;
 
         protected override void UpdateOwner(bool checkForMag = true) {
-            if (lastOwner == SteamIntegration.currentUser.Id) objectHealth = GetHealth();
+            // STEAM UPDATE: User IDs converted to ulong
+            if (lastOwner == SteamIntegration.currentUser.m_SteamID) objectHealth = GetHealth();
 
             if (!IsOwner()) SetHealth(float.PositiveInfinity);
             else SetHealth(objectHealth);
@@ -95,7 +96,6 @@ namespace Entanglement.Objects
                 if (PlayerRepresentation.representations.ContainsKey(staleOwner))
                     PlayerRepresentation.representations[staleOwner].IgnoreCollision(rb, true);
 
-                // A mess, but fixes magazine offset issues
                 try {
                     if (checkForMag && _CachedGun) {
                         MagazineSocket magSocket = _CachedGun.magazineSocket;
@@ -107,7 +107,7 @@ namespace Entanglement.Objects
                 } catch { }
             }
 
-            if (_CachedPlug && lastOwner != staleOwner && staleOwner == SteamIntegration.currentUser.Id) {
+            if (_CachedPlug && lastOwner != staleOwner && staleOwner == SteamIntegration.currentUser.m_SteamID) {
                 Socket plugSocket = _CachedPlug._lastSocket;
                 if (_CachedPlug.InGun()) {
                     _CachedPlug.ForceEject();
@@ -124,7 +124,6 @@ namespace Entanglement.Objects
             timeOfDisable = Time.realtimeSinceStartup;
 
             DestroyJoint();
-
             SendDequeue();
         }
 
@@ -134,21 +133,18 @@ namespace Entanglement.Objects
         }
 
         protected virtual void OnCollisionEnter(Collision collision) {
-            if (!SteamIntegration.hasLobby)
-                return;
-
+            if (!SteamIntegration.hasLobby) return;
             if (collision.collider.gameObject.IsBlacklisted()) return;
-
             if (!collision.rigidbody || !IsOwner()) return;
 
             if (rb)
                 if (!_CachedBodies.IsHolding()) return;
 
             Transform targetObj = collision.rigidbody.transform;
-
             Rigidbody[] rigidbodies = null;
 
-            long ownerId = SteamIntegration.currentUser.Id;
+            // STEAM UPDATE
+            ulong ownerId = SteamIntegration.currentUser.m_SteamID;
 
             ObjectSync.GetPooleeData(targetObj, out rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
 
@@ -190,13 +186,11 @@ namespace Entanglement.Objects
             base.FixedUpdate();
 
             if (isValid) {
-                JointCheck(); // Check for joint
-
-                if (!IsOwner())
-                    SetHealth(float.PositiveInfinity);
+                JointCheck(); 
+                if (!IsOwner()) SetHealth(float.PositiveInfinity);
             }
-
         }
+
         protected bool TryGetRigidbody(out Rigidbody rigidbody) {
             if (rb) {
                 rigidbody = rb;
@@ -209,31 +203,29 @@ namespace Entanglement.Objects
             }
         }
 
-        public static Syncable CreateSync(long owner, Rigidbody rigidbody = null, ushort? objectId = null) {
-            if (!rigidbody)
-                return null;
+        // STEAM UPDATE: owner is ulong
+        public static Syncable CreateSync(ulong owner, Rigidbody rigidbody = null, ushort? objectId = null) {
+            if (!rigidbody) return null;
 
             GameObject go = rigidbody.gameObject;
             TransformSyncable existingSync = cache.GetOrAdd(go);
             if (existingSync) {
                 existingSync.ForceOwner(owner);
-                if (objectId != null) {
-                    ObjectSync.MoveSyncable(existingSync, objectId.Value);
-                }
+                if (objectId != null) ObjectSync.MoveSyncable(existingSync, objectId.Value);
                 return existingSync;
             }
+
             rigidbody.velocity = Vector3.zero;
             TransformSyncable syncObj = go.AddComponent<TransformSyncable>();
             cache.Add(go, syncObj);
+            
             syncObj._CachedPlug = go.GetComponentInChildren<MagazinePlug>(true);
             syncObj._CachedGun = go.GetComponentInChildren<Gun>(true);
             syncObj._CachedDestructable = go.GetComponentInChildren<ObjectDestructable>(true);
             syncObj._CachedHealth = go.GetComponentInChildren<Prop_Health>(true);
 
-            if (syncObj._CachedDestructable)
-                DestructCache.Add(syncObj._CachedDestructable.gameObject, syncObj);
-            if (syncObj._CachedHealth)
-                DestructCache.Add(syncObj._CachedHealth.gameObject, syncObj);
+            if (syncObj._CachedDestructable) DestructCache.Add(syncObj._CachedDestructable.gameObject, syncObj);
+            if (syncObj._CachedHealth) DestructCache.Add(syncObj._CachedHealth.gameObject, syncObj);
 
             syncObj.events = syncObj.GetComponentsInChildren<GripEvents>(true);
             syncObj.SetupEvents();
@@ -242,7 +234,9 @@ namespace Entanglement.Objects
             syncObj.startDrag = rigidbody.drag;
             syncObj.startAngularDrag = rigidbody.angularDrag;
             syncObj._CachedBodies = syncObj.transform.GetJointedBodies();
+            
             syncObj.ForceOwner(owner);
+            
             if (objectId != null) {
                 ushort id = objectId.Value;
                 syncObj.objectId = id;
@@ -253,68 +247,70 @@ namespace Entanglement.Objects
         }
 
         public override void SendEnqueue() => MelonCoroutines.Start(WaitUntilValid(OnValidEnqueue));
-
         public override void SendDequeue() => MelonCoroutines.Start(WaitUntilValid(OnValidDequeue));
 
         public void OnValidEnqueue() {
-            long userId = SteamIntegration.currentUser.Id;
-            if (ownerQueue.Contains(userId))
-                return;
+            ulong userId = SteamIntegration.currentUser.m_SteamID;
+            if (ownerQueue.Contains(userId)) return;
 
-            if (Server.instance != null) {
-                EnqueueOwner(userId);
-            }
+            if (Server.instance != null) EnqueueOwner(userId);
 
-            TransformQueueMessageData queueData = new TransformQueueMessageData()
-            {
-                userId = userId,
-                objectId = objectId,
-                isAdd = true
-            };
+            TransformQueueMessageData queueData = new TransformQueueMessageData() { userId = userId, objectId = objectId, isAdd = true };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
         }
 
         public void OnValidDequeue() {
-            long userId = SteamIntegration.currentUser.Id;
-            if (!ownerQueue.Contains(userId))
-                return;
+            ulong userId = SteamIntegration.currentUser.m_SteamID;
+            if (!ownerQueue.Contains(userId)) return;
 
-            if (Server.instance != null) {
-                DequeueOwner(userId);
-            }
+            if (Server.instance != null) DequeueOwner(userId);
 
-            TransformQueueMessageData queueData = new TransformQueueMessageData()
-            {
-                userId = userId,
-                objectId = objectId,
-                isAdd = false
-            };
+            TransformQueueMessageData queueData = new TransformQueueMessageData() { userId = userId, objectId = objectId, isAdd = false };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
         }
 
         public IEnumerator WaitUntilValid(Action onFinish) {
-            while (!isValid)
-                yield return null;
-
+            while (!isValid) yield return null;
             onFinish?.Invoke();
         }
 
         public void ApplyTransform(SimplifiedTransform simplifiedTransform) {
-            if (SteamIntegration.currentUser.Id == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside())) return;
+            if (SteamIntegration.currentUser.m_SteamID == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside())) return;
 
-            if (targetBody) simplifiedTransform.Apply(targetBody);
-            if (!rb) simplifiedTransform.Apply(transform);
+            // FUSION SYNCING: Put objects to sleep natively to save frames and networking lag
+            if (rb && simplifiedTransform.isSleeping) {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.Sleep();
+            }
 
-            // Re-enable the transform if something de-activated it
+            if (targetBody) {
+                targetBody.transform.position = simplifiedTransform.position;
+                targetBody.transform.rotation = simplifiedTransform.rotation.ExpandQuat();
+                
+                // Inject velocity into the PD controller
+                if (!simplifiedTransform.isSleeping) {
+                    targetBody.velocity = simplifiedTransform.velocity;
+                    targetBody.angularVelocity = simplifiedTransform.angularVelocity;
+                }
+            }
+            
+            if (!rb) {
+                simplifiedTransform.Apply(transform);
+            } else if (!syncJoint && !simplifiedTransform.isSleeping) {
+                // FUSION SYNCING: Inject velocities directly into the physics engine
+                rb.velocity = simplifiedTransform.velocity;
+                rb.angularVelocity = simplifiedTransform.angularVelocity;
+            }
+
             if (!transform.gameObject.activeInHierarchy && Mathf.Abs(Time.realtimeSinceStartup - timeOfDisable) >= 2f)
                 transform.ForceActivate();
         }
 
         protected void ReCreateJoint() {
-            if (targetGo)
-                Destroy(targetGo);
+            if (targetGo) Destroy(targetGo);
 
             targetGo = new GameObject($"TransformSyncFollow {transform.name}, {transform.GetInstanceID()}");
 
@@ -359,11 +355,9 @@ namespace Entanglement.Objects
 
         protected void JointCheck() {
             if (!IsOwner()) {
-                if (rb && !syncJoint)
-                    ReCreateJoint();
+                if (rb && !syncJoint) ReCreateJoint();
             }
-            else
-                DestroyJoint();
+            else DestroyJoint();
         }
 
         protected void DestroyJoint() {
