@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Entanglement.Network;
 using Entanglement.Data;
@@ -10,9 +7,7 @@ using Entanglement.Data;
 using ModThatIsNotMod.BoneMenu;
 
 using UnityEngine;
-
-using Discord;
-
+using Steamworks; // FIXED: Swapped Discord for Steamworks
 using MelonLoader;
 
 namespace Entanglement.UI {
@@ -82,13 +77,15 @@ namespace Entanglement.UI {
                 return;
             }
 
-            IEnumerable<User> users = SteamIntegration.lobbyManager.GetMemberUsers(SteamIntegration.lobby.Id);
+            // FIXED: Steam uses GetNumLobbyMembers and GetLobbyMemberByIndex instead of an enumerable list
+            int memberCount = SteamMatchmaking.GetNumLobbyMembers(SteamIntegration.lobbyId);
 
-            foreach (User user in users) {
-                if (user.Id == SteamIntegration.currentUser.Id)
+            for (int i = 0; i < memberCount; i++) {
+                CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
+                if (memberId == SteamIntegration.currentUser)
                     continue;
 
-                AddUser(user);
+                AddUser(memberId);
             }
 
             UpdateMenu();
@@ -96,10 +93,13 @@ namespace Entanglement.UI {
 
         public static void UpdateMenu() => MenuManager.OpenCategory(playersCategory);
 
-        public static void AddUser(User player) {
-            string playerName = $"{player.Username}#{player.Discriminator}";
+        // FIXED: Swapped Discord User for CSteamID
+        public static void AddUser(CSteamID player) {
+            string playerName = SteamFriends.GetFriendPersonaName(player);
             Color playerColor = Color.white;
-            if (player.Id == SteamIntegration.lobby.OwnerId) { 
+            
+            // FIXED: Replaced Discord lobby.OwnerId with SteamIntegration hostUser
+            if (player == SteamIntegration.hostUser) { 
                 playerName += " (Host)";
                 playerColor = Color.yellow;
             }
@@ -109,7 +109,7 @@ namespace Entanglement.UI {
                 userItem.CreateFunctionElement("Kick", Color.red, () => {
                     if (!SteamIntegration.isHost) return;
 
-                    Server.instance?.KickUser(player.Id, playerName);
+                    Server.instance?.KickUser(player.m_SteamID, playerName);
 
                     Refresh();
                 });
@@ -117,21 +117,18 @@ namespace Entanglement.UI {
                 userItem.CreateFunctionElement("Ban", Color.red, () => {
                     if (!SteamIntegration.isHost) return;
 
-                    BanList.BanUser(player);
-                    Server.instance.KickUser(player.Id, playerName, DisconnectReason.Banned);
+                    // WARNING: Ensure BanList.cs is updated to accept ulong and string!
+                    BanList.BanUser(player.m_SteamID, playerName); 
+                    Server.instance.KickUser(player.m_SteamID, playerName, DisconnectReason.Banned);
 
                     Refresh();
                 });
 
-                userItem.CreateFunctionElement("Teleport To", Color.yellow, () => { Server.instance?.TeleportTo(player.Id); });
+                userItem.CreateFunctionElement("Teleport To", Color.yellow, () => { Server.instance?.TeleportTo(player.m_SteamID); });
             }
-            userItem.CreateIntElement("Volume", Color.white, SteamIntegration.voiceManager.GetLocalVolume(player.Id) / 20, (value) => {
-                SteamIntegration.voiceManager.SetLocalVolume(player.Id, (byte)(value * 20));
-            }, 1, 0, 10, true);
-
-            userItem.CreateBoolElement("Muted", Color.white, SteamIntegration.voiceManager.IsLocalMute(player.Id), (value) => {
-                SteamIntegration.voiceManager.SetLocalMute(player.Id, value);
-            });
+            
+            // Note: Discord's voiceManager UI elements were removed because Steamworks 
+            // does not have a native individual player volume mixer in the base API.
         }
     }
 }

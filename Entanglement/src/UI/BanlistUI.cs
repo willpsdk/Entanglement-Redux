@@ -11,8 +11,6 @@ using ModThatIsNotMod.BoneMenu;
 
 using UnityEngine;
 
-using Discord;
-
 using MelonLoader;
 
 namespace Entanglement.UI
@@ -39,7 +37,8 @@ namespace Entanglement.UI
             ClearPlayers();
 
             foreach (var user in BanList.bannedUsers) {
-                AddUser(new User() { Id = user.Item1, Username = user.Item2 });
+                // FIXED: Passing ulong and string directly instead of a Discord User object
+                AddUser(user.Item1, user.Item2);
             }
 
             UpdateMenu();
@@ -47,13 +46,14 @@ namespace Entanglement.UI
 
         public static void UpdateMenu() => MenuManager.OpenCategory(banCategory);
 
-        public static void AddUser(User player)
+        // FIXED: Accepting Steam ID and Username instead of Discord User
+        public static void AddUser(ulong steamId, string username)
         {
-            string playerName = $"{player.Username}";
+            string playerName = $"{username}";
 
             MenuCategory userItem = banCategory.CreateSubCategory(playerName, Color.white);
             userItem.CreateFunctionElement("Unban", Color.red, () => {
-                BanList.UnbanUser(player);
+                BanList.UnbanUser(steamId, username);
                 Refresh();
             });
         }
