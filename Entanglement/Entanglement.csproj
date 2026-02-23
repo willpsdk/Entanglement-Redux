@@ -43,6 +43,10 @@
       <HintPath>managed\MelonLoader.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Steamworks.NET">
+      <HintPath>managed\Steamworks.NET.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="ModThatIsNotMod">
       <HintPath>dependencies\ModThatIsNotMod.dll</HintPath>
       <Private>False</Private>
@@ -337,13 +341,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="dependencies\DiscordGameSDK\ActivityManager.cs" />
-    <Compile Include="dependencies\DiscordGameSDK\Constants.cs" />
-    <Compile Include="dependencies\DiscordGameSDK\Core.cs" />
-    <Compile Include="dependencies\DiscordGameSDK\ImageManager.cs" />
-    <Compile Include="dependencies\DiscordGameSDK\LobbyManager.cs" />
-    <Compile Include="dependencies\DiscordGameSDK\StorageManager.cs" />
-    <Compile Include="dependencies\DiscordGameSDK\StoreManager.cs" />
     <Compile Include="src\AssemblyInfo.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -477,7 +474,6 @@
     <Folder Include="Properties\" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="resources\discord_game_sdk.dll" />
     <Content Include="src\AssemblyInfo.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>AssemblyInfo.cs</LastGenOutput>
