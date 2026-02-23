@@ -17,7 +17,7 @@ namespace Entanglement.Network
 
         public override NetworkMessage CreateMessage(EmptyMessageData data) => new NetworkMessage();
 
-        public override void HandleMessage(NetworkMessage message, long sender) {
+        public override void HandleMessage(NetworkMessage message, ulong sender) {
             Zombie_GameControl instance = Zombie_GameControl.instance;
             if (instance) {
                 ZombieMode_Settings.m_invalidSettings = true;

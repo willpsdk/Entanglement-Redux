@@ -1,43 +1,37 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections;
-using System.Linq;
 
 using MelonLoader;
-
-using Discord;
+using Steamworks;
+using UnityEngine;
 
 using Entanglement.Representation;
 using Entanglement.Data;
-
 using StressLevelZero;
-
-using UnityEngine;
 
 namespace Entanglement.Network
 {
+    public enum LobbyType { Private, FriendsOnly, Public }
+
     public class Server : Node {
-        // Static preferences
         public static byte maxPlayers = 8;
         public static bool isLocked = false;
         public static LobbyType lobbyType = LobbyType.Private;
 
-        // Hard locked settings
         public const byte serverMinimum = 1;
-        public const byte serverCapacity = 255;
+        public const byte serverCapacity = 250; 
 
-        // The value of the dict increases with time. When a user sends a heartbeat reset it to 0.
-        // If its ever greater than a certain amount of seconds we should disconnect them as they have likely lost connection.
-        public Dictionary<long, float> userBeats = new Dictionary<long, float>();
+        public Dictionary<ulong, float> userBeats = new Dictionary<ulong, float>();
 
-        // There can only be one server, otherwise things will break
         public static Server instance = null;
+
+        protected CallResult<LobbyCreated_t> lobbyCreatedCallback;
 
         public static void StartServer() {
             if (instance != null)
                 instance.Shutdown();
 
-            if (DiscordIntegration.isConnected) {
+            if (SteamIntegration.isConnected) {
                 EntangleLogger.Error("Already in a server!");
                 return;
             }
@@ -49,55 +43,35 @@ namespace Entanglement.Network
                 PlayerScripts.playerHealth.reloadLevelOnDeath = false;
         }
 
-        //
-        // Actual code below
-        //
-
         private Server() {
-            LobbyManager lobbyManager = DiscordIntegration.lobbyManager;
+            lobbyCreatedCallback = CallResult<LobbyCreated_t>.Create(OnLobbyCreated);
 
-            LobbyTransaction createTransaction = lobbyManager.GetLobbyCreateTransaction();
+            ELobbyType eType = ELobbyType.k_ELobbyTypePrivate;
+            if (!isLocked) {
+                eType = lobbyType == LobbyType.Public ? ELobbyType.k_ELobbyTypePublic : ELobbyType.k_ELobbyTypeFriendsOnly;
+            }
 
-            createTransaction.SetCapacity(maxPlayers);
-            createTransaction.SetLocked(isLocked);
-            createTransaction.SetType(lobbyType);
-
-            EntangleLogger.Log($"Creating a Discord lobby with a capacity of {maxPlayers} players!");
-            DiscordIntegration.lobbyManager.CreateLobby(createTransaction, DiscordLobbyCreateCallback);
+            EntangleLogger.Log($"Creating a Steam lobby with a capacity of {maxPlayers} players!");
+            SteamAPICall_t call = SteamMatchmaking.CreateLobby(eType, maxPlayers);
+            lobbyCreatedCallback.Set(call);
         }
 
-        public void DiscordLobbyCreateCallback(Result result, ref Lobby lobby)
+        private void OnLobbyCreated(LobbyCreated_t result, bool bIOFailure)
         {
-            if (result != Result.Ok)
+            if (result.m_eResult != EResult.k_EResultOK || bIOFailure) {
+                EntangleLogger.Error($"Failed to create lobby! Reason: {result.m_eResult}");
                 return;
+            }
 
-            DiscordIntegration.lobby = lobby;
+            SteamIntegration.lobbyId = new CSteamID(result.m_ulSteamIDLobby);
+            SteamIntegration.hostUser = SteamIntegration.currentUser;
 
-            DiscordIntegration.activity.Party = new ActivityParty()
-            {
-                Id = lobby.Id.ToString(),
-                Size = new PartySize() { CurrentSize = 1, MaxSize = maxPlayers }
-            };
+            SteamMatchmaking.SetLobbyData(SteamIntegration.lobbyId, "name", $"{SteamFriends.GetPersonaName()}'s Server");
+            SteamMatchmaking.SetLobbyData(SteamIntegration.lobbyId, "version", EntanglementMod.VersionString);
+            
+            SteamIntegration.UpdateActivity();
 
-            DiscordIntegration.activity.Secrets = new ActivitySecrets()
-            {
-                Join = DiscordIntegration.lobbyManager.GetLobbyActivitySecret(lobby.Id)
-            };
-
-            DiscordIntegration.activity.Details = $"Using v{EntanglementMod.VersionString}";
-            DiscordIntegration.activity.State = "Hosting a server";
-
-            DiscordIntegration.activity.Assets = DiscordIntegration.CreateAssets(true);
-
-            DiscordIntegration.activity.Instance = true;
-
-            DiscordIntegration.activityManager.UpdateActivity(DiscordIntegration.activity, (res) => { });
-
-            ConnectToDiscordServer();
-
-            DiscordIntegration.lobbyManager.OnNetworkMessage += OnDiscordMessageRecieved;
-            DiscordIntegration.lobbyManager.OnMemberConnect += OnDiscordUserJoined;
-            DiscordIntegration.lobbyManager.OnMemberDisconnect += OnDiscordUserLeft;
+            ConnectToSteamServer();
         }
 
         public override void Tick() {
@@ -108,7 +82,7 @@ namespace Entanglement.Network
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.LevelChange, levelChangeData);
 
                 byte[] msgBytes = message.GetBytes();
-                foreach (long user in connectedUsers)
+                foreach (ulong user in connectedUsers)
                     SendMessage(user, NetworkChannel.Reliable, msgBytes);
 
                 EntanglementMod.sceneChange = null;
@@ -118,32 +92,27 @@ namespace Entanglement.Network
         }
 
         public void UpdateLobbyConfig() {
-            LobbyTransaction update = DiscordIntegration.lobbyManager.GetLobbyUpdateTransaction(DiscordIntegration.lobby.Id);
+            if (!SteamIntegration.hasLobby) return;
 
-            update.SetCapacity(maxPlayers);
-            update.SetLocked(isLocked);
-            update.SetType(lobbyType);
-            DiscordIntegration.lobbyManager.UpdateLobby(DiscordIntegration.lobby.Id, update, DiscordLobbyUpdateCallback);
-        }
+            ELobbyType eType = ELobbyType.k_ELobbyTypePrivate;
+            if (!isLocked) {
+                eType = lobbyType == LobbyType.Public ? ELobbyType.k_ELobbyTypePublic : ELobbyType.k_ELobbyTypeFriendsOnly;
+            }
 
-        public void DiscordLobbyUpdateCallback(Result res) {
-            if (res == Result.Ok) {
-                DiscordIntegration.activity.Party.Size.MaxSize = maxPlayers;
-                DiscordIntegration.activity.Secrets.Join = isLocked ? null : DiscordIntegration.lobbyManager.GetLobbyActivitySecret(DiscordIntegration.lobby.Id);
-                DiscordIntegration.activityManager.UpdateActivity(DiscordIntegration.activity, (value) => { });
+            SteamMatchmaking.SetLobbyType(SteamIntegration.lobbyId, eType);
+            SteamMatchmaking.SetLobbyMemberLimit(SteamIntegration.lobbyId, maxPlayers);
 
-                if (maxPlayers < connectedUsers.Count) {
-                    uint usersToDisconnect = (uint)connectedUsers.Count - maxPlayers;
+            if (maxPlayers < connectedUsers.Count) {
+                uint usersToDisconnect = (uint)connectedUsers.Count - maxPlayers;
 
-                    DisconnectMessageData disconnectData = new DisconnectMessageData();
-                    disconnectData.disconnectReason = (byte)DisconnectReason.ServerFull;
+                DisconnectMessageData disconnectData = new DisconnectMessageData();
+                disconnectData.disconnectReason = (byte)DisconnectReason.ServerFull;
 
-                    NetworkMessage disconnectMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Disconnect, disconnectData);
-                    byte[] disconnectBytes = disconnectMsg.GetBytes();
+                NetworkMessage disconnectMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Disconnect, disconnectData);
+                byte[] disconnectBytes = disconnectMsg.GetBytes();
 
-                    for (int i = 0; i < usersToDisconnect; i++)
-                        SendMessage(connectedUsers[i], NetworkChannel.Reliable, disconnectBytes);
-                }
+                for (int i = 0; i < usersToDisconnect; i++)
+                    SendMessage(connectedUsers[i], NetworkChannel.Reliable, disconnectBytes);
             }
         }
 
@@ -153,40 +122,39 @@ namespace Entanglement.Network
 
             NetworkMessage disconnectMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Disconnect, disconnectData);
             byte[] disconnectBytes = disconnectMsg.GetBytes();
-            foreach (long user in connectedUsers) {
+            foreach (ulong user in connectedUsers) {
                 SendMessage(user, NetworkChannel.Reliable, disconnectBytes);
             }
 
-            DiscordIntegration.Tick();
-            DiscordIntegration.lobbyManager.DeleteLobby(DiscordIntegration.lobby.Id, (result) => { });
-            DiscordIntegration.lobby = new Lobby();
+            if (SteamIntegration.hasLobby) {
+                SteamMatchmaking.LeaveLobby(SteamIntegration.lobbyId);
+            }
+            SteamIntegration.lobbyId = CSteamID.Nil;
 
             CleanData();
         }
 
         public override void Shutdown() {
-            if (DiscordIntegration.hasLobby && !DiscordIntegration.isHost) {
+            if (SteamIntegration.hasLobby && !SteamIntegration.isHost) {
                 EntangleLogger.Error("Unable to close the server as a client!");
                 return;
             }
 
             CloseLobby();
-            DiscordIntegration.DefaultRichPresence();
+            SteamIntegration.DefaultRichPresence();
 
             instance = null;
             activeNode = Client.instance;
         }
 
-        public override void UserConnectedEvent(long lobbyId, long userId) {
-            // currentSceneIndex shouldn't ever be larger than 255 so a byte is fine
+        public override void UserConnectedEvent(ulong lobbyId, ulong userId) {
             LevelChangeMessageData levelChangeData = new LevelChangeMessageData() { sceneIndex = (byte)StressLevelZero.Utilities.BoneworksSceneManager.currentSceneIndex };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.LevelChange, levelChangeData);
             SendMessage(userId, NetworkChannel.Reliable, message.GetBytes());
 
-            DiscordIntegration.activity.Party.Size.CurrentSize = 1 + connectedUsers.Count;
-            DiscordIntegration.activityManager.UpdateActivity(DiscordIntegration.activity, (res) => { });
+            SteamIntegration.UpdateActivity();
 
-            foreach (KeyValuePair<byte, long> valuePair in DiscordIntegration.byteIds) {
+            foreach (KeyValuePair<byte, ulong> valuePair in SteamIntegration.byteIds) {
                 if (valuePair.Value == userId) continue;
 
                 ShortIdMessageData addMessageData = new ShortIdMessageData()
@@ -200,7 +168,7 @@ namespace Entanglement.Network
 
             ShortIdMessageData idMessageData = new ShortIdMessageData() {
                 userId = userId,
-                byteId = DiscordIntegration.RegisterUser(userId)
+                byteId = SteamIntegration.RegisterUser(userId)
             };
             NetworkMessage idMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.ShortId, idMessageData);
             BroadcastMessage(NetworkChannel.Reliable, idMessage.GetBytes());
@@ -208,23 +176,20 @@ namespace Entanglement.Network
             userBeats.Add(userId, 0f);
         }
 
-        public override void UserDisconnectEvent(long lobbyId, long userId) {
-            DiscordIntegration.activity.Party.Size.CurrentSize = 1 + connectedUsers.Count;
-            DiscordIntegration.activityManager.UpdateActivity(DiscordIntegration.activity, (res) => { });
-
+        public override void UserDisconnectEvent(ulong lobbyId, ulong userId) {
+            SteamIntegration.UpdateActivity();
             userBeats.Remove(userId);
         }
 
         public override void BroadcastMessage(NetworkChannel channel, byte[] data) => BroadcastMessageP2P(channel, data);
 
-        // Unique to a server host; allows preventing a message sent to the host being sent back
-        public void BroadcastMessageExcept(NetworkChannel channel, byte[] data, long toIgnore) => connectedUsers.ForEach((user) => { 
+        public void BroadcastMessageExcept(NetworkChannel channel, byte[] data, ulong toIgnore) => connectedUsers.ForEach((user) => { 
             if (user != toIgnore) { 
                 SendMessage(user, channel, data); 
             } 
         });
 
-        public void KickUser(long userId, string userName = null, DisconnectReason reason = DisconnectReason.Kicked) {
+        public void KickUser(ulong userId, string userName = null, DisconnectReason reason = DisconnectReason.Kicked) {
             DisconnectMessageData disconnectData = new DisconnectMessageData();
             disconnectData.disconnectReason = (byte)reason;
 
@@ -237,7 +202,7 @@ namespace Entanglement.Network
                 EntangleLogger.Log($"Kicked {userName} from the server.");
         }
 
-        public void TeleportTo(long userId) {
+        public void TeleportTo(ulong userId) {
             if (PlayerRepresentation.representations.ContainsKey(userId)) {
                 PlayerRepresentation rep = PlayerRepresentation.representations[userId];
 

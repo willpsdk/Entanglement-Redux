@@ -33,7 +33,7 @@ namespace Entanglement.Modularity
         // Should be called using reflection
         public static void SetupModule(Assembly moduleAssembly)
         {
-            if (DiscordIntegration.isInvalid)
+            if (SteamIntegration.isInvalid)
                 return;
 
             if (moduleAssembly != null)

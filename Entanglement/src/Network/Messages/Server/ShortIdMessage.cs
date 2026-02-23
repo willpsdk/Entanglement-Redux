@@ -29,7 +29,7 @@ namespace Entanglement.Network
             return message;
         }
 
-        public override void HandleMessage(NetworkMessage message, long sender)
+        public override void HandleMessage(NetworkMessage message, ulong sender)
         {
             if (message.messageData.Length <= 0)
                 throw new IndexOutOfRangeException();
@@ -40,9 +40,9 @@ namespace Entanglement.Network
 
             byte byteId = message.messageData[index++];
 
-            if (userId == DiscordIntegration.currentUser.Id)
-                DiscordIntegration.localByteId = byteId;
-            DiscordIntegration.RegisterUser(userId, byteId);
+            if (userId == SteamIntegration.currentUser.Id)
+                SteamIntegration.localByteId = byteId;
+            SteamIntegration.RegisterUser(userId, byteId);
         }
     }
 

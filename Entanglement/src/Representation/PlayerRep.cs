@@ -314,7 +314,7 @@ namespace Entanglement.Representation
 
             PlayerRepSyncData data = new PlayerRepSyncData();
 
-            data.userId = DiscordIntegration.currentUser.Id;
+            data.userId = SteamIntegration.currentUser.Id;
 
             for (int r = 0; r < data.simplifiedTransforms.Length; r++) {
                 data.simplifiedTransforms[r].position = syncedPoints[r].position;
@@ -350,7 +350,7 @@ namespace Entanglement.Representation
         }
 
         public static void SyncPlayerReps() {
-            if (DiscordIntegration.hasLobby) {
+            if (SteamIntegration.hasLobby) {
                 var syncData = GetPlayerSyncData();
 
                 if (syncData != null) {

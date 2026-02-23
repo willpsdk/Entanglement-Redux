@@ -37,7 +37,7 @@ namespace Entanglement.Network
             return message;
         }
 
-        public override void HandleMessage(NetworkMessage message, long sender)
+        public override void HandleMessage(NetworkMessage message, ulong sender)
         {
 #if DEBUG
             EntangleLogger.Log("Received mag sync message!");

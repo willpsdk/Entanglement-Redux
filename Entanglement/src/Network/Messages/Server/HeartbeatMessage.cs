@@ -15,7 +15,7 @@ namespace Entanglement.Network
         public override NetworkMessage CreateMessage(EmptyMessageData data) => new NetworkMessage();
 
         // Can be handled by either clients or the server, but are not sent back.
-        public override void HandleMessage(NetworkMessage message, long sender) {
+        public override void HandleMessage(NetworkMessage message, ulong sender) {
             if (Node.activeNode is Server server) {
                 // Reset the heart beat of this user.
                 if (server.userBeats.ContainsKey(sender))

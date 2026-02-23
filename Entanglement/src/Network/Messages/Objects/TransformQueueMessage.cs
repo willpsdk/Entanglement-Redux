@@ -22,7 +22,7 @@ namespace Entanglement.Network
             message.messageData = new byte[sizeof(ushort) + sizeof(byte) * 2];
 
             int index = 0;
-            message.messageData[index++] = DiscordIntegration.GetByteId(data.userId);
+            message.messageData[index++] = SteamIntegration.GetByteId(data.userId);
 
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.objectId), ref index);
 
@@ -31,13 +31,13 @@ namespace Entanglement.Network
             return message;
         }
 
-        public override void HandleMessage(NetworkMessage message, long sender)
+        public override void HandleMessage(NetworkMessage message, ulong sender)
         {
             if (message.messageData.Length <= 0)
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            long userId = DiscordIntegration.GetLongId(message.messageData[index++]);
+            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
 
             ushort objectId = BitConverter.ToUInt16(message.messageData, index);
             index += sizeof(ushort);

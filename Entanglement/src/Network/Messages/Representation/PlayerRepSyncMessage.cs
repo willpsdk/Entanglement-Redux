@@ -23,7 +23,7 @@ namespace Entanglement.Network
 
             List<byte> rawBytes = new List<byte>();
 
-            rawBytes.Add(DiscordIntegration.GetByteId(data.userId));
+            rawBytes.Add(SteamIntegration.GetByteId(data.userId));
             rawBytes.Add(Convert.ToByte(data.isGrounded));
 
             rawBytes.AddRange(data.rootPosition.GetBytes());
@@ -39,12 +39,12 @@ namespace Entanglement.Network
             return message;
         }
 
-        public override void HandleMessage(NetworkMessage message, long sender) {
+        public override void HandleMessage(NetworkMessage message, ulong sender) {
             if (message.messageData.Length <= 0)
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            long userId = DiscordIntegration.GetLongId(message.messageData[index++]);
+            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
 
             if (PlayerRepresentation.representations.ContainsKey(userId)) {
                 PlayerRepresentation rep = PlayerRepresentation.representations[userId];

@@ -34,21 +34,21 @@ namespace Entanglement.UI
         public static void Refresh() {
             ClearMenuItems();
 
-            LobbySearchQuery searchQuery = DiscordIntegration.lobbyManager.GetSearchQuery();
+            LobbySearchQuery searchQuery = SteamIntegration.lobbyManager.GetSearchQuery();
             searchQuery.Distance(LobbySearchDistance.Default);
-            DiscordIntegration.lobbyManager.Search(searchQuery, OnDiscordLobbySearch);
+            SteamIntegration.lobbyManager.Search(searchQuery, OnDiscordLobbySearch);
 
             UpdateMenu();
         }
 
         public static void OnDiscordLobbySearch(Result res) {
             if (res == Result.Ok) {
-                int lobbies = DiscordIntegration.lobbyManager.LobbyCount();
+                int lobbies = SteamIntegration.lobbyManager.LobbyCount();
 
                 EntangleLogger.Log($"Searched for {lobbies} Public Lobb{(lobbies == 1 ? "y" : "ies")}.");
 
                 for (int i = 0; i < lobbies; i++) {
-                    long lobbyId = DiscordIntegration.lobbyManager.GetLobbyId(i);
+                    long lobbyId = SteamIntegration.lobbyManager.GetLobbyId(i);
 #if DEBUG
                     EntangleLogger.Log($"Found Lobby with id {lobbyId}.");
 #endif
@@ -74,9 +74,9 @@ namespace Entanglement.UI
 #if DEBUG
             EntangleLogger.Log($"Trying to add lobby with id {lobbyId}.");
 #endif
-            Lobby lobby = DiscordIntegration.lobbyManager.GetLobby(lobbyId);
+            Lobby lobby = SteamIntegration.lobbyManager.GetLobby(lobbyId);
             lobbiesFound.Add(lobby.OwnerId, lobbyId);
-            DiscordIntegration.userManager.GetUser(lobby.OwnerId, DiscordUserGetCallback);
+            SteamIntegration.userManager.GetUser(lobby.OwnerId, DiscordUserGetCallback);
         }
         
         public static void DiscordUserGetCallback(Result res, ref User user) {
@@ -85,26 +85,26 @@ namespace Entanglement.UI
 #endif
 
             long lobbyId = lobbiesFound[user.Id];
-            Lobby lobby = DiscordIntegration.lobbyManager.GetLobby(lobbyId);
-            string lobbySecret = DiscordIntegration.lobbyManager.GetLobbyActivitySecret(lobbyId);
-            IEnumerable<User> users = DiscordIntegration.lobbyManager.GetMemberUsers(lobbyId);
+            Lobby lobby = SteamIntegration.lobbyManager.GetLobby(lobbyId);
+            string lobbySecret = SteamIntegration.lobbyManager.GetLobbyActivitySecret(lobbyId);
+            IEnumerable<User> users = SteamIntegration.lobbyManager.GetMemberUsers(lobbyId);
 
             CreateLobbyItem($"{user.Username}#{user.Discriminator}'s Game ({users.Count()}/{lobby.Capacity})", lobbyId, lobbySecret);
         }
 
         public static void CreateLobbyItem(string name, long lobbyId, string secret) {
             lobbiesCategory.CreateFunctionElement(name, Color.white, () => {
-                if (DiscordIntegration.hasLobby) {
+                if (SteamIntegration.hasLobby) {
                     EntangleLogger.Error("Already in a server!");
                     return;
                 }
 
-                Lobby serverLobby = DiscordIntegration.lobbyManager.GetLobby(lobbyId);
+                Lobby serverLobby = SteamIntegration.lobbyManager.GetLobby(lobbyId);
                 if (serverLobby.Id == 0) return;
 
                 if (serverLobby.Type != LobbyType.Public) return;
                 
-                DiscordIntegration.lobbyManager.ConnectLobbyWithActivitySecret(secret, Client.instance.DiscordJoinLobby);
+                SteamIntegration.lobbyManager.ConnectLobbyWithActivitySecret(secret, Client.instance.DiscordJoinLobby);
             });
 
             UpdateMenu();

@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 
 using Entanglement.Extensions;
-
 using MelonLoader;
 
 namespace Entanglement.Network
@@ -28,24 +27,16 @@ namespace Entanglement.Network
             bytes[0] = messageType;
 
             for (int b = 1; b < bytes.Length; b++)
-                bytes[b] = messageData[b - 1]; // Let's hope this doesn't break
+                bytes[b] = messageData[b - 1]; 
 
             return bytes;
         }
 
-
-
-        //
-        // Static stuff
-        //
-
-        // Handlers are created up front, they're not static
         public static void RegisterHandlersFromAssembly(Assembly targetAssembly) {
             if (targetAssembly == null) throw new NullReferenceException("Can't register from a null assembly!");
 
             EntangleLogger.Log($"Populating MessageHandler list from {targetAssembly.GetName().Name}!");
 
-            // I am aware LINQ is kinda gross but this is works!
             targetAssembly.GetTypes()
                 .Where(type => typeof(NetworkMessageHandler).IsAssignableFrom(type) && !type.IsAbstract)
                 .Where(type => type.GetCustomAttribute<Net.NoAutoRegister>() == null)
@@ -79,7 +70,6 @@ namespace Entanglement.Network
 
                 EntangleLogger.Log($"Registered {type.Name}");
 
-                // We give the handler access to all known attributes so we can put them into effect
                 var attributes = type.GetCustomAttributes();
                 List<Type> types = new List<Type>();
                 foreach (Attribute attribute in attributes) {
@@ -104,7 +94,7 @@ namespace Entanglement.Network
             return null;
         }
 
-        public static void ReadMessage(NetworkMessage message, long sender) {
+        public static void ReadMessage(NetworkMessage message, ulong sender) {
             try {
                 handlers[message.messageType].ReadMessage(message, sender);
             }

@@ -9,8 +9,6 @@ using MelonLoader;
 
 namespace Entanglement.Network
 {
-    // Previously used by reflection to generate the handler table
-    // Instead we now use a virtual getter and register a different way!
     [Obsolete("Please use the new method of registering methods, without a decorator! Check the example message for the new method!", true)]
     [System.AttributeUsage(System.AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
     public class NetworkMessageHandlerIndex : Attribute
@@ -19,18 +17,15 @@ namespace Entanglement.Network
         public NetworkMessageHandlerIndex(byte messageType) => messageIndex = messageType;
     }
 
-    // Must be of the type a network message is expecting, otherwise we throw an error
     public abstract class NetworkMessageData { }
 
     public abstract class NetworkMessageHandler
     {
-        public virtual byte? MessageIndex { get; } = null; // Virtual getter hell yeah!
+        public virtual byte? MessageIndex { get; } = null; 
 
         public Type[] Attributes { get; set; }
 
-        // This is like super messy but i'll clean it up later
-        // I'm not good at modular stuff - Lakatrazz
-        public void ReadMessage(NetworkMessage message, long sender) {
+        public void ReadMessage(NetworkMessage message, ulong sender) {
             if (SceneLoader.loading) {
                 if (Attributes.Contains(typeof(Net.SkipHandleOnLoading)))
                     return;
@@ -41,14 +36,14 @@ namespace Entanglement.Network
                 HandleMessage(message, sender);
         }
 
-        public IEnumerator HandleOnLoaded(NetworkMessage message, long sender) {
+        public IEnumerator HandleOnLoaded(NetworkMessage message, ulong sender) {
             while (SceneLoader.loading)
                 yield return null;
 
             HandleMessage(message, sender);
         }
 
-        public abstract void HandleMessage(NetworkMessage message, long sender);
+        public abstract void HandleMessage(NetworkMessage message, ulong sender);
 
         public abstract NetworkMessage CreateMessage(NetworkMessageData data);
     }
@@ -68,5 +63,4 @@ namespace Entanglement.Network
 
         public abstract NetworkMessage CreateMessage(TData data);
     }
-
 }

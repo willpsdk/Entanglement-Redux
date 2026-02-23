@@ -89,7 +89,7 @@ namespace Entanglement.Objects
         }
 
         public bool IsOwner() {
-            return staleOwner == DiscordIntegration.currentUser.Id;
+            return staleOwner == SteamIntegration.currentUser.Id;
         }
     }
 }

@@ -39,7 +39,7 @@ namespace Entanglement.Network
             return message;
         }
 
-        public override void HandleMessage(NetworkMessage message, long sender)
+        public override void HandleMessage(NetworkMessage message, ulong sender)
         {
             if (message.messageData.Length <= 0)
                 throw new IndexOutOfRangeException();
@@ -57,7 +57,7 @@ namespace Entanglement.Network
                 SimplifiedTransform transform = SimplifiedTransform.FromBytes(transformBytes);
 
                 if (PooleeSyncable._PooleeLookup.TryGetValue(id, out PooleeSyncable pooleeSyncable))
-                    pooleeSyncable.OnSpawn(DiscordIntegration.lobby.OwnerId, transform);
+                    pooleeSyncable.OnSpawn(SteamIntegration.lobby.OwnerId, transform);
             }
             else
                 throw new ExpectedClientException();

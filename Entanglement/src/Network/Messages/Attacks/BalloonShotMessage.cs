@@ -28,7 +28,7 @@ namespace Entanglement.Network
 
             int index = 0;
             // User
-            message.messageData[index++] = DiscordIntegration.GetByteId(data.userId);
+            message.messageData[index++] = SteamIntegration.GetByteId(data.userId);
             // Color
             message.messageData[index++] = (byte)data.balloonColor;
             // Transform
@@ -39,14 +39,14 @@ namespace Entanglement.Network
             return message;
         }
 
-        public override void HandleMessage(NetworkMessage message, long sender)
+        public override void HandleMessage(NetworkMessage message, ulong sender)
         {
             if (message.messageData.Length <= 0)
                 throw new IndexOutOfRangeException();
 
             int index = 0;
             // User
-            long userId = DiscordIntegration.GetLongId(message.messageData[index++]);
+            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
             // Color
             BalloonColor balloonColor = (BalloonColor)message.messageData[index++];
             // Spawn Effects

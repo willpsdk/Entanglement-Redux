@@ -116,7 +116,7 @@ namespace Entanglement.Patching {
         }
 
         public static void OnSpawn(GameObject spawnedObject, Pool pool) {
-            if (!DiscordIntegration.hasLobby || SpawnManager.SpawnOverride)
+            if (!SteamIntegration.hasLobby || SpawnManager.SpawnOverride)
                 return;
 
             // We don't want to dupe items
@@ -125,7 +125,7 @@ namespace Entanglement.Patching {
                 // Now we transfer the spawn to the host
                 if (Node.isServer) {
                     // Set us as owner
-                    pooleeSyncable.SetOwner(DiscordIntegration.currentUser.Id);
+                    pooleeSyncable.SetOwner(SteamIntegration.currentUser.Id);
 
                     SpawnTransferMessageData data = new SpawnTransferMessageData()
                     {
@@ -191,10 +191,10 @@ namespace Entanglement.Patching {
                 if (existingSync) {
                     ObjectSync.MoveSyncable(existingSync, thisId);
                     existingSync.ClearOwner();
-                    existingSync.TrySetStale(DiscordIntegration.lobby.OwnerId);
+                    existingSync.TrySetStale(SteamIntegration.lobby.OwnerId);
                 }
                 else {
-                    TransformSyncable.CreateSync(DiscordIntegration.lobby.OwnerId, ComponentCacheExtensions.m_RigidbodyCache.GetOrAdd(go), thisId);
+                    TransformSyncable.CreateSync(SteamIntegration.lobby.OwnerId, ComponentCacheExtensions.m_RigidbodyCache.GetOrAdd(go), thisId);
                 }
 
                 ObjectSync.lastId = thisId;

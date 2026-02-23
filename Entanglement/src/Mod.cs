@@ -24,19 +24,12 @@ using ModThatIsNotMod;
 
 using UnityEngine;
 
-// This mod is not a rewrite of the multiplayer mod!
-// It is another MP mod made by an ex developer of the MP mod that was unsatisfied with the original mod's codebase
-// There is no shared code between the two projects and any similar code is accidental / coincidental
-
 namespace Entanglement {
-    // We can compare with peers to see if they are on a supported version
     public struct EntanglementVersion {
         public const byte versionMajor = 0;
         public const byte versionMinor = 3;
         public const short versionPatch = 0;
 
-        // Patches don't matter too much when supporting old versions
-        // Although we don't support anything newer than the current version, just in case
         public const byte minVersionMajorSupported = 0;
         public const byte minVersionMinorSupported = 3;
     }
@@ -59,7 +52,6 @@ namespace Entanglement {
             EntangleLogger.Log($"Current Entanglement version is {VersionString}");
             EntangleLogger.Log($"Minimum supported Entanglement version is {EntanglementVersion.minVersionMajorSupported}.{EntanglementVersion.minVersionMinorSupported}.*");
 
-            // ModThatIsNotMod version checking tools, so people know when to update!
             VersionChecking.CheckModVersion(this, "https://boneworks.thunderstore.io/package/Entanglement/Entanglement/");
 
             PersistentData.Initialize();
@@ -69,16 +61,14 @@ namespace Entanglement {
             EntangleLogger.Log("Entanglement Debug Build!", ConsoleColor.Blue);
 #endif
 
-            DiscordIntegration.Initialize();
+            SteamIntegration.Initialize();
 
-            // This checks if Discord has an invalid instance, so that the game can proceed without freezing
-            if (DiscordIntegration.isInvalid) {
-                EntangleNotif.InvalidDiscord();
+            if (SteamIntegration.isInvalid) {
+                EntangleNotif.InvalidDiscord(); // You might want to rename this log in EntangleNotif later
                 return; 
             }
 
             Patcher.Initialize();
-
             NetworkMessage.RegisterHandlersFromAssembly(entanglementAssembly);
 
             Client.StartClient();
@@ -87,17 +77,13 @@ namespace Entanglement {
             LoadingScreen.LoadBundle();
 
             EntanglementUI.CreateUI();
-
             BanList.PullFromFile();
 
-            // TODO: Remove this upon full release
             EntangleLogger.Log("Welcome to the Entanglement pre-release!", ConsoleColor.DarkYellow);
-
         }
 
-        // Unpatch methods if discord isn't found
         public override void OnApplicationLateStart() {
-            if (DiscordIntegration.isInvalid) {
+            if (SteamIntegration.isInvalid) {
                 HarmonyInstance.UnpatchSelf();
                 hasUnpatched = true;
             }
@@ -107,7 +93,7 @@ namespace Entanglement {
         }
 
         public override void OnUpdate() {
-            if (DiscordIntegration.isInvalid) {
+            if (SteamIntegration.isInvalid) {
                 if (!hasUnpatched) {
                     HarmonyInstance.UnpatchSelf();
                     hasUnpatched = true;
@@ -129,7 +115,6 @@ namespace Entanglement {
                     PlayerRepresentation.debugRepresentation = new PlayerRepresentation("Dummy", 0);
                 else
                     PlayerRepresentation.debugRepresentation.CreateRagdoll();
-
             }
 #endif
 
@@ -139,35 +124,30 @@ namespace Entanglement {
         }
 
         public override void OnFixedUpdate() {
-            if (DiscordIntegration.isInvalid) return;
+            if (SteamIntegration.isInvalid) return;
 
             ModuleHandler.FixedUpdate();
-
-            // Updates the VRIK of all the players
             PlayerRepresentation.UpdatePlayerReps();
         }
 
         public override void OnLateUpdate() {
-            if (DiscordIntegration.isInvalid) return;
+            if (SteamIntegration.isInvalid) return;
             
             ModuleHandler.LateUpdate();
 
             Client.instance?.Tick();
             Server.instance?.Tick();
 
-            // This will update and flush discords callbacks
-            DiscordIntegration.Tick();
+            SteamIntegration.Tick();
         }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName) {
-            if (DiscordIntegration.isInvalid) return;
+            if (SteamIntegration.isInvalid) return;
 
             ModuleHandler.OnSceneWasInitialized(buildIndex, sceneName);
 
             SpawnableData.GetData();
-
             PlayerScripts.GetPlayerScripts();
-
             PlayerRepresentation.GetPlayerTransforms();
 
             foreach (var rep in PlayerRepresentation.representations.Values)
@@ -176,16 +156,14 @@ namespace Entanglement {
             Client.instance.currentScene = (byte)buildIndex;
             sceneChange = (byte)buildIndex;
 
-            DiscordIntegration.targetScene = sceneName.ToLower();
-            DiscordIntegration.activity.Assets = DiscordIntegration.CreateAssets(DiscordIntegration.hasLobby);
-            DiscordIntegration.UpdateActivity();
+            SteamIntegration.targetScene = sceneName.ToLower();
+            SteamIntegration.UpdateActivity();
         }
 
         public override void BONEWORKS_OnLoadingScreen() {
-            if (DiscordIntegration.isInvalid) return;
+            if (SteamIntegration.isInvalid) return;
 
             ModuleHandler.OnLoadingScreen();
-
             LoadingScreen.OverrideScreen();
 
             ObjectSync.OnCleanup();
@@ -197,12 +175,12 @@ namespace Entanglement {
         }
 
         public override void OnApplicationQuit() {
-            if (DiscordIntegration.isInvalid) return;
+            if (SteamIntegration.isInvalid) return;
 
             ModuleHandler.OnApplicationQuit();
 
             Node.activeNode.Shutdown();
-            DiscordIntegration.Shutdown();
+            SteamIntegration.Shutdown();
         }
     }
 }

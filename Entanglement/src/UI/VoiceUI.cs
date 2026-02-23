@@ -21,11 +21,11 @@ namespace Entanglement.UI
         public static void CreateUI(MenuCategory category) {
             MenuCategory voiceCategory = category.CreateSubCategory("Voice Menu", Color.white);
 
-            voiceCategory.CreateEnumElement("Voice Activity", Color.yellow, DiscordIntegration.voiceStatus, (value) => { DiscordIntegration.UpdateVoice((VoiceStatus)value); });
+            voiceCategory.CreateEnumElement("Voice Activity", Color.yellow, SteamIntegration.voiceStatus, (value) => { SteamIntegration.UpdateVoice((VoiceStatus)value); });
 
-            voiceCategory.CreateBoolElement("Muted", Color.red, DiscordIntegration.voiceManager.IsSelfMute(), (value) => { DiscordIntegration.voiceManager.SetSelfMute(value); });
+            voiceCategory.CreateBoolElement("Muted", Color.red, SteamIntegration.voiceManager.IsSelfMute(), (value) => { SteamIntegration.voiceManager.SetSelfMute(value); });
 
-            voiceCategory.CreateBoolElement("Deafened", Color.red, DiscordIntegration.voiceManager.IsSelfDeaf(), (value) => { DiscordIntegration.voiceManager.SetSelfDeaf(value); });
+            voiceCategory.CreateBoolElement("Deafened", Color.red, SteamIntegration.voiceManager.IsSelfDeaf(), (value) => { SteamIntegration.voiceManager.SetSelfDeaf(value); });
         }
     }
 }

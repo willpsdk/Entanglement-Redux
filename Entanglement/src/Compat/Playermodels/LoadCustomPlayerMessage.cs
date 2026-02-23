@@ -35,7 +35,7 @@ namespace Entanglement.Compat.Playermodels
             return message;
         }
 
-        public override void HandleMessage(NetworkMessage message, long sender)
+        public override void HandleMessage(NetworkMessage message, ulong sender)
         {
             if (message.messageData.Length <= 0)
                 throw new IndexOutOfRangeException();
@@ -53,7 +53,7 @@ namespace Entanglement.Compat.Playermodels
                 {
                     string path = PlayermodelsPatch.lastLoadedPath;
                     LoadCustomPlayerMessageData msgData = new LoadCustomPlayerMessageData();
-                    msgData.userId = DiscordIntegration.currentUser.Id;
+                    msgData.userId = SteamIntegration.currentUser.Id;
                     msgData.modelPath = Path.GetFileName(path);
                     Node.activeNode.SendMessage(userId, NetworkChannel.Reliable, NetworkMessage.CreateMessage(CompatMessageType.PlayerModel, msgData).GetBytes());
                 }

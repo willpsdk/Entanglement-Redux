@@ -20,7 +20,7 @@ namespace Entanglement.Patching
     [HarmonyPatch(typeof(HandWeaponSlotReciever), "MakeStatic")]
     public static class WeaponInsertPatch {
         public static void Prefix(this HandWeaponSlotReciever __instance) {
-            if (!DiscordIntegration.hasLobby)
+            if (!SteamIntegration.hasLobby)
                 return;
 
             TransformSyncable tran;
@@ -36,7 +36,7 @@ namespace Entanglement.Patching
     [HarmonyPatch(typeof(HandWeaponSlotReciever), "MakeDynamic")]
     public static class WeaponExitPatch {
         public static void Prefix(this HandWeaponSlotReciever __instance) {
-            if (!DiscordIntegration.hasLobby)
+            if (!SteamIntegration.hasLobby)
                 return;
 
             TransformSyncable tran;
