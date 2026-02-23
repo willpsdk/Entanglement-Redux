@@ -23,13 +23,26 @@ namespace Entanglement.Network
     {
         public virtual byte? MessageIndex { get; } = null; 
 
-        public Type[] Attributes { get; set; }
+        // FIX: Cached properties for Attributes so they aren't parsed every frame
+        public bool SkipsOnLoading { get; private set; }
+        public bool HandlesOnLoaded { get; private set; }
+
+        private Type[] _attributes;
+        public Type[] Attributes { 
+            get => _attributes; 
+            set {
+                _attributes = value;
+                SkipsOnLoading = _attributes.Contains(typeof(Net.SkipHandleOnLoading));
+                HandlesOnLoaded = _attributes.Contains(typeof(Net.HandleOnLoaded));
+            }
+        }
 
         public void ReadMessage(NetworkMessage message, ulong sender) {
             if (SceneLoader.loading) {
-                if (Attributes.Contains(typeof(Net.SkipHandleOnLoading)))
+                // FIX: Used cached booleans instead of allocating LINQ .Contains over reflection types
+                if (SkipsOnLoading)
                     return;
-                else if (Attributes.Contains(typeof(Net.HandleOnLoaded)))
+                else if (HandlesOnLoaded)
                     MelonCoroutines.Start(HandleOnLoaded(message, sender));
             }
             else

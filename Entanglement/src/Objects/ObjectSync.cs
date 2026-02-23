@@ -27,7 +27,8 @@ namespace Entanglement.Objects
     public static class ObjectSync {
         public static Dictionary<Pool, List<Poolee>> poolPairs = new Dictionary<Pool, List<Poolee>>(new UnityComparer());
 
-        public static Dictionary<ushort, Syncable> syncedObjects = new Dictionary<ushort, Syncable>(new UnityComparer());
+        // FIX: Removed UnityComparer for ushort to prevent memory box allocations on every dictionary lookup
+        public static Dictionary<ushort, Syncable> syncedObjects = new Dictionary<ushort, Syncable>();
         public static List<Syncable> queuedSyncs = new List<Syncable>();
         public static ushort lastId = 0;
 
@@ -68,14 +69,14 @@ namespace Entanglement.Objects
         }
 
         public static ushort QueueSyncable(Syncable syncable) {
-            // IEqualityComparer doesnt work for lists or im dumb but whatever
-            if (queuedSyncs.Has(syncable)) {
-                int index = queuedSyncs.FindIndex(o => o == syncable);
+            // FIX: One-pass index lookup. Iterates the list only once instead of three times.
+            int index = queuedSyncs.IndexOf(syncable);
+            if (index >= 0) {
                 queuedSyncs.RemoveAt(index);
             }
 
             queuedSyncs.Add(syncable);
-            return (ushort)queuedSyncs.IndexOf(syncable);
+            return (ushort)(queuedSyncs.Count - 1);
         }
 
         public static bool TryGetSyncable(ushort id, out Syncable syncable) => syncedObjects.TryGetValue(id, out syncable);
@@ -121,17 +122,14 @@ namespace Entanglement.Objects
         }
 
         public static bool CheckForInstantiation(GameObject prefab, string poolName) {
-            switch (poolName.ToLower()) {
-                case "nimbus gun":
-                case "utility gun":
-                    return true;
+            // FIX: StringComparison.OrdinalIgnoreCase prevents GC string allocations from .ToLower()
+            if (string.Equals(poolName, "nimbus gun", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(poolName, "utility gun", StringComparison.OrdinalIgnoreCase)) {
+                return true;
             }
             
             Magazine magazineScript = prefab.GetComponent<Magazine>();
-            if (magazineScript)
-                return true;
-            else
-                return false;
+            return magazineScript != null;
         }
 
         public static void OnGripAttached(GameObject grip) {
@@ -141,7 +139,6 @@ namespace Entanglement.Objects
             MelonCoroutines.Start(OnGripValid(grip));
         }
 
-        // We wait two frames so custom gun magazines don't spawn regular ones at 0, 0, 0 too
         public static IEnumerator OnGripValid(GameObject grip) {
             yield return null;
             yield return null;
@@ -170,7 +167,6 @@ namespace Entanglement.Objects
 
             Rigidbody[] rigidbodies = currentObject.transform.GetJointedBodies();
 
-            // Two hand check
             Rigidbody otherRb = __instance.otherHand.GetHeldObject();
             if (otherRb && rigidbodies.Has(otherRb))
                 return;

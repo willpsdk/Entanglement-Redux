@@ -42,10 +42,13 @@ namespace Entanglement.Managers
             }
 
             float elapsed = 0f;
+            Vector3 startPos = transform.position;
+            
             while (elapsed < 1f) {
                 elapsed += Time.deltaTime;
 
-                transform.localScale = Vector3.Lerp(Vector3.one, Vector3.zero, elapsed);
+                // FIX: Sink into the ground instead of scaling to prevent physics rebuilding lag
+                transform.position = startPos + (Vector3.down * elapsed * 2f); 
 
                 yield return null;
             }

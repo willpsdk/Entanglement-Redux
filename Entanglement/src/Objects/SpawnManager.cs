@@ -13,7 +13,8 @@ namespace Entanglement.Objects {
     public static class SpawnManager {
         internal static bool SpawnOverride = false;
 
-        private static string[] BlacklistedPools = new string[3] {
+        // FIX: HashSet makes string lookups instantaneous (O(1)) instead of looping through an array
+        private static readonly HashSet<string> BlacklistedPools = new HashSet<string>() {
             "ProjectilePool",
             "AudioPlayer",
             "Utility Gun",
@@ -23,9 +24,10 @@ namespace Entanglement.Objects {
 
         public static bool IsBlacklisted(this Pool pool) {
             string title = GetPoolTitle(pool);
-            for (int i = 0; i < BlacklistedPools.Length; i++)
-                if (title == BlacklistedPools[i] || !(pool.Prefab && pool.Prefab.GetComponentInChildren<Rigidbody>() && !pool.Prefab.HasBlacklistedComponent())) return true;
-            return false;
+            
+            if (BlacklistedPools.Contains(title)) return true;
+            
+            return !(pool.Prefab && pool.Prefab.GetComponentInChildren<Rigidbody>() && !pool.Prefab.HasBlacklistedComponent());
         }
 
         public static bool HasBlacklistedComponent(this GameObject prefab) {

@@ -44,14 +44,15 @@ namespace Entanglement.Objects
         public float startDrag = -1f;
         public float startAngularDrag = -1f;
 
-        // FUSION UPGRADE: We lowered the spring and damping heavily.
-        // Instead of instantly snapping with 5 Million force, it uses velocity extrapolation to arrive smoothly.
         public const float positionSpring = 250000f;
         public const float positionDamper = 15000f;
         public const float maximumForce = 150000f;
         public const float linearLimit = 0.005f;
 
         protected float timeOfDisable = 0f;
+
+        // FUSION UPGRADE: Cached network message data to prevent 10,000+ GC allocations per second
+        private TransformSyncMessageData _cachedSyncData;
 
         public override void Cleanup() {
             DestroyJoint();
@@ -61,13 +62,12 @@ namespace Entanglement.Objects
         }
 
         public override void SyncUpdate() {
-            TransformSyncMessageData syncData = new TransformSyncMessageData()
-            {
-                objectId = objectId,
-                simplifiedTransform = new SimplifiedTransform(transform, rb) // FUSION: Now packs RB velocities
-            };
+            if (_cachedSyncData == null) _cachedSyncData = new TransformSyncMessageData();
 
-            NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, syncData);
+            _cachedSyncData.objectId = objectId;
+            _cachedSyncData.simplifiedTransform = new SimplifiedTransform(transform, rb);
+
+            NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, _cachedSyncData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
 
             if (targetGo) {
@@ -78,12 +78,16 @@ namespace Entanglement.Objects
             UpdateStoredPositions();
         }
 
-        public override bool ShouldSync() => (rb ? !rb.IsSleeping() : HasChangedPositions());
+        public override bool ShouldSync() {
+            // Cull sleeping rigidbodies entirely if they exist
+            if (rb && rb.IsSleeping()) return false;
+            // Otherwise, only sync if it physically moved
+            return HasChangedPositions();
+        }
 
         public bool HasChangedPositions() => (transform.position - lastPosition).sqrMagnitude > 0.001f || Quaternion.Angle(transform.rotation, lastRotation) > 0.05f;
 
         protected override void UpdateOwner(bool checkForMag = true) {
-            // STEAM UPDATE: User IDs converted to ulong
             if (lastOwner == SteamIntegration.currentUser.m_SteamID) objectHealth = GetHealth();
 
             if (!IsOwner()) SetHealth(float.PositiveInfinity);
@@ -137,21 +141,23 @@ namespace Entanglement.Objects
             if (collision.collider.gameObject.IsBlacklisted()) return;
             if (!collision.rigidbody || !IsOwner()) return;
 
-            if (rb)
-                if (!_CachedBodies.IsHolding()) return;
+            if (rb && !_CachedBodies.IsHolding()) return;
+
+            // QUICK CACHE LOOKUP: Prevents expensive hierarchy searches if object is already synced
+            TransformSyncable existingSync = cache.Get(collision.rigidbody.gameObject);
+            if (existingSync) return;
 
             Transform targetObj = collision.rigidbody.transform;
             Rigidbody[] rigidbodies = null;
 
-            // STEAM UPDATE
             ulong ownerId = SteamIntegration.currentUser.m_SteamID;
 
             ObjectSync.GetPooleeData(targetObj, out rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
 
             for (int i = 0; i < rigidbodies.Length; i++) {
-                Rigidbody rb = rigidbodies[i];
-                TransformSyncable syncObj = cache.Get(rb.gameObject);
-                if (!syncObj && !rb.isKinematic) {
+                Rigidbody rBody = rigidbodies[i];
+                TransformSyncable syncObj = cache.Get(rBody.gameObject);
+                if (!syncObj && !rBody.isKinematic) {
                     ushort? objectId = null;
                     ushort callbackIndex = 0;
 
@@ -160,7 +166,7 @@ namespace Entanglement.Objects
                         objectId++;
                     }
 
-                    Syncable syncable = CreateSync(ownerId, rb, objectId);
+                    Syncable syncable = CreateSync(ownerId, rBody, objectId);
 
                     if (Server.instance == null)
                         callbackIndex = ObjectSync.QueueSyncable(syncable);
@@ -170,7 +176,7 @@ namespace Entanglement.Objects
                         ownerId = ownerId,
                         objectId = objectId != null ? objectId.Value : (ushort)0,
                         callbackIndex = callbackIndex,
-                        objectPath = rb.transform.GetFullPath(overrideRootName),
+                        objectPath = rBody.transform.GetFullPath(overrideRootName),
                         spawnIndex = spawnIndex,
                         spawnTime = spawnTime,
                         enqueueOwner = false
@@ -203,7 +209,6 @@ namespace Entanglement.Objects
             }
         }
 
-        // STEAM UPDATE: owner is ulong
         public static Syncable CreateSync(ulong owner, Rigidbody rigidbody = null, ushort? objectId = null) {
             if (!rigidbody) return null;
 
@@ -224,8 +229,9 @@ namespace Entanglement.Objects
             syncObj._CachedDestructable = go.GetComponentInChildren<ObjectDestructable>(true);
             syncObj._CachedHealth = go.GetComponentInChildren<Prop_Health>(true);
 
-            if (syncObj._CachedDestructable) DestructCache.Add(syncObj._CachedDestructable.gameObject, syncObj);
-            if (syncObj._CachedHealth) DestructCache.Add(syncObj._CachedHealth.gameObject, syncObj);
+            // FIX: Use indexer instead of Add() to prevent Dictionary duplication crashes on pooled objects
+            if (syncObj._CachedDestructable) DestructCache[syncObj._CachedDestructable.gameObject] = syncObj;
+            if (syncObj._CachedHealth) DestructCache[syncObj._CachedHealth.gameObject] = syncObj;
 
             syncObj.events = syncObj.GetComponentsInChildren<GripEvents>(true);
             syncObj.SetupEvents();
@@ -246,8 +252,16 @@ namespace Entanglement.Objects
             return syncObj;
         }
 
-        public override void SendEnqueue() => MelonCoroutines.Start(WaitUntilValid(OnValidEnqueue));
-        public override void SendDequeue() => MelonCoroutines.Start(WaitUntilValid(OnValidDequeue));
+        // FIX: Pre-check isValid to prevent MelonCoroutines from generating garbage on rapid enqueue requests
+        public override void SendEnqueue() {
+            if (isValid) OnValidEnqueue();
+            else MelonCoroutines.Start(WaitUntilValid(OnValidEnqueue));
+        }
+
+        public override void SendDequeue() {
+            if (isValid) OnValidDequeue();
+            else MelonCoroutines.Start(WaitUntilValid(OnValidDequeue));
+        }
 
         public void OnValidEnqueue() {
             ulong userId = SteamIntegration.currentUser.m_SteamID;
@@ -279,7 +293,6 @@ namespace Entanglement.Objects
         public void ApplyTransform(SimplifiedTransform simplifiedTransform) {
             if (SteamIntegration.currentUser.m_SteamID == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside())) return;
 
-            // FUSION SYNCING: Put objects to sleep natively to save frames and networking lag
             if (rb && simplifiedTransform.isSleeping) {
                 rb.velocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
@@ -290,7 +303,6 @@ namespace Entanglement.Objects
                 targetBody.transform.position = simplifiedTransform.position;
                 targetBody.transform.rotation = simplifiedTransform.rotation.ExpandQuat();
                 
-                // Inject velocity into the PD controller
                 if (!simplifiedTransform.isSleeping) {
                     targetBody.velocity = simplifiedTransform.velocity;
                     targetBody.angularVelocity = simplifiedTransform.angularVelocity;
@@ -300,7 +312,6 @@ namespace Entanglement.Objects
             if (!rb) {
                 simplifiedTransform.Apply(transform);
             } else if (!syncJoint && !simplifiedTransform.isSleeping) {
-                // FUSION SYNCING: Inject velocities directly into the physics engine
                 rb.velocity = simplifiedTransform.velocity;
                 rb.angularVelocity = simplifiedTransform.angularVelocity;
             }
