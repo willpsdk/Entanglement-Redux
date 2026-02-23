@@ -11,7 +11,7 @@ This project is currently in **active development**. While the core Steamworks m
 
 ---
 
-## ✨ What's New in Redux?
+## ✨ What's New in Entanglement: Redux?
 
 ### 1. Steamworks Integration
 We have completely ripped out the dead Discord Game SDK and replaced it with native **Steam Matchmaking and P2P Networking**.
