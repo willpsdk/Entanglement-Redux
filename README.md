@@ -20,7 +20,7 @@ We have completely ripped out the dead Discord Game SDK and replaced it with nat
 * **Native Voice Chat:** Integrated Steam VoIP replaces the old Discord audio buffer system.
 
 ### 2. "Fusion-Style" Physics Syncing
-The original Entanglement suffered from jittery objects because it forced physical items to teleport to exact X/Y/Z coordinates. *Redux* completely changes how objects sync:
+The original Entanglement suffered from jittery objects because it forced physical items to teleport to exact X/Y/Z coordinates. Entanglement *Redux* completely changes how objects sync:
 * **Velocity Extrapolation:** Instead of just sending positions, objects now sync their `velocity` and `angularVelocity`. 
 * **PD Controllers:** Objects smoothly fly to their destinations using a tuned Proportional-Derivative joint controller, respecting Boneworks' physics engine instead of fighting it.
 * **Sleep States:** To save immense amounts of network bandwidth, the mod now tracks Rigidbody sleep states and stops sending packets when objects are resting.
@@ -39,6 +39,8 @@ Since this is a BONEWORKS mod, you will need the game files to successfully comp
 5. Build the solution. The compiled `.dll` will be output to the `bin/Release` folder.
 
 ---
+
+I will post a 0.1 build when I get a chance! Please be paitent, im the only person working on this project. Thank You :)
 
 ## 🤝 Contributing
 
