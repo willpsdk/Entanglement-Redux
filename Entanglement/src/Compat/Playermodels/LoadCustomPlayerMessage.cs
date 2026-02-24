@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
-
 using Entanglement.Representation;
 using Entanglement.Network;
 
@@ -18,11 +17,10 @@ namespace Entanglement.Compat.Playermodels
         public override NetworkMessage CreateMessage(LoadCustomPlayerMessageData data)
         {
             NetworkMessage message = new NetworkMessage();
-
             byte[] utf8 = Encoding.UTF8.GetBytes(data.modelPath);
             message.messageData = new byte[sizeof(byte) + sizeof(long) + utf8.Length];
-
             int index = 0;
+
             byte[] userId = BitConverter.GetBytes(data.userId);
             for (int i = 0; i < sizeof(long); i++)
                 message.messageData[index++] = userId[i];
@@ -43,33 +41,31 @@ namespace Entanglement.Compat.Playermodels
             int index = 0;
             long userId = BitConverter.ToInt64(message.messageData, index);
             index += sizeof(long);
-
             bool requestCallback = Convert.ToBoolean(message.messageData[index]);
             index += sizeof(byte);
 
-            if (requestCallback) {
+            if (requestCallback)
+            {
                 // Send PlayerModel
                 if (PlayermodelsPatch.lastLoadedPath != null)
                 {
                     string path = PlayermodelsPatch.lastLoadedPath;
                     LoadCustomPlayerMessageData msgData = new LoadCustomPlayerMessageData();
-                    msgData.userId = SteamIntegration.currentUser.Id;
+                    msgData.userId = (long)SteamIntegration.currentUser.m_SteamID; // Fix 1: cast ulong Steam ID to long
                     msgData.modelPath = Path.GetFileName(path);
-                    Node.activeNode.SendMessage(userId, NetworkChannel.Reliable, NetworkMessage.CreateMessage(CompatMessageType.PlayerModel, msgData).GetBytes());
+                    Node.activeNode.SendMessage((ulong)userId, NetworkChannel.Reliable, NetworkMessage.CreateMessage(CompatMessageType.PlayerModel, msgData).GetBytes()); // Fix 2: cast long userId to ulong for SendMessage
                 }
             }
 
             if (PlayerRepresentation.representations.ContainsKey(userId))
             {
                 PlayerRepresentation rep = PlayerRepresentation.representations[userId];
-
                 int remaining = message.messageData.Length - index;
                 byte[] stringBytes = new byte[remaining];
                 for (int i = 0; i < remaining; i++)
                     stringBytes[i] = message.messageData[index++];
 
                 string modelPath = Encoding.UTF8.GetString(stringBytes);
-
                 if (string.IsNullOrWhiteSpace(modelPath))
                     PlayerSkinLoader.ClearPlayermodel(rep);
                 else
@@ -79,7 +75,7 @@ namespace Entanglement.Compat.Playermodels
             if (Server.instance != null)
             {
                 byte[] msgBytes = message.GetBytes();
-                Server.instance.BroadcastMessageExcept(NetworkChannel.Reliable, msgBytes, userId);
+                Server.instance.BroadcastMessageExcept(NetworkChannel.Reliable, msgBytes, (ulong)userId); // Fix 3: cast long userId to ulong for BroadcastMessageExcept
             }
         }
     }

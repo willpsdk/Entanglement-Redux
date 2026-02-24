@@ -139,7 +139,7 @@ namespace Entanglement.Network
                     destroySync = destroySync,
                 };
 
-                NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.IDCallback, idCallback);
+                NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.m_SteamIDCallback, idCallback);
                 Server.instance.SendMessage(ownerId, NetworkChannel.Object, callbackMessage.GetBytes());
 
                 // Send sync create to clients

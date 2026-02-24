@@ -23,7 +23,7 @@ namespace Entanglement.Network
             } 
             else if (Node.activeNode is Client client) {
                 // A check incase for some reason another client is sending a heartbeat to us.
-                if (client.hostUser.Id == sender)
+                if (client.hostUser.m_SteamID == sender)
                     client.hostHeartbeat = 0f;
             }
         }

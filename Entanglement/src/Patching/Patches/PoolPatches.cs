@@ -125,11 +125,11 @@ namespace Entanglement.Patching {
                 // Now we transfer the spawn to the host
                 if (Node.isServer) {
                     // Set us as owner
-                    pooleeSyncable.SetOwner(SteamIntegration.currentUser.Id);
+                    pooleeSyncable.SetOwner(SteamIntegration.currentUser.m_SteamID);
 
                     SpawnTransferMessageData data = new SpawnTransferMessageData()
                     {
-                        spawnId = pooleeSyncable.id,
+                        spawnId = pooleeSyncable.m_SteamID,
                         transform = new SimplifiedTransform(spawnedObject.transform),
                     };
 
@@ -213,7 +213,7 @@ namespace Entanglement.Patching {
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, clientMessage.GetBytes());
 
             var pooleeSyncable = spawnedObject.AddComponent<PooleeSyncable>();
-            pooleeSyncable.id = id;
+            pooleeSyncable.m_SteamID = id;
             pooleeSyncable.transforms = spawnedObject.GetComponentsInChildren<TransformSyncable>(true);
         }
     }

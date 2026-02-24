@@ -13,7 +13,7 @@ namespace Entanglement.Network
     [Net.SkipHandleOnLoading]
     public class IDCallbackMessageHandler : NetworkMessageHandler<IDCallbackMessageData>
     {
-        public override byte? MessageIndex => BuiltInMessageType.IDCallback;
+        public override byte? MessageIndex => BuiltInMessageType.m_SteamIDCallback;
 
         public override NetworkMessage CreateMessage(IDCallbackMessageData data)
         {

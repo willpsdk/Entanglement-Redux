@@ -78,7 +78,7 @@ namespace Entanglement.Network
                     destroySync = false
                 };
 
-                NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.IDCallback, idCallback);
+                NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.m_SteamIDCallback, idCallback);
                 Server.instance.SendMessage(userId, NetworkChannel.Object, callbackMessage.GetBytes());
 
                 byte[] msgBytes = message.GetBytes();

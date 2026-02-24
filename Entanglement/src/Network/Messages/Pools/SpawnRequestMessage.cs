@@ -121,7 +121,7 @@ namespace Entanglement.Network
 
                 GameObject spawnedObject = poolee.gameObject;
                 var pooleeSyncable = spawnedObject.AddComponent<PooleeSyncable>();
-                pooleeSyncable.id = id;
+                pooleeSyncable.m_SteamID = id;
                 pooleeSyncable.transforms = spawnedObject.GetComponentsInChildren<TransformSyncable>(true);
             }
 

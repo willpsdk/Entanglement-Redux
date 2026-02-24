@@ -111,7 +111,7 @@ namespace Entanglement.Patching
 
             HandPoseChangeMessageData poseData = new HandPoseChangeMessageData();
 
-            poseData.userId = SteamIntegration.currentUser.Id;
+            poseData.userId = SteamIntegration.currentUser.m_SteamID;
             poseData.hand = hand;
             poseData.poseIndex = (ushort)poseIndex;
 
@@ -154,7 +154,7 @@ namespace Entanglement.Patching
 
             GripRadiusMessageData radiusData = new GripRadiusMessageData();
 
-            radiusData.userId = SteamIntegration.currentUser.Id;
+            radiusData.userId = SteamIntegration.currentUser.m_SteamID;
             radiusData.hand = hand;
             radiusData.radius = radius;
 

@@ -15,15 +15,17 @@ using StressLevelZero;
 namespace Entanglement.Network
 {
     [Net.SkipHandleOnLoading]
-    public class PlayerRepSyncHandler : NetworkMessageHandler<PlayerRepSyncData> {
+    public class PlayerRepSyncHandler : NetworkMessageHandler<PlayerRepSyncData>
+    {
         public override byte? MessageIndex => BuiltInMessageType.PlayerRepSync;
 
-        public override NetworkMessage CreateMessage(PlayerRepSyncData data) {
+        public override NetworkMessage CreateMessage(PlayerRepSyncData data)
+        {
             NetworkMessage message = new NetworkMessage();
 
             List<byte> rawBytes = new List<byte>();
 
-            rawBytes.Add(SteamIntegration.GetByteId(data.userId));
+            rawBytes.Add(SteamIntegration.GetByteId((ulong)data.userId)); // cast long -> ulong for GetByteId
             rawBytes.Add(Convert.ToByte(data.isGrounded));
 
             rawBytes.AddRange(data.rootPosition.GetBytes());
@@ -39,18 +41,20 @@ namespace Entanglement.Network
             return message;
         }
 
-        public override void HandleMessage(NetworkMessage message, ulong sender) {
+        public override void HandleMessage(NetworkMessage message, ulong sender)
+        {
             if (message.messageData.Length <= 0)
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
+            long userId = SteamIntegration.GetLongId(message.messageData[index++]); // long to match representations dictionary key type
 
-            if (PlayerRepresentation.representations.ContainsKey(userId)) {
+            if (PlayerRepresentation.representations.ContainsKey(userId))
+            {
                 PlayerRepresentation rep = PlayerRepresentation.representations[userId];
 
-                if (rep.repFord) {
-
+                if (rep.repFord)
+                {
                     bool isGrounded = Convert.ToBoolean(message.messageData[index]);
                     index += sizeof(byte);
                     rep.isGrounded = isGrounded;
@@ -84,7 +88,8 @@ namespace Entanglement.Network
                     rep.UpdateFingers(Handedness.LEFT, simplifiedLeftHand);
                     rep.UpdateFingers(Handedness.RIGHT, simplifiedRightHand);
 
-                    if (rep.repCanvasTransform) {
+                    if (rep.repCanvasTransform)
+                    {
                         rep.repCanvasTransform.position = rep.repTransforms[0].position + Vector3.up * 0.4f;
 
                         if (Camera.current)
@@ -93,14 +98,16 @@ namespace Entanglement.Network
                 }
             }
 
-            if (Server.instance != null) {
+            if (Server.instance != null)
+            {
                 byte[] msgBytes = message.GetBytes();
-                Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, userId);
+                Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, (ulong)userId); // cast long -> ulong for BroadcastMessageExcept
             }
         }
     }
 
-    public class PlayerRepSyncData : NetworkMessageData {
+    public class PlayerRepSyncData : NetworkMessageData
+    {
         public long userId;
         public bool isGrounded;
         public SimplifiedTransform[] simplifiedTransforms = new SimplifiedTransform[3];

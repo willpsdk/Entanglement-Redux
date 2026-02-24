@@ -94,7 +94,7 @@ namespace Entanglement.Objects
         }
 
         public bool IsOwner() {
-            // CHANGED: SteamIntegration.currentUser.Id -> SteamIntegration.currentUser.m_SteamID
+            // CHANGED: SteamIntegration.currentUser.m_SteamID -> SteamIntegration.currentUser.m_SteamID
             return staleOwner == SteamIntegration.currentUser.m_SteamID;
         }
     }

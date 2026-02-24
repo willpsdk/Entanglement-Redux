@@ -1,0 +1,2 @@
+C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\Entanglement\obj\Debug\Entanglement.csproj.AssemblyReference.cache
+C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\Entanglement\obj\Debug\Entanglement.csproj.CoreCompileInputs.cache

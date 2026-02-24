@@ -314,7 +314,7 @@ namespace Entanglement.Representation
 
             PlayerRepSyncData data = new PlayerRepSyncData();
 
-            data.userId = SteamIntegration.currentUser.Id;
+            data.userId = (long)SteamIntegration.currentUser.m_SteamID;
 
             for (int r = 0; r < data.simplifiedTransforms.Length; r++) {
                 data.simplifiedTransforms[r].position = syncedPoints[r].position;

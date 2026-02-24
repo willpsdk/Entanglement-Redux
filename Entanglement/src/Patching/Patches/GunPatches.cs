@@ -28,7 +28,7 @@ namespace Entanglement.Patching
 
             GunShotMessageData shotData = new GunShotMessageData()
             {
-                userId = SteamIntegration.currentUser.Id,
+                userId = SteamIntegration.currentUser.m_SteamID,
                 bulletObject = bulletObject,
                 bulletTransform = new SimplifiedTransform(firePoint)
             };
@@ -48,7 +48,7 @@ namespace Entanglement.Patching
 
             BalloonShotMessageData balloonData = new BalloonShotMessageData()
             {
-                userId = SteamIntegration.currentUser.Id,
+                userId = SteamIntegration.currentUser.m_SteamID,
                 balloonColor = __instance.currentColor,
                 balloonTransform = new SimplifiedTransform(firePoint),
             };
