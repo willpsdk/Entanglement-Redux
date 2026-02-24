@@ -20,7 +20,7 @@ namespace Entanglement.Network {
             if (instance != null)
                 throw new Exception("Can't create another client instance!");
 
-            EntangleLogger.Log($"Started client!");
+            EntangleLogger.Log($"Entanglement: Redux - Started client!");
             activeNode = instance = new Client();
         }
 
@@ -38,7 +38,7 @@ namespace Entanglement.Network {
 
         public void JoinLobby(CSteamID lobbyToJoin) {
             if (SteamIntegration.hasLobby) {
-                EntangleLogger.Error("You are already in a lobby!");
+                EntangleLogger.Error("Entanglement: Redux - You are already in a lobby!");
                 return;
             }
             SteamMatchmaking.JoinLobby(lobbyToJoin);
@@ -50,7 +50,7 @@ namespace Entanglement.Network {
 
         private void OnLobbyEntered(LobbyEnter_t result) {
             if (result.m_EChatRoomEnterResponse != (uint)EChatRoomEnterResponse.k_EChatRoomEnterResponseSuccess) {
-                EntangleLogger.Error("Failed to join Steam Lobby!");
+                EntangleLogger.Error("Entanglement: Redux - Failed to join Steam Lobby!");
                 return;
             }
 
@@ -58,7 +58,7 @@ namespace Entanglement.Network {
             SteamIntegration.hostUser = SteamMatchmaking.GetLobbyOwner(SteamIntegration.lobbyId);
             hostUser = SteamIntegration.hostUser;
 
-            EntangleLogger.Log($"Joined {SteamFriends.GetFriendPersonaName(hostUser)}'s server!");
+            EntangleLogger.Log($"Entanglement: Redux - Joined {SteamFriends.GetFriendPersonaName(hostUser)}'s server!");
             EntangleNotif.JoinServer(SteamFriends.GetFriendPersonaName(hostUser));
 
             ConnectToSteamServer();

@@ -77,7 +77,9 @@ namespace Entanglement.Network
                 currentUser = SteamUser.GetSteamID();
                 EntangleLogger.Log($"Current Steam User: {SteamFriends.GetPersonaName()}");
 
+                EntangleLogger.Log("Initializing Rich Presence...");
                 DefaultRichPresence();
+                EntangleLogger.Log("Rich Presence initialized!");
             }
             catch (Exception e) {
                 EntangleLogger.Error($"Failed to initialize the Steam Client! Continuing without Entanglement!\nDid you make sure to start the game with Steam open?\nFailed with reason: {e.Message}\nTrace: {e.StackTrace}");
@@ -89,11 +91,17 @@ namespace Entanglement.Network
         {
             if (isInvalid) return;
 
-            SteamFriends.SetRichPresence("status", "Playing solo");
-            SteamFriends.SetRichPresence("details", $"Using v{EntanglementMod.VersionString}");
-            SteamFriends.SetRichPresence("connect", "");
-
-            UpdateActivity();
+            try {
+                EntangleLogger.Log("Setting Rich Presence status...");
+                SteamFriends.SetRichPresence("status", "Playing solo");
+                EntangleLogger.Log("Setting Rich Presence details...");
+                SteamFriends.SetRichPresence("details", $"Using v{EntanglementMod.VersionString}");
+                EntangleLogger.Log("Setting Rich Presence connect...");
+                SteamFriends.SetRichPresence("connect", "");
+            }
+            catch (Exception e) {
+                EntangleLogger.Error($"Failed to set Rich Presence: {e.Message}\nTrace: {e.StackTrace}");
+            }
         }
 
         public static void UpdateActivity() {

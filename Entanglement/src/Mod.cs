@@ -49,32 +49,91 @@ namespace Entanglement {
 
             VersionString = $"{EntanglementVersion.versionMajor}.{EntanglementVersion.versionMinor}.{EntanglementVersion.versionPatch}";
 
-            EntangleLogger.Log($"Current Entanglement version is {VersionString}");
+            EntangleLogger.Log($"Current Entanglement: Redux version is {VersionString}");
             EntangleLogger.Log($"Minimum supported Entanglement: Redux version is {EntanglementVersion.minVersionMajorSupported}.{EntanglementVersion.minVersionMinorSupported}.*");
 
             VersionChecking.CheckModVersion(this, "https://boneworks.thunderstore.io/package/Entanglement/Entanglement/"); // update this! We don't want it to update back to the Discord Game SDK. Change to redux page when created
 
             PersistentData.Initialize();
-            GameSDK.LoadGameSDK();
+            // Discord Game SDK no longer needed - Steam-based only
+            // GameSDK.LoadGameSDK();
 
 #if DEBUG
-            EntangleLogger.Log("Entanglement Debug Build!", ConsoleColor.Blue);
+            EntangleLogger.Log("Entanglement: Redux Debug Build!", ConsoleColor.Blue);
 #endif
 
-            SteamIntegration.Initialize();
+            try {
+                EntangleLogger.Log("Entanglement: Redux - Initializing Steam...");
+                SteamIntegration.Initialize();
+                EntangleLogger.Log("Entanglement: Redux - SteamIntegration initialized!");
+            }
+            catch (Exception ex) {
+                EntangleLogger.Error($"Failed to initialize Steam: {ex.Message}\nTrace: {ex.StackTrace}");
+                return;
+            }
 
-            Patcher.Initialize();
-            NetworkMessage.RegisterHandlersFromAssembly(entanglementAssembly);
+            try {
+                EntangleLogger.Log("Entanglement: Redux - Starting Patcher...");
+                Patcher.Initialize();
+                EntangleLogger.Log("Entanglement: Redux - Patcher initialized!");
+            }
+            catch (Exception ex) {
+                EntangleLogger.Error($"Failed to initialize patchers: {ex.Message}\nTrace: {ex.StackTrace}");
+                return;
+            }
 
-            Client.StartClient();
+            try {
+                EntangleLogger.Log("Entanglement: Redux - Registering message handlers...");
+                NetworkMessage.RegisterHandlersFromAssembly(entanglementAssembly);
+                EntangleLogger.Log("Entanglement: Redux - Message handlers registered!");
+            }
+            catch (Exception ex) {
+                EntangleLogger.Error($"Failed to register message handlers: {ex.Message}\nTrace: {ex.StackTrace}");
+                return;
+            }
 
-            PlayerRepresentation.LoadBundle();
-            LoadingScreen.LoadBundle();
+            try {
+                EntangleLogger.Log("Entanglement: Redux - Starting client...");
+                Client.StartClient();
+                EntangleLogger.Log("Entanglement: Redux - Client started!");
+            }
+            catch (Exception ex) {
+                EntangleLogger.Error($"Failed to start client: {ex.Message}\nTrace: {ex.StackTrace}");
+                return;
+            }
 
-            EntanglementUI.CreateUI();
-            BanList.PullFromFile();
+            try {
+                EntangleLogger.Log("Entanglement: Redux - Loading bundles...");
+                PlayerRepresentation.LoadBundle();
+                LoadingScreen.LoadBundle();
+                EntangleLogger.Log("Entanglement: Redux - Bundles loaded!");
+            }
+            catch (Exception ex) {
+                EntangleLogger.Error($"Failed to load bundles: {ex.Message}\nTrace: {ex.StackTrace}");
+                return;
+            }
 
-            EntangleLogger.Log("Welcome to the Entanglement: Redux pre-release!", ConsoleColor.DarkYellow);
+            try {
+                EntangleLogger.Log("Entanglement: Redux - Creating UI...");
+                EntanglementUI.CreateUI();
+                EntangleLogger.Log("Entanglement: Redux - UI created!");
+            }
+            catch (Exception ex) {
+                EntangleLogger.Error($"Failed to create UI: {ex.Message}\nTrace: {ex.StackTrace}");
+                return;
+            }
+
+            try {
+                EntangleLogger.Log("Entanglement: Redux - Loading ban list...");
+                BanList.PullFromFile();
+                EntangleLogger.Log("Entanglement: Redux - Ban list loaded!");
+            }
+            catch (Exception ex) {
+                EntangleLogger.Error($"Failed to load ban list: {ex.Message}\nTrace: {ex.StackTrace}");
+                return;
+            }
+
+            EntangleLogger.Log("Welcome to Entanglement: Redux!", ConsoleColor.DarkYellow);
         }
 
         public override void OnApplicationLateStart() {

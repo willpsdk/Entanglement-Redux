@@ -77,7 +77,7 @@ namespace Entanglement.UI
         public static void CreateLobbyItem(string name, CSteamID lobbyId) {
             lobbiesCategory.CreateFunctionElement(name, Color.white, () => {
                 if (SteamIntegration.hasLobby) {
-                    EntangleLogger.Error("Already in a server!");
+                    EntangleLogger.Error("Entanglement: Redux - Already in a server!");
                     return;
                 }
 
