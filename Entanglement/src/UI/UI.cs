@@ -8,7 +8,7 @@ using Entanglement.Representation;
 namespace Entanglement.UI {
     public static class EntanglementUI {
         public static void CreateUI() {
-            MenuCategory category = MenuManager.CreateCategory("Entanglement", Color.white);
+            MenuCategory category = MenuManager.CreateCategory("Entanglemen: Redux", Color.white);
 
             ServerUI.CreateUI(category);
             ClientUI.CreateUI(category);

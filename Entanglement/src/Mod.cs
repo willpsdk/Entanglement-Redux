@@ -52,7 +52,7 @@ namespace Entanglement {
             EntangleLogger.Log($"Current Entanglement version is {VersionString}");
             EntangleLogger.Log($"Minimum supported Entanglement version is {EntanglementVersion.minVersionMajorSupported}.{EntanglementVersion.minVersionMinorSupported}.*");
 
-            VersionChecking.CheckModVersion(this, "https://boneworks.thunderstore.io/package/Entanglement/Entanglement/");
+            VersionChecking.CheckModVersion(this, "https://boneworks.thunderstore.io/package/Entanglement/Entanglement/"); // update this! We don't want it to update back to the Discord Game SDK. Change to redux page when created
 
             PersistentData.Initialize();
             GameSDK.LoadGameSDK();
@@ -79,7 +79,7 @@ namespace Entanglement {
             EntanglementUI.CreateUI();
             BanList.PullFromFile();
 
-            EntangleLogger.Log("Welcome to the Entanglement pre-release!", ConsoleColor.DarkYellow);
+            EntangleLogger.Log("Welcome to the Entanglement: Redux pre-release!", ConsoleColor.DarkYellow);
         }
 
         public override void OnApplicationLateStart() {
