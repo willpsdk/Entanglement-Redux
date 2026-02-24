@@ -50,7 +50,7 @@ namespace Entanglement {
             VersionString = $"{EntanglementVersion.versionMajor}.{EntanglementVersion.versionMinor}.{EntanglementVersion.versionPatch}";
 
             EntangleLogger.Log($"Current Entanglement version is {VersionString}");
-            EntangleLogger.Log($"Minimum supported Entanglement version is {EntanglementVersion.minVersionMajorSupported}.{EntanglementVersion.minVersionMinorSupported}.*");
+            EntangleLogger.Log($"Minimum supported Entanglement: Redux version is {EntanglementVersion.minVersionMajorSupported}.{EntanglementVersion.minVersionMinorSupported}.*");
 
             VersionChecking.CheckModVersion(this, "https://boneworks.thunderstore.io/package/Entanglement/Entanglement/"); // update this! We don't want it to update back to the Discord Game SDK. Change to redux page when created
 
@@ -62,11 +62,6 @@ namespace Entanglement {
 #endif
 
             SteamIntegration.Initialize();
-
-            if (SteamIntegration.isInvalid) {
-                EntangleNotif.InvalidDiscord(); // You might want to rename this log in EntangleNotif later
-                return; 
-            }
 
             Patcher.Initialize();
             NetworkMessage.RegisterHandlersFromAssembly(entanglementAssembly);

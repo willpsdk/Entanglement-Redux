@@ -26,9 +26,5 @@ namespace Entanglement
         public static void LeftServer() {
             Notifications.SendNotification("You left the server.", 4f);
         }
-
-        public static void InvalidDiscord() {
-            Notifications.SendNotification("Failed to initialize the Discord Client! Continuing without Entanglement!\nDid you make sure to start the game with Discord open and have Discord installed?\nIf both are true, try to reinstall or sign out of Discord.", 4f);
-        }
     }
 }
