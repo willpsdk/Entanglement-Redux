@@ -29,8 +29,8 @@ The original Entanglement suffered from jittery objects because it forced physic
 
 ## 🛠️ Dependencies
 
-Melon Loader 5.4
-BONEWORKS (duh)
+Melon Loader 5.4,
+BONEWORKS (duh),
 ModThatIsntAMod
 
 I will post a 0.1 build when I get a chance! Please be paitent, im the only person working on this project. Thank You :)
