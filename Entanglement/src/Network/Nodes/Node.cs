@@ -12,12 +12,13 @@ using Entanglement.Objects;
 using Entanglement.Compat;
 using Entanglement.Data;
 
-namespace Entanglement.Network {
-    public abstract class Node {
+namespace Entanglement.Network
+{
+    public abstract class Node
+    {
         public List<ulong> connectedUsers = new List<ulong>();
         public Dictionary<ulong, CSteamID> userDatas = new Dictionary<ulong, CSteamID>();
 
-        // Reset per frame, but used in Entanglement -> Stats to see the network load
         public uint sentByteCount, recievedByteCount;
 
         public static Node activeNode;
@@ -26,23 +27,31 @@ namespace Entanglement.Network {
 
         protected Callback<P2PSessionRequest_t> sessionRequestCallback;
 
-        public Node() {
+        public Node()
+        {
             sessionRequestCallback = Callback<P2PSessionRequest_t>.Create(OnP2PSessionRequest);
         }
 
-        private void OnP2PSessionRequest(P2PSessionRequest_t request) {
+        private void OnP2PSessionRequest(P2PSessionRequest_t request)
+        {
             CSteamID remoteId = request.m_steamIDRemote;
             SteamNetworking.AcceptP2PSessionWithUser(remoteId);
         }
 
-        public void ConnectToSteamServer() {
+        public void ConnectToSteamServer()
+        {
             SteamIntegration.UpdateVoice(SteamIntegration.voiceStatus);
         }
 
-        public void OnSteamUserJoined(ulong lobbyId, ulong userId) {
+        public void OnSteamUserJoined(ulong lobbyId, ulong userId)
+        {
+            // FIX: Don't process join events for ourselves
+            if (userId == SteamIntegration.currentUser.m_SteamID) return;
+
             CreatePlayerRep(userId);
 
-            if (PlayermodelsPatch.lastLoadedPath != null) {
+            if (PlayermodelsPatch.lastLoadedPath != null)
+            {
                 string path = PlayermodelsPatch.lastLoadedPath;
                 LoadCustomPlayerMessageData msgData = new LoadCustomPlayerMessageData();
                 msgData.userId = SteamIntegration.currentUser.m_SteamID;
@@ -54,8 +63,10 @@ namespace Entanglement.Network {
             UserConnectedEvent(lobbyId, userId);
         }
 
-        public void OnSteamUserLeft(ulong lobbyId, ulong userId) {
-            if (PlayerRepresentation.representations.ContainsKey(userId)) {
+        public void OnSteamUserLeft(ulong lobbyId, ulong userId)
+        {
+            if (PlayerRepresentation.representations.ContainsKey(userId))
+            {
                 EntangleNotif.PlayerLeave($"{PlayerRepresentation.representations[userId].playerName}");
                 PlayerRepresentation.representations[userId].DeleteRepresentations();
                 PlayerRepresentation.representations.Remove(userId);
@@ -72,21 +83,26 @@ namespace Entanglement.Network {
 
         public void CreatePlayerRep(ulong userId)
         {
+            // FIX: Safety check to ensure we never create a representation for ourselves
+            if (userId == SteamIntegration.currentUser.m_SteamID)
+                return;
+
             if (connectedUsers.Contains(userId))
                 return;
 
             connectedUsers.Add(userId);
-            
+
             CSteamID steamId = new CSteamID(userId);
             string username = SteamFriends.GetFriendPersonaName(steamId);
-            
+
             PlayerRepresentation.representations.Add(userId, new PlayerRepresentation(username, userId));
             userDatas.Add(userId, steamId);
 
             EntangleNotif.PlayerJoin($"{username}");
         }
 
-        public void CleanData() {
+        public void CleanData()
+        {
             connectedUsers.Clear();
             userDatas.Clear();
             ObjectSync.OnCleanup();
@@ -107,7 +123,7 @@ namespace Entanglement.Network {
 
         public void OnSteamMessageRecieved(ulong userId, byte channelId, byte[] data)
         {
-            if (data.Length <= 0) 
+            if (data.Length <= 0)
                 return;
 
             NetworkMessage message = new NetworkMessage();
@@ -122,8 +138,10 @@ namespace Entanglement.Network {
             NetworkMessage.ReadMessage(message, userId);
         }
 
-        public void SendMessage(ulong userId, NetworkChannel channel, byte[] data) {
-            if (SteamIntegration.hasLobby) {
+        public void SendMessage(ulong userId, NetworkChannel channel, byte[] data)
+        {
+            if (SteamIntegration.hasLobby)
+            {
                 EP2PSend sendType = channel == NetworkChannel.Unreliable ? EP2PSend.k_EP2PSendUnreliable : EP2PSend.k_EP2PSendReliable;
                 SteamNetworking.SendP2PPacket(new CSteamID(userId), data, (uint)data.Length, sendType, (int)channel);
                 sentByteCount += (uint)data.Length;
@@ -132,22 +150,27 @@ namespace Entanglement.Network {
 
         public virtual void BroadcastMessage(NetworkChannel channel, byte[] data) { }
 
-        public void BroadcastMessageP2P(NetworkChannel channel, byte[] data) { 
+        public void BroadcastMessageP2P(NetworkChannel channel, byte[] data)
+        {
             connectedUsers.ForEach((user) => { SendMessage(user, channel, data); });
 
             if (!isServer)
                 SendMessage(SteamIntegration.hostUser.m_SteamID, channel, data);
         }
 
-        public virtual void Tick() {
-            for (int channel = 0; channel <= 4; channel++) {
+        public virtual void Tick()
+        {
+            for (int channel = 0; channel <= 4; channel++)
+            {
                 uint msgSize;
-                while (SteamNetworking.IsP2PPacketAvailable(out msgSize, channel)) {
+                while (SteamNetworking.IsP2PPacketAvailable(out msgSize, channel))
+                {
                     byte[] data = new byte[msgSize];
                     uint bytesRead;
                     CSteamID remoteId;
 
-                    if (SteamNetworking.ReadP2PPacket(data, msgSize, out bytesRead, out remoteId, channel)) {
+                    if (SteamNetworking.ReadP2PPacket(data, msgSize, out bytesRead, out remoteId, channel))
+                    {
                         OnSteamMessageRecieved(remoteId.m_SteamID, (byte)channel, data);
                     }
                 }
