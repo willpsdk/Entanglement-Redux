@@ -17,7 +17,8 @@ using MelonLoader;
 namespace Entanglement.Objects
 {
     [RegisterTypeInIl2Cpp]
-    public class PooleeSyncable : MonoBehaviour {
+    public class PooleeSyncable : MonoBehaviour
+    {
         public static CustomComponentCache<PooleeSyncable> _Cache = new CustomComponentCache<PooleeSyncable>();
 
         public static Dictionary<ushort, PooleeSyncable> _PooleeLookup = new Dictionary<ushort, PooleeSyncable>(new UnityComparer());
@@ -31,30 +32,37 @@ namespace Entanglement.Objects
 
         public TransformSyncable[] transforms;
 
-        public void Awake() {
+        public void Awake()
+        {
             Poolee = GetComponent<Poolee>();
             _Cache.Add(gameObject, this);
         }
 
-        public void Start() {
-            _PooleeLookup.Add(id, this);
+        public void Start()
+        {
+            // Overwrite the entry if it already exists to prevent ArgumentException
+            _PooleeLookup[id] = this;
         }
 
-        public void OnDestroy() {
+        public void OnDestroy()
+        {
             _Cache.Remove(gameObject);
             _PooleeLookup.Remove(id);
         }
 
-        public void OnSpawn(ulong ownerId, SimplifiedTransform simplifiedTransform) {
+        public void OnSpawn(ulong ownerId, SimplifiedTransform simplifiedTransform)
+        {
             MelonCoroutines.Start(CoOnSpawn(ownerId, simplifiedTransform));
         }
 
-        public void SetOwner(ulong ownerId) {
+        public void SetOwner(ulong ownerId)
+        {
             foreach (TransformSyncable sync in transforms)
                 sync.ForceOwner(ownerId, false);
         }
 
-        public IEnumerator CoOnSpawn(ulong ownerId, SimplifiedTransform simplifiedTransform) {
+        public IEnumerator CoOnSpawn(ulong ownerId, SimplifiedTransform simplifiedTransform)
+        {
             gameObject.SetActive(false);
             yield return null;
             simplifiedTransform.Apply(transform);
