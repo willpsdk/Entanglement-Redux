@@ -27,17 +27,11 @@ The original Entanglement suffered from jittery objects because it forced physic
 
 ---
 
-## 🛠️ How to Build from Source
+## 🛠️ Dependencies
 
-Since this is a BONEWORKS mod, you will need the game files to successfully compile the code.
-
-1. Clone this repository to your machine.
-2. Open `Entanglement.sln` or `Entanglement.csproj` in your IDE (Visual Studio, VS Code, Rider, etc.).
-3. Navigate to your BONEWORKS installation folder:
-   * `C:\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS_Data\Managed\`
-4. Copy `Steamworks.NET.dll` (and any other missing Assembly/MelonLoader references) into the mod's `managed\` folder.
-5. Build the solution. The compiled `.dll` will be output to the `bin/Release` folder.
-
+** Melon Loader 5.4
+** BONEWORKS (duh)
+** ModThatIsntAMod
 ---
 
 I will post a 0.1 build when I get a chance! Please be paitent, im the only person working on this project. Thank You :)
@@ -47,7 +41,7 @@ I will post a 0.1 build when I get a chance! Please be paitent, im the only pers
 **We want your help!** Entanglement: Redux is a massive undertaking, and we are looking for developers, modders, and VR enthusiasts to help us get this to a polished 1.0 release state.
 
 How you can contribute:
-* **Bug Squashing:** Check the issues tab, find a bug, and submit a Pull Request!
+* **Bug Squashing:** Have fun with friends and then report any issues in the Issues tab!
 * **Physics Tuning:** Help us refine the `ConfigurableJoint` and PD controller math in `TransformSyncable.cs` to make throwing and catching items even smoother.
 * **Compatibility:** Help us patch standard Boneworks items (guns, magazines, custom maps) to work flawlessly over Steam P2P.
 
