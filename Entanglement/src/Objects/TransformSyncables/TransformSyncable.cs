@@ -229,9 +229,9 @@ namespace Entanglement.Objects
             syncObj._CachedDestructable = go.GetComponentInChildren<ObjectDestructable>(true);
             syncObj._CachedHealth = go.GetComponentInChildren<Prop_Health>(true);
 
-            // FIX: Use indexer instead of Add() to prevent Dictionary duplication crashes on pooled objects
-            if (syncObj._CachedDestructable) DestructCache[syncObj._CachedDestructable.gameObject] = syncObj;
-            if (syncObj._CachedHealth) DestructCache[syncObj._CachedHealth.gameObject] = syncObj;
+            // FIX: Use Add() to set the cache entry for destructable and health components
+            if (syncObj._CachedDestructable) DestructCache.Add(syncObj._CachedDestructable.gameObject, syncObj);
+            if (syncObj._CachedHealth) DestructCache.Add(syncObj._CachedHealth.gameObject, syncObj);
 
             syncObj.events = syncObj.GetComponentsInChildren<GripEvents>(true);
             syncObj.SetupEvents();

@@ -39,7 +39,7 @@ namespace Entanglement.Network
 
             int index = 0;
             // User
-            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
+            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
 
 
             if (PlayerRepresentation.representations.ContainsKey(userId))
@@ -67,7 +67,7 @@ namespace Entanglement.Network
 
     public class GripRadiusMessageData : NetworkMessageData
     {
-        public long userId;
+        public ulong userId;
         public Handedness hand;
         public float radius;
     }

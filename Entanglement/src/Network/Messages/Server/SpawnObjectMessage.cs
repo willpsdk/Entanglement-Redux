@@ -54,7 +54,7 @@ namespace Entanglement.Network
             byte[] transformBytes = new byte[SimplifiedTransform.size];
 
             int index = 0;
-            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
+            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
 
             ushort objectId = 0;
 
@@ -78,7 +78,7 @@ namespace Entanglement.Network
                     destroySync = false
                 };
 
-                NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.m_SteamIDCallback, idCallback);
+                NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.IDCallback, idCallback);
                 Server.instance.SendMessage(userId, NetworkChannel.Object, callbackMessage.GetBytes());
 
                 byte[] msgBytes = message.GetBytes();
@@ -110,7 +110,7 @@ namespace Entanglement.Network
             MelonCoroutines.Start(RegisterAndSpawn(title, transform.position, transform.rotation.ExpandQuat(), objectId, userId));
         }
 
-        public static IEnumerator RegisterAndSpawn(string title, Vector3 position, Quaternion rotation, ushort objectId, long userId) {
+        public static IEnumerator RegisterAndSpawn(string title, Vector3 position, Quaternion rotation, ushort objectId, ulong userId) {
             SpawnableObject spawnable = SpawnableData.TryGetSpawnable(title);
 
             yield return null;
@@ -144,7 +144,7 @@ namespace Entanglement.Network
 
     public class SpawnMessageData : NetworkMessageData
     {
-        public long userId;
+        public ulong userId;
         public ushort objectId;
         public ushort callbackIndex;
         public string spawnableTitle;

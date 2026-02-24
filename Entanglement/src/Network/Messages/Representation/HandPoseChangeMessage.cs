@@ -40,7 +40,7 @@ namespace Entanglement.Network
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
+            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
 
             if (PlayerRepresentation.representations.ContainsKey(userId))
             {
@@ -67,7 +67,7 @@ namespace Entanglement.Network
 
     public class HandPoseChangeMessageData : NetworkMessageData
     {
-        public long userId;
+        public ulong userId;
         public Handedness hand;
         public ushort poseIndex;
     }

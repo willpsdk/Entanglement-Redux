@@ -37,7 +37,7 @@ namespace Entanglement.Network
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
+            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
 
             ushort objectId = BitConverter.ToUInt16(message.messageData, index);
             index += sizeof(ushort);
@@ -65,7 +65,7 @@ namespace Entanglement.Network
 
     public class TransformQueueMessageData : NetworkMessageData
     {
-        public long userId;
+        public ulong userId;
         public ushort objectId;
         public bool isAdd;
     }

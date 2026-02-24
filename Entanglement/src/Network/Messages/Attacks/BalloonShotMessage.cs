@@ -46,7 +46,7 @@ namespace Entanglement.Network
 
             int index = 0;
             // User
-            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
+            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
             // Color
             BalloonColor balloonColor = (BalloonColor)message.messageData[index++];
             // Spawn Effects
@@ -81,7 +81,7 @@ namespace Entanglement.Network
 
     public class BalloonShotMessageData : NetworkMessageData
     {
-        public long userId;
+        public ulong userId;
         public BalloonColor balloonColor;
         public SimplifiedTransform balloonTransform;
     }

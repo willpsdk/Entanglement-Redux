@@ -65,7 +65,7 @@ namespace Entanglement.Data {
                     TransactionBeginMessageData data = new TransactionBeginMessageData() { transaction = outgoing };
 
                     NetworkMessage msg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.TransactionBegin, data);
-                    Node.activeNode.SendMessage(outgoing.target, NetworkChannel.Transaction, msg.GetBytes());
+                    Node.activeNode.SendMessage((ulong)outgoing.target, NetworkChannel.Transaction, msg.GetBytes());
 
                     outgoing.state = TransactionState.Waiting; // We wait for a confirm message to start sending data
 
@@ -80,7 +80,7 @@ namespace Entanglement.Data {
                     data.name = outgoing.filePath;
 
                     NetworkMessage msg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.TransactionWork, data);
-                    Node.activeNode.SendMessage(outgoing.target, NetworkChannel.Transaction, msg.GetBytes());
+                    Node.activeNode.SendMessage((ulong)outgoing.target, NetworkChannel.Transaction, msg.GetBytes());
                 }
 
                 if (outgoing.state == TransactionState.Done) {

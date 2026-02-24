@@ -110,10 +110,10 @@ namespace Entanglement.Network
                     {
                         ObjectSync.MoveSyncable(existingSync, thisId);
                         existingSync.ClearOwner();
-                        existingSync.TrySetStale(SteamIntegration.lobby.OwnerId);
+                        existingSync.TrySetStale(SteamIntegration.hostUser.m_SteamID);
                     }
                     else {
-                        TransformSyncable.CreateSync(SteamIntegration.lobby.OwnerId, ComponentCacheExtensions.m_RigidbodyCache.GetOrAdd(go), thisId);
+                        TransformSyncable.CreateSync(SteamIntegration.hostUser.m_SteamID, ComponentCacheExtensions.m_RigidbodyCache.GetOrAdd(go), thisId);
                     }
 
                     ObjectSync.lastId = thisId;
@@ -121,7 +121,7 @@ namespace Entanglement.Network
 
                 GameObject spawnedObject = poolee.gameObject;
                 var pooleeSyncable = spawnedObject.AddComponent<PooleeSyncable>();
-                pooleeSyncable.m_SteamID = id;
+                pooleeSyncable.id = id;
                 pooleeSyncable.transforms = spawnedObject.GetComponentsInChildren<TransformSyncable>(true);
             }
 

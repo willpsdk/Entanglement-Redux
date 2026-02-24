@@ -55,7 +55,7 @@ namespace Entanglement.Network
 
             int index = 0;
             // User
-            long userId = SteamIntegration.GetLongId(message.messageData[index++]);
+            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
             //Cartridge
             Cart cartridgeType = (Cart)message.messageData[index++];
             // Type
@@ -107,7 +107,7 @@ namespace Entanglement.Network
     }
 
     public class GunShotMessageData : NetworkMessageData {
-        public long userId;
+        public ulong userId;
         public BulletObject bulletObject;
         public SimplifiedTransform bulletTransform;
     }

@@ -26,7 +26,7 @@ namespace Entanglement.Patching
             string[] playerName = objName.Split('.');
             if (playerName.Length < 2)
                 throw new IndexOutOfRangeException();
-            long id = long.Parse(playerName[1]);
+            ulong id = ulong.Parse(playerName[1]);
 
             ContactPoint contact = collision.GetContact(0);
             // TODO: Remove this hardcode, just tired of trying to make this goddamn thing work

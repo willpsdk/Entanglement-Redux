@@ -53,7 +53,7 @@ namespace Entanglement.Network
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            long ownerId = SteamIntegration.GetLongId(message.messageData[index++]);
+            ulong ownerId = SteamIntegration.GetLongId(message.messageData[index++]);
 
             ushort objectId = 0;
             ushort callbackIndex = 0;
@@ -139,7 +139,7 @@ namespace Entanglement.Network
                     destroySync = destroySync,
                 };
 
-                NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.m_SteamIDCallback, idCallback);
+                NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.IDCallback, idCallback);
                 Server.instance.SendMessage(ownerId, NetworkChannel.Object, callbackMessage.GetBytes());
 
                 // Send sync create to clients
@@ -151,7 +151,7 @@ namespace Entanglement.Network
 
     public class TransformCreateMessageData : NetworkMessageData
     {
-        public long ownerId;
+        public ulong ownerId;
         public ushort objectId;
         public ushort callbackIndex;
         public short spawnIndex = -1; // Used as an identifier to work-around different uuids

@@ -36,7 +36,7 @@ namespace Entanglement.Extensions
 
                 TransformCreateMessageData createSync = new TransformCreateMessageData()
                 {
-                    ownerId = (long)ownerId, // Fix: cast to long for the message data field
+                    ownerId = ownerId,
                     objectId = objectId != null ? objectId.Value : (ushort)0,
                     callbackIndex = callbackIndex,
                     objectPath = rb.transform.GetFullPath(rootName),

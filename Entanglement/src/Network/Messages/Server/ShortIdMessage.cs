@@ -19,7 +19,7 @@ namespace Entanglement.Network
         {
             NetworkMessage message = new NetworkMessage();
 
-            message.messageData = new byte[sizeof(long) + sizeof(byte)];
+            message.messageData = new byte[sizeof(ulong) + sizeof(byte)];
 
             int index = 0;
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.userId), ref index);
@@ -35,8 +35,8 @@ namespace Entanglement.Network
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            long userId = BitConverter.ToInt64(message.messageData, index);
-            index += sizeof(long);
+            ulong userId = BitConverter.ToUInt64(message.messageData, index);
+            index += sizeof(ulong);
 
             byte byteId = message.messageData[index++];
 
@@ -48,7 +48,7 @@ namespace Entanglement.Network
 
     public class ShortIdMessageData : NetworkMessageData
     {
-        public long userId;
+        public ulong userId;
         public byte byteId;
     }
 }

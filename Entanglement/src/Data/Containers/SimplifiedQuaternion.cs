@@ -84,7 +84,7 @@ namespace Entanglement.Data {
                     return new Quaternion(f1, f2, f3, f4);
             }
 
-            return Quaternion.m_SteamIDentity;
+            return Quaternion.identity;
         }
     }
 }

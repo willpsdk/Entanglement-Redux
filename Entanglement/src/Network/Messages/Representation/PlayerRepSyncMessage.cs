@@ -25,7 +25,7 @@ namespace Entanglement.Network
 
             List<byte> rawBytes = new List<byte>();
 
-            rawBytes.Add(SteamIntegration.GetByteId((ulong)data.userId)); // cast long -> ulong for GetByteId
+            rawBytes.Add(SteamIntegration.GetByteId(data.userId));
             rawBytes.Add(Convert.ToByte(data.isGrounded));
 
             rawBytes.AddRange(data.rootPosition.GetBytes());
@@ -47,7 +47,7 @@ namespace Entanglement.Network
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            long userId = SteamIntegration.GetLongId(message.messageData[index++]); // long to match representations dictionary key type
+            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
 
             if (PlayerRepresentation.representations.ContainsKey(userId))
             {
@@ -101,14 +101,14 @@ namespace Entanglement.Network
             if (Server.instance != null)
             {
                 byte[] msgBytes = message.GetBytes();
-                Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, (ulong)userId); // cast long -> ulong for BroadcastMessageExcept
+                Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, userId);
             }
         }
     }
 
     public class PlayerRepSyncData : NetworkMessageData
     {
-        public long userId;
+        public ulong userId;
         public bool isGrounded;
         public SimplifiedTransform[] simplifiedTransforms = new SimplifiedTransform[3];
         public Vector3 rootPosition;
