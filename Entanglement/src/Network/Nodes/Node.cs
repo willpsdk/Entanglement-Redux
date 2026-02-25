@@ -123,8 +123,13 @@ namespace Entanglement.Network
 
         public void OnSteamMessageRecieved(ulong userId, byte channelId, byte[] data)
         {
+            // Client security: only accept packets from the host
+            if (Client.instance != null && Client.instance.hostUser.m_SteamID != 0 && userId != Client.instance.hostUser.m_SteamID)
+                return;
+
             if (data.Length <= 0)
                 return;
+
 
             NetworkMessage message = new NetworkMessage();
 
