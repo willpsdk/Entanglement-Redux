@@ -10,8 +10,10 @@ using Entanglement.Data;
 using Entanglement.Representation;
 using Entanglement.Objects;
 
-namespace Entanglement.Network {
-    public class Client : Node {
+namespace Entanglement.Network
+{
+    public class Client : Node
+    {
         public static bool nameTagsVisible = true;
         public static Client instance = null;
 
@@ -31,25 +33,36 @@ namespace Entanglement.Network {
         protected Callback<GameLobbyJoinRequested_t> lobbyJoinRequested;
         protected Callback<LobbyEnter_t> lobbyEnterCallback;
 
-        private Client() {
+        private Client()
+        {
             lobbyJoinRequested = Callback<GameLobbyJoinRequested_t>.Create(OnLobbyJoinRequested);
             lobbyEnterCallback = Callback<LobbyEnter_t>.Create(OnLobbyEntered);
         }
 
-        public void JoinLobby(CSteamID lobbyToJoin) {
-            if (SteamIntegration.hasLobby) {
+        public void JoinLobby(CSteamID lobbyToJoin)
+        {
+            if (SteamIntegration.hasLobby)
+            {
                 EntangleLogger.Error("Entanglement: Redux - You are already in a lobby!");
                 return;
             }
             SteamMatchmaking.JoinLobby(lobbyToJoin);
         }
 
-        private void OnLobbyJoinRequested(GameLobbyJoinRequested_t pCallback) {
+        private void OnLobbyJoinRequested(GameLobbyJoinRequested_t pCallback)
+        {
             JoinLobby(pCallback.m_steamIDLobby);
         }
 
-        private void OnLobbyEntered(LobbyEnter_t result) {
-            if (result.m_EChatRoomEnterResponse != (uint)EChatRoomEnterResponse.k_EChatRoomEnterResponseSuccess) {
+        private void OnLobbyEntered(LobbyEnter_t result)
+        {
+            // FIX: Steamworks fires a lobby enter callback when you CREATE a lobby. 
+            // If we are currently hosting the server, ignore this so we don't spawn a Ford for ourselves.
+            if (Server.instance != null)
+                return;
+
+            if (result.m_EChatRoomEnterResponse != (uint)EChatRoomEnterResponse.k_EChatRoomEnterResponseSuccess)
+            {
                 EntangleLogger.Error("Entanglement: Redux - Failed to join Steam Lobby!");
                 return;
             }
@@ -64,9 +77,11 @@ namespace Entanglement.Network {
             ConnectToSteamServer();
 
             int memberCount = SteamMatchmaking.GetNumLobbyMembers(SteamIntegration.lobbyId);
-            for (int i = 0; i < memberCount; i++) {
+            for (int i = 0; i < memberCount; i++)
+            {
                 CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
-                if (memberId != SteamIntegration.currentUser && memberId != hostUser) {
+                if (memberId != SteamIntegration.currentUser && memberId != hostUser)
+                {
                     CreatePlayerRep(memberId.m_SteamID);
                 }
             }
@@ -88,29 +103,34 @@ namespace Entanglement.Network {
             SteamIntegration.RegisterUser(hostUser.m_SteamID, 0);
         }
 
-        public override void UserConnectedEvent(ulong lobbyId, ulong userId) {
+        public override void UserConnectedEvent(ulong lobbyId, ulong userId)
+        {
             SteamIntegration.UpdateActivity();
         }
 
-        public override void UserDisconnectEvent(ulong lobbyId, ulong userId) {
+        public override void UserDisconnectEvent(ulong lobbyId, ulong userId)
+        {
             SteamIntegration.UpdateActivity();
         }
 
-        public void DisconnectFromServer(bool notif = true) {
+        public void DisconnectFromServer(bool notif = true)
+        {
             if (notif)
                 EntangleNotif.LeftServer();
 
-            if (SteamIntegration.hasLobby) {
+            if (SteamIntegration.hasLobby)
+            {
                 SteamMatchmaking.LeaveLobby(SteamIntegration.lobbyId);
             }
-            SteamIntegration.lobbyId = CSteamID.Nil; 
+            SteamIntegration.lobbyId = CSteamID.Nil;
             SteamIntegration.DefaultRichPresence();
             CleanData();
         }
 
         public override void BroadcastMessage(NetworkChannel channel, byte[] data) => SendMessage(hostUser.m_SteamID, channel, data);
 
-        public override void Shutdown() {
+        public override void Shutdown()
+        {
             DisconnectFromServer();
         }
     }
