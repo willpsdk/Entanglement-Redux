@@ -108,8 +108,12 @@ namespace Entanglement.Network {
         public void OnSteamMessageRecieved(ulong userId, byte channelId, byte[] data)
         {
 <<<<<<< HEAD
+<<<<<<< HEAD
             // Client security: only accept packets from the host
             if (Client.instance != null && Client.instance.hostUser.m_SteamID != 0 && userId != Client.instance.hostUser.m_SteamID)
+=======
+            if (data.Length <= 0) 
+>>>>>>> parent of 7b8f6bc (stopped dupe spawn of host)
                 return;
 
             if (data.Length <= 0)
