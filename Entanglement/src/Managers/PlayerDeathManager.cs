@@ -30,13 +30,9 @@ namespace Entanglement.Managers
             MelonCoroutines.Start(OnDeathFinished());
         }
 
-        public static IEnumerator OnDeathFinished() {
-            yield return new WaitForSeconds(1f);
-
-#if DEBUG
-            EntangleLogger.Log("Died! Sending Death event to all players!");
-#endif
-
+        public static IEnumerator OnDeathFinished()
+        {
+            // FIX: Broadcast the death event IMMEDIATELY so other players see the ragdoll instantly
             PlayerEventMessageData data = new PlayerEventMessageData()
             {
                 type = PlayerEventType.Death,
@@ -46,9 +42,13 @@ namespace Entanglement.Managers
             Node.activeNode.BroadcastMessageP2P(NetworkChannel.Reliable, message.GetBytes());
 
 #if DEBUG
+            EntangleLogger.Log("Died! Sending Death event to all players!");
             if (PlayerRepresentation.debugRepresentation != null)
                 PlayerRepresentation.debugRepresentation.CreateRagdoll();
 #endif
+
+            // NOW we wait for the 1-second local reset delay
+            yield return new WaitForSeconds(1f);
 
             // Wait for us to teleport
             while (!PlayerScripts.playerHealth.alive)

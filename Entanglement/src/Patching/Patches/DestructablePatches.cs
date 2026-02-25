@@ -16,24 +16,30 @@ using HarmonyLib;
 
 using UnityEngine;
 
-namespace Entanglement.Patching {
+namespace Entanglement.Patching
+{
     [HarmonyPatch(typeof(Prop_Health), "DESTROYED")]
-    public static class PropHealthPatch {
-        public static bool Prefix(Prop_Health __instance) {
+    public static class PropHealthPatch
+    {
+        public static bool Prefix(Prop_Health __instance)
+        {
             if (!__instance.impactSFX)
                 return false;
             return true;
         }
 
-        public static void Postfix(Prop_Health __instance) {
+        public static void Postfix(Prop_Health __instance)
+        {
             if (!SteamIntegration.hasLobby) return;
 
             TransformSyncable syncTransform = TransformSyncable.DestructCache.Get(__instance.gameObject);
-            if (syncTransform) {
+            if (syncTransform)
+            {
                 if (!syncTransform.IsOwner())
                     return;
 
-                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData() {
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData()
+                {
                     objectId = syncTransform.objectId
                 });
 
@@ -44,18 +50,24 @@ namespace Entanglement.Patching {
     }
 
     [HarmonyPatch(typeof(ObjectDestructable), "TakeDamage")]
-    public static class DestructablePatch {
-        public static void Postfix(ObjectDestructable __instance, Vector3 normal, float damage, bool crit = false, AttackType attackType = default) {
+    public static class DestructablePatch
+    {
+        // FIX: Removed the unused arguments (normal, damage, crit, attackType) 
+        // to prevent Harmony from throwing an ArgumentOutOfRangeException during injection
+        public static void Postfix(ObjectDestructable __instance)
+        {
             if (!SteamIntegration.hasLobby) return;
 
             if (!__instance._isDead) return;
 
             TransformSyncable syncTransform = TransformSyncable.DestructCache.Get(__instance.gameObject);
-            if (syncTransform) {
+            if (syncTransform)
+            {
                 if (!syncTransform.IsOwner())
                     return;
 
-                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData() {
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData()
+                {
                     objectId = syncTransform.objectId
                 });
 
