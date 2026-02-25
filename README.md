@@ -45,7 +45,9 @@ BONEWORKS (duh),
 ModThatIsntAMod
 (if asking for steamworks download this and put the x64 Dll in Mods! https://github.com/rlabrecque/Steamworks.NET/releases/tag/20.1.0)
 
-I will post a 0.1 build when I get a chance! Please be paitent, im the only person working on this project. Thank You :)
+Download the Latest build from Nexus!
+https://www.nexusmods.com/boneworks/mods/108
+Or use Thunderstore! (__I_update Nexus first_)
 
 ## 🤝 Contributing
 
