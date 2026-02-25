@@ -55,7 +55,7 @@ Or use Thunderstore! (_I update Nexus first_)
 
 How you can contribute:
 * **Find Bugs!:** Have fun with friends and then report any issues in the Issues tab!
-* **Physics Tuning:** Help us refine the Syncing for a better expericence! Object and Physics Syncing in: ObjectSync.cs, Syncable.cs, TransformSyncable.cs, PooleeSyncable.cs and SyncUtilities.cs | Player Syncing in: PlayerRep.cs | Network Message Handlers (_The Packets_) in: TransformSyncMessage.cs, PlayerRepSyncMessage.cs and TransformCreateMessage.cs
+* **Physics Tuning:** Help us refine the Syncing for a better expericence! Object and Physics Syncing in: `ObjectSync.cs`, `Syncable.cs`, `TransformSyncable.cs`, `PooleeSyncable.cs` and `SyncUtilities.cs` | Player Syncing in: `PlayerRep.cs` | Network Message Handlers (_The Packets_) in: `TransformSyncMessage.cs`, `PlayerRepSyncMessage.cs` and `TransformCreateMessage.cs`.
 * **Add Your Own Features:** Add your own Quality of Life features or entire new features! Up to you :)
 
 **To Contribute:**
