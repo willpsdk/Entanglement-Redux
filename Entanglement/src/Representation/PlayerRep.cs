@@ -29,7 +29,8 @@ using ModThatIsNotMod;
 
 namespace Entanglement.Representation
 {
-    public class PlayerRepresentation {
+    public class PlayerRepresentation
+    {
         // The velocity calculated for the legs can be jittery at times. To solve this the value is smoothed out. The higher this value the more precision, but the more jitter.
         // A value of 10 is smooth, and with no acceleration value it looks best.
         public static float legJitter = 10f;
@@ -88,28 +89,33 @@ namespace Entanglement.Representation
 
         public static AssetBundle playerRepBundle;
 
-        public static void LoadBundle() {
+        public static void LoadBundle()
+        {
             playerRepBundle = EmebeddedAssetBundle.LoadFromAssembly(EntanglementMod.entanglementAssembly, "Entanglement.resources.playerrep.eres");
 
             if (playerRepBundle == null)
                 throw new NullReferenceException("playerRepBundle is null! Did you forget to compile the player bundle into the dll?");
         }
 
-        public PlayerRepresentation(string playerName, ulong playerId) {
+        public PlayerRepresentation(string playerName, ulong playerId)
+        {
             this.playerName = playerName;
             this.playerId = playerId;
             RecreateRepresentations();
         }
 
-        public void DeleteRepresentations() {
+        public void DeleteRepresentations()
+        {
             GameObject.Destroy(repFord);
             GameObject.Destroy(repCanvas);
             if (currentSkinObject) GameObject.Destroy(currentSkinObject);
         }
 
-        public void RecreateRepresentations() {
+        public void RecreateRepresentations()
+        {
             // Catch errors with creating so it doesnt prevent others from being created
-            try {
+            try
+            {
                 repCanvas = new GameObject("RepCanvas");
                 repCanvasComponent = repCanvas.AddComponent<Canvas>();
 
@@ -159,13 +165,15 @@ namespace Entanglement.Representation
                 if (isCustomSkinned && currentSkinPath != null)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
             }
-            catch {
+            catch
+            {
                 EntangleLogger.Error($"Error caught creating rep from user {playerId}");
             }
         }
 
         // Create a ragdoll of this PlayerRep when the player dies
-        public void CreateRagdoll() {
+        public void CreateRagdoll()
+        {
             if (!activeAnimator)
                 return;
 
@@ -190,7 +198,8 @@ namespace Entanglement.Representation
             newRagdoll.gameObject.SetActive(true);
 
             // Now send velocity
-            foreach (Rigidbody rb in newRagdoll.GetComponentsInChildren<Rigidbody>(true)) {
+            foreach (Rigidbody rb in newRagdoll.GetComponentsInChildren<Rigidbody>(true))
+            {
                 rb.velocity = repSavedVel;
                 rb.angularVelocity = Vector3.zero;
             }
@@ -203,7 +212,8 @@ namespace Entanglement.Representation
             newRagdoll.gameObject.AddComponent<RagdollBehaviour>();
         }
 
-        public void CopyBones(SLZ_Body.References from, SLZ_Body.References to) {
+        public void CopyBones(SLZ_Body.References from, SLZ_Body.References to)
+        {
             CopyBone(from.skull, to.skull);
             CopyBone(from.c4Vertebra, to.c4Vertebra);
             CopyBone(from.t1Offset, to.t1Offset);
@@ -229,20 +239,23 @@ namespace Entanglement.Representation
             CopyBone(from.rightWrist, to.rightWrist);
         }
 
-        public void CopyBone(Transform from, Transform to) {
+        public void CopyBone(Transform from, Transform to)
+        {
             to.position = from.position;
             to.rotation = from.rotation;
         }
 
         // This calculates the velocity on the client side for leg prediction
-        public void SaveVelocity() {
+        public void SaveVelocity()
+        {
             //Get Velocities
             Vector3 currentPosition = repRoot.position;
             //Ground Check
             float dt = Time.fixedDeltaTime;
             repSavedVel = Vector3.Slerp(repInputVel, PhysicsData.GetVelocity(currentPosition, prevRepRootPos, dt), dt * legJitter);
 
-            if (isGrounded) {
+            if (isGrounded)
+            {
                 repInputVel = repSavedVel;
             }
             else
@@ -254,7 +267,8 @@ namespace Entanglement.Representation
         public void UpdateIK()
         {
             // Catch errors so other players arent broken
-            try {
+            try
+            {
                 //Re-Apply playermodel if unloaded
                 if ((!currentSkinBundle || !currentSkinObject) && isCustomSkinned)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
@@ -283,22 +297,26 @@ namespace Entanglement.Representation
 
         public void UpdatePoseRadius(Handedness hand, float radius) => repAnimationManager?.SetCylinderRadius(hand, radius);
 
-        public void UpdateFingers(Handedness hand, float indexCurl = 1f, float middleCurl = 1f, float ringCurl = 1f, float pinkyCurl = 1f, float thumbCurl = 1f) {
+        public void UpdateFingers(Handedness hand, float indexCurl = 1f, float middleCurl = 1f, float ringCurl = 1f, float pinkyCurl = 1f, float thumbCurl = 1f)
+        {
             repAnimationManager.ApplyFingerCurl(hand, 1f - thumbCurl, 1f - indexCurl, 1f - middleCurl, 1f - ringCurl, 1f - pinkyCurl);
         }
 
         public void UpdateFingers(Handedness hand, SimplifiedHand handData) => UpdateFingers(hand, handData.indexCurl, handData.middleCurl, handData.ringCurl, handData.pinkyCurl, handData.thumbCurl);
 
-        public void IgnoreCollision(Rigidbody otherBody, bool ignore) {
+        public void IgnoreCollision(Rigidbody otherBody, bool ignore)
+        {
             Collider[] otherColliders = otherBody.GetComponentsInChildren<Collider>();
             foreach (Collider col1 in colliders)
                 foreach (Collider col2 in otherColliders) Physics.IgnoreCollision(col1, col2, ignore);
         }
 
-        public static void GetPlayerTransforms() {
+        public static void GetPlayerTransforms()
+        {
             GameObject skeletonRig = GameObject.Find("[RigManager (Default Brett)]/[SkeletonRig (GameWorld Brett)]");
-            
-            if (skeletonRig) {
+
+            if (skeletonRig)
+            {
                 syncedRoot = skeletonRig.transform;
 
                 syncedPoints[0] = syncedRoot.Find("Head");
@@ -307,7 +325,8 @@ namespace Entanglement.Representation
             }
         }
 
-        public static PlayerRepSyncData GetPlayerSyncData() {
+        public static PlayerRepSyncData GetPlayerSyncData()
+        {
             foreach (var syncPoint in syncedPoints)
                 if (syncPoint == null)
                     return null;
@@ -316,7 +335,8 @@ namespace Entanglement.Representation
 
             data.userId = (ulong)SteamIntegration.currentUser.m_SteamID;
 
-            for (int r = 0; r < data.simplifiedTransforms.Length; r++) {
+            for (int r = 0; r < data.simplifiedTransforms.Length; r++)
+            {
                 data.simplifiedTransforms[r].position = syncedPoints[r].position;
                 data.simplifiedTransforms[r].rotation = SimplifiedQuaternion.SimplifyQuat(syncedPoints[r].rotation);
             }
@@ -349,11 +369,14 @@ namespace Entanglement.Representation
             return data;
         }
 
-        public static void SyncPlayerReps() {
-            if (SteamIntegration.hasLobby) {
+        public static void SyncPlayerReps()
+        {
+            if (SteamIntegration.hasLobby)
+            {
                 var syncData = GetPlayerSyncData();
 
-                if (syncData != null) {
+                if (syncData != null)
+                {
                     NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.PlayerRepSync, syncData);
                     Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
                 }
@@ -362,12 +385,20 @@ namespace Entanglement.Representation
             }
         }
 
-        public static void UpdatePlayerReps() {
-            foreach (PlayerRepresentation rep in representations.Values) {
+        public static void UpdatePlayerReps()
+        {
+            // FIX: Prevent NullReferenceException during level transitions when the player rig is destroyed
+            if (syncedRoot == null) return;
+
+            foreach (PlayerRepresentation rep in representations.Values)
+            {
+                if (rep == null || rep.repRoot == null) continue;
+
                 float dist = (syncedRoot.position - rep.repRoot.position).sqrMagnitude;
 
                 // Since the distance is squared its 1000 * 1000. Just some optimization, you won't be seeing the player move that far away.
-                if (dist < 1000000f) {
+                if (dist < 1000000f)
+                {
                     rep.UpdateIK();
                     rep.repCanvasTransform?.gameObject?.SetActive(Client.nameTagsVisible);
                 }
