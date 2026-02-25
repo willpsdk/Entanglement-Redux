@@ -11,19 +11,30 @@ This project is currently in **active development**. While the core Steamworks m
 
 ---
 
-## ✨ What's New in Entanglement: Redux?
+## ✨ Entanglement: Redux - Features
 
-### 1. Steamworks Integration
-We have completely ripped out the dead Discord Game SDK and replaced it with native **Steam Matchmaking and P2P Networking**.
-* **Public Lobbies:** Host and find public servers directly inside the BoneMenu via Steam's worldwide lobby search.
-* **Steam Overlay Support:** Join friends, invite players, and view rich presence directly through the Steam overlay (`Shift + Tab`).
-* **Native Voice Chat:** Integrated Steam VoIP replaces the old Discord audio buffer system.
+### 🌐 1. Native Steamworks Integration
+We have completely excised the deprecated Discord Game SDK, rebuilding the mod's entire networking foundation to utilize native Steam Matchmaking and P2P Networking. 
+* **Public Lobbies:** Host and discover public servers directly through the in-game BoneMenu, leveraging Steam's robust global lobby search.
+* **Steam Overlay Support:** Seamlessly join friends, send invites, and view detailed Rich Presence directly through the Steam Overlay (`Shift + Tab`).
+* **Native Voice Chat:** Integrated Steam VoIP entirely replaces the legacy Discord audio buffer system, delivering low-latency, high-fidelity proximity chat.
 
-### 2. "Fusion-Style" Physics Syncing
-The original Entanglement suffered from jittery objects because it forced physical items to teleport to exact X/Y/Z coordinates. Entanglement *Redux* completely changes how objects sync:
-* **Velocity Extrapolation:** Instead of just sending positions, objects now sync their `velocity` and `angularVelocity`. 
-* **PD Controllers:** Objects smoothly fly to their destinations using a tuned Proportional-Derivative joint controller, respecting Boneworks' physics engine instead of fighting it.
-* **Sleep States:** To save immense amounts of network bandwidth, the mod now tracks Rigidbody sleep states and stops sending packets when objects are resting.
+### 🧱 2. "Fusion-Style" Physics Syncing
+The original Entanglement suffered from severe object jitter caused by forced physical teleportation. *Entanglement: Redux* fundamentally changes how physical objects synchronize across the network to provide a buttery-smooth multiplayer experience:
+* **Velocity Extrapolation:** Instead of simply broadcasting raw positions, networked objects now synchronize their `velocity` and `angularVelocity`, allowing clients to accurately predict movement between network ticks.
+* **PD Controllers:** Physical items now smoothly travel to their target destinations using a finely tuned Proportional-Derivative (PD) joint controller. This respects the Boneworks physics engine rather than fighting it.
+* **Sleep States:** To dramatically reduce network bandwidth overhead, the engine now actively monitors Rigidbody sleep states, intelligently halting packet transmission the moment an object comes to a rest.
+
+### 💀 3. Dynamic Player Representation & Death Sync
+Combat and player interactions have been significantly upgraded to feel incredibly responsive and grounded in the game world.
+* **Instant Ragdoll Sync:** When a player is killed (whether by self-inflicted damage, NPCs, or PvP combat), their avatar instantly collapses into a fully synchronized physics ragdoll visible to all connected clients.
+* **Performance Cleanup:** To maintain peak server performance and prevent physics calculation lag, player ragdolls persist for 30 seconds before seamlessly sinking into the environment and despawning.
+
+### 🛡️ 4. Enhanced Server Stability & Level Transitions
+Behind the scenes, the mod's architecture has been completely fortified to prevent crashes and ensure a seamless cooperative experience.
+* **Seamless Level Loading:** Scene transitions have been completely rewritten to safely handle the destruction and recreation of local player rigs, eliminating loading screen crashes and broken holograms.
+* **Host Protection:** Added intelligent server-side safeguards, including an anti-spam host-creation cooldown, to prevent console flooding and accidental concurrent lobby generation.
+* **Optimized Injection:** Harmony patches have been streamlined to improve general mod compatibility and overall client stability during heavy combat and object destruction.
 
 ---
 
