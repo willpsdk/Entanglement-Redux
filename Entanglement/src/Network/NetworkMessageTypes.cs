@@ -1,4 +1,4 @@
-﻿namespace Entanglement.Network
+﻿    namespace Entanglement.Network
 {
     // This used to be an enum but C# doesn't like casting to explicit enum types so this is a class for now
     public class BuiltInMessageType
@@ -43,7 +43,6 @@
             SpawnClient = 36,
             SpawnTransfer = 37,
             GripEvent = 38,
-            PlayerEvent = 39,
-            AuthorityRequest = 40; // ADDED: Used for handing off authority of physical objects (Lag Compensation / Smoothing)
+            PlayerEvent = 39;
     }
 }

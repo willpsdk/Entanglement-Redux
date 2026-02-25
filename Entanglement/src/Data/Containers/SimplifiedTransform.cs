@@ -1,18 +1,17 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+
 using UnityEngine;
+
 using Entanglement.Extensions;
 
 namespace Entanglement.Data
 {
-    public struct SimplifiedTransform
-    {
-        // Size: Position (12) + Rotation (7) + Velocity (6) + AngVelocity (6) + IsSleeping (1) = 32 bytes total!
-        public const ushort size = (sizeof(float) * 3 + SimplifiedQuaternion.size + sizeof(short) * 6 + 1);
-
-        // Velocity precision: stores up to +/- 327.67 m/s with 2 decimal places of accuracy (plenty for Boneworks)
-        public const float VELOCITY_PRECISION = 100.0f;
+    public struct SimplifiedTransform {
+        // Upgraded Size: Position (12) + Rotation (7) + Velocity (12) + AngVelocity (12) + IsSleeping (1) = 44 bytes total
+        public const ushort size = (sizeof(float) * 3 + SimplifiedQuaternion.size + sizeof(float) * 6 + 1);
+        public const ushort size_small = (sizeof(short) * 3 + SimplifiedQuaternion.size + sizeof(float) * 6 + 1);
 
         public Vector3 position;
         public SimplifiedQuaternion rotation;
@@ -33,54 +32,76 @@ namespace Entanglement.Data
         {
             this.position = transform.position;
             this.rotation = SimplifiedQuaternion.SimplifyQuat(transform.rotation);
-
-            if (rb)
-            {
+            
+            if (rb) {
                 this.velocity = rb.velocity;
                 this.angularVelocity = rb.angularVelocity;
                 this.isSleeping = rb.IsSleeping();
-            }
-            else
-            {
+            } else {
                 this.velocity = Vector3.zero;
                 this.angularVelocity = Vector3.zero;
                 this.isSleeping = true;
             }
         }
 
-        public byte[] GetBytes()
-        {
-            List<byte> bytes = new List<byte>(size);
+        public byte[] GetBytes() {
+            List<byte> bytes = new List<byte>();
 
-            // 1. Position (12 bytes)
             bytes.AddRange(BitConverter.GetBytes(position.x));
             bytes.AddRange(BitConverter.GetBytes(position.y));
             bytes.AddRange(BitConverter.GetBytes(position.z));
 
-            // 2. Rotation (7 bytes)
             bytes.AddRange(BitConverter.GetBytes(rotation.c1));
             bytes.AddRange(BitConverter.GetBytes(rotation.c2));
             bytes.AddRange(BitConverter.GetBytes(rotation.c3));
             bytes.Add(rotation.loss);
 
-            // 3. Velocity COMPRESSED (6 bytes)
-            bytes.AddRange(BitConverter.GetBytes((short)(velocity.x * VELOCITY_PRECISION)));
-            bytes.AddRange(BitConverter.GetBytes((short)(velocity.y * VELOCITY_PRECISION)));
-            bytes.AddRange(BitConverter.GetBytes((short)(velocity.z * VELOCITY_PRECISION)));
+            bytes.AddRange(BitConverter.GetBytes(velocity.x));
+            bytes.AddRange(BitConverter.GetBytes(velocity.y));
+            bytes.AddRange(BitConverter.GetBytes(velocity.z));
 
-            // 4. Angular Velocity COMPRESSED (6 bytes)
-            bytes.AddRange(BitConverter.GetBytes((short)(angularVelocity.x * VELOCITY_PRECISION)));
-            bytes.AddRange(BitConverter.GetBytes((short)(angularVelocity.y * VELOCITY_PRECISION)));
-            bytes.AddRange(BitConverter.GetBytes((short)(angularVelocity.z * VELOCITY_PRECISION)));
+            bytes.AddRange(BitConverter.GetBytes(angularVelocity.x));
+            bytes.AddRange(BitConverter.GetBytes(angularVelocity.y));
+            bytes.AddRange(BitConverter.GetBytes(angularVelocity.z));
 
-            // 5. State (1 byte)
             bytes.Add(isSleeping ? (byte)1 : (byte)0);
 
             return bytes.ToArray();
         }
 
-        public static SimplifiedTransform FromBytes(byte[] bytes)
-        {
+        public byte[] GetSmallBytes(Vector3 root) {
+            List<byte> bytes = new List<byte>();
+
+            bytes.AddRange(root.InverseTransformPosition(position).GetShortBytes());
+
+            bytes.AddRange(BitConverter.GetBytes(rotation.c1));
+            bytes.AddRange(BitConverter.GetBytes(rotation.c2));
+            bytes.AddRange(BitConverter.GetBytes(rotation.c3));
+            bytes.Add(rotation.loss);
+
+            bytes.AddRange(BitConverter.GetBytes(velocity.x));
+            bytes.AddRange(BitConverter.GetBytes(velocity.y));
+            bytes.AddRange(BitConverter.GetBytes(velocity.z));
+
+            bytes.AddRange(BitConverter.GetBytes(angularVelocity.x));
+            bytes.AddRange(BitConverter.GetBytes(angularVelocity.y));
+            bytes.AddRange(BitConverter.GetBytes(angularVelocity.z));
+
+            bytes.Add(isSleeping ? (byte)1 : (byte)0);
+
+            return bytes.ToArray();
+        }
+
+        public static SimplifiedTransform SimplyTransform(Transform transform) => SimplyTransform(transform.position, transform.rotation);
+
+        public static SimplifiedTransform SimplyTransform(Vector3 position, Quaternion rotation) {
+            SimplifiedTransform simplified = new SimplifiedTransform();
+            simplified.position = position;
+            simplified.rotation = SimplifiedQuaternion.SimplifyQuat(rotation);
+            return simplified;
+        }
+
+        public static SimplifiedTransform FromBytes(byte[] bytes) {
             SimplifiedTransform transform = new SimplifiedTransform();
             int index = 0;
 
@@ -93,27 +114,49 @@ namespace Entanglement.Data
             transform.rotation.c3 = BitConverter.ToInt16(bytes, index); index += sizeof(short);
             transform.rotation.loss = bytes[index]; index += 1;
 
-            transform.velocity.x = BitConverter.ToInt16(bytes, index) / VELOCITY_PRECISION; index += sizeof(short);
-            transform.velocity.y = BitConverter.ToInt16(bytes, index) / VELOCITY_PRECISION; index += sizeof(short);
-            transform.velocity.z = BitConverter.ToInt16(bytes, index) / VELOCITY_PRECISION; index += sizeof(short);
+            transform.velocity.x = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+            transform.velocity.y = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+            transform.velocity.z = BitConverter.ToSingle(bytes, index); index += sizeof(float);
 
-            transform.angularVelocity.x = BitConverter.ToInt16(bytes, index) / VELOCITY_PRECISION; index += sizeof(short);
-            transform.angularVelocity.y = BitConverter.ToInt16(bytes, index) / VELOCITY_PRECISION; index += sizeof(short);
-            transform.angularVelocity.z = BitConverter.ToInt16(bytes, index) / VELOCITY_PRECISION; index += sizeof(short);
+            transform.angularVelocity.x = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+            transform.angularVelocity.y = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+            transform.angularVelocity.z = BitConverter.ToSingle(bytes, index); index += sizeof(float);
 
             transform.isSleeping = bytes[index] == 1;
 
             return transform;
         }
 
-        public void Apply(Transform target)
-        {
+        public static SimplifiedTransform FromSmallBytes(byte[] bytes, Vector3 root) {
+            SimplifiedTransform transform = new SimplifiedTransform();
+            int index = 0;
+
+            transform.position = root.TransformPosition(bytes.FromShortBytes(index)); index += sizeof(short) * 3;
+
+            transform.rotation.c1 = BitConverter.ToInt16(bytes, index); index += sizeof(short);
+            transform.rotation.c2 = BitConverter.ToInt16(bytes, index); index += sizeof(short);
+            transform.rotation.c3 = BitConverter.ToInt16(bytes, index); index += sizeof(short);
+            transform.rotation.loss = bytes[index]; index += 1;
+
+            transform.velocity.x = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+            transform.velocity.y = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+            transform.velocity.z = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+
+            transform.angularVelocity.x = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+            transform.angularVelocity.y = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+            transform.angularVelocity.z = BitConverter.ToSingle(bytes, index); index += sizeof(float);
+
+            transform.isSleeping = bytes[index] == 1;
+
+            return transform;
+        }
+
+        public void Apply(Transform target) {
             target.position = position;
             target.rotation = rotation.ExpandQuat();
         }
 
-        public void Apply(Rigidbody target)
-        {
+        public void Apply(Rigidbody target) {
             target.MovePosition(position);
             target.MoveRotation(rotation.ExpandQuat());
             target.velocity = velocity;

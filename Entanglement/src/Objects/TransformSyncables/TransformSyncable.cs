@@ -54,16 +54,6 @@ namespace Entanglement.Objects
 
         private TransformSyncMessageData _cachedSyncData;
 
-        // --- BANDWIDTH MANAGEMENT (Network LOD) ---
-        private float lastSyncTime = 0f;
-        private float currentSyncInterval = 0.016f;
-
-        // --- LAG COMPENSATION & SMOOTHING ---
-        private Vector3 networkTargetPosition;
-        private Quaternion networkTargetRotation;
-        private Vector3 networkVelocity;
-        private bool isInterpolating = false;
-
         public override void Cleanup()
         {
             DestroyJoint();
@@ -88,28 +78,13 @@ namespace Entanglement.Objects
                 targetGo.transform.rotation = transform.rotation;
             }
 
-            lastSyncTime = Time.realtimeSinceStartup; // Update throttle timer
             UpdateStoredPositions();
         }
 
         public override bool ShouldSync()
         {
             if (rb && rb.IsSleeping()) return false;
-            if (!HasChangedPositions()) return false;
-
-            // --- BANDWIDTH MANAGEMENT: Network LOD ---
-            // Calculate distance between this object and the local player to throttle sync rate
-            Transform playerHead = PlayerRepresentation.syncedPoints != null ? PlayerRepresentation.syncedPoints[0] : null;
-            float distSq = playerHead ? (transform.position - playerHead.position).sqrMagnitude : 0f;
-
-            if (distSq < 25f) currentSyncInterval = 1f / 60f;        // Close (< 5m): 60Hz
-            else if (distSq < 400f) currentSyncInterval = 1f / 20f;  // Medium (< 20m): 20Hz
-            else currentSyncInterval = 1f / 5f;                      // Far (> 20m): 5Hz
-
-            if (Time.realtimeSinceStartup - lastSyncTime < currentSyncInterval)
-                return false; // Throttle: Drop this frame's sync to save bandwidth
-
-            return true;
+            return HasChangedPositions();
         }
 
         public bool HasChangedPositions() => (transform.position - lastPosition).sqrMagnitude > 0.001f || Quaternion.Angle(transform.rotation, lastRotation) > 0.05f;
@@ -118,6 +93,7 @@ namespace Entanglement.Objects
         {
             if (lastOwner == SteamIntegration.currentUser.m_SteamID) objectHealth = GetHealth();
 
+            // FIX: Corrected casing from setHealth to SetHealth
             if (!IsOwner()) SetHealth(float.PositiveInfinity);
             else SetHealth(objectHealth);
 
@@ -236,33 +212,8 @@ namespace Entanglement.Objects
             if (isValid)
             {
                 JointCheck();
-                if (!IsOwner())
-                {
-                    SetHealth(float.PositiveInfinity);
-
-                    // --- LAG COMPENSATION: Interpolation & Extrapolation ---
-                    if (isInterpolating)
-                    {
-                        float dt = Time.fixedDeltaTime;
-
-                        if (!syncJoint)
-                        {
-                            // Manual Smoothing for non-physics objects
-                            float lerpRate = 15f * dt;
-                            transform.position = Vector3.Lerp(transform.position, networkTargetPosition, lerpRate);
-                            transform.rotation = Quaternion.Slerp(transform.rotation, networkTargetRotation, lerpRate);
-                        }
-                        else if (targetBody && rb && !rb.IsSleeping())
-                        {
-                            // Extrapolate the invisible target body using the last known velocity 
-                            // This helps the Boneworks physics joint pull the object smoothly between dropped packets
-                            targetBody.MovePosition(targetBody.position + (networkVelocity * dt));
-                        }
-
-                        // Extrapolate the internal target position using velocity
-                        networkTargetPosition += networkVelocity * dt;
-                    }
-                }
+                // FIX: Corrected casing from setHealth to SetHealth
+                if (!IsOwner()) SetHealth(float.PositiveInfinity);
             }
         }
 
@@ -303,6 +254,7 @@ namespace Entanglement.Objects
             syncObj._CachedDestructable = go.GetComponentInChildren<ObjectDestructable>(true);
             syncObj._CachedHealth = go.GetComponentInChildren<Prop_Health>(true);
 
+            // FIX: Changed indexing [] to .Add() call as CustomComponentCache doesn't support indexing
             if (syncObj._CachedDestructable) DestructCache.Add(syncObj._CachedDestructable.gameObject, syncObj);
             if (syncObj._CachedHealth) DestructCache.Add(syncObj._CachedHealth.gameObject, syncObj);
 
@@ -372,28 +324,17 @@ namespace Entanglement.Objects
         {
             if (SteamIntegration.currentUser.m_SteamID == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside())) return;
 
-            // --- LAG COMPENSATION: Receive network targets instead of snapping ---
             if (rb && simplifiedTransform.isSleeping)
             {
                 rb.velocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
                 rb.Sleep();
-                isInterpolating = false; // Stop lerping, it's resting
             }
-            else
-            {
-                isInterpolating = true;
-            }
-
-            networkTargetPosition = simplifiedTransform.position;
-            networkTargetRotation = simplifiedTransform.rotation.ExpandQuat();
-            networkVelocity = simplifiedTransform.velocity;
 
             if (targetBody)
             {
-                // Snap the invisible physics target body, the ConfigurableJoint smoothly pulls the real object
-                targetBody.transform.position = networkTargetPosition;
-                targetBody.transform.rotation = networkTargetRotation;
+                targetBody.transform.position = simplifiedTransform.position;
+                targetBody.transform.rotation = simplifiedTransform.rotation.ExpandQuat();
 
                 if (!simplifiedTransform.isSleeping)
                 {
@@ -402,7 +343,7 @@ namespace Entanglement.Objects
                 }
             }
 
-            if (!rb && !isInterpolating)
+            if (!rb)
             {
                 simplifiedTransform.Apply(transform);
             }
