@@ -60,7 +60,7 @@ How you can contribute:
 
 **To Contribute:**
 1. Fork the repository.
-2. Create a new branch for your.
+2. Create a new branch for your mod.
 3. Commit your change.
 4. I'll test your change!.
 5. If its good ill merge it.
