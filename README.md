@@ -19,7 +19,7 @@ We have completely excised the deprecated Discord Game SDK, rebuilding the mod's
 * **Steam Overlay Support:** Seamlessly join friends, send invites, and view detailed Rich Presence directly through the Steam Overlay (`Shift + Tab`).
 * **Native Voice Chat:** Integrated Steam VoIP entirely replaces the legacy Discord audio buffer system, delivering low-latency, high-fidelity proximity chat.
 
-### 🧱 2. "Fusion-Style" Physics Syncing
+### ↕️ 2. Updated & Improved Physics Syncing
 The original Entanglement suffered from severe object jitter caused by forced physical teleportation. *Entanglement: Redux* fundamentally changes how physical objects synchronize across the network to provide a buttery-smooth multiplayer experience:
 * **Velocity Extrapolation:** Instead of simply broadcasting raw positions, networked objects now synchronize their `velocity` and `angularVelocity`, allowing clients to accurately predict movement between network ticks.
 * **PD Controllers:** Physical items now smoothly travel to their target destinations using a finely tuned Proportional-Derivative (PD) joint controller. This respects the Boneworks physics engine rather than fighting it.
@@ -43,6 +43,7 @@ Behind the scenes, the mod's architecture has been completely fortified to preve
 Melon Loader 5.4,
 BONEWORKS (duh),
 ModThatIsntAMod
+(if asking for steamworks download this and put the x64 Dll in Mods! https://github.com/rlabrecque/Steamworks.NET/releases/tag/20.1.0)
 
 I will post a 0.1 build when I get a chance! Please be paitent, im the only person working on this project. Thank You :)
 
@@ -57,10 +58,12 @@ How you can contribute:
 
 **To Contribute:**
 1. Fork the repository.
-2. Create a new branch for your feature (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the branch (`git push origin feature/AmazingFeature`).
-5. Open a Pull Request!
+2. Create a new branch for your.
+3. Commit your change.
+4. I'll test your change!.
+5. If its good ill merge it.
+
+Thank you for Contributing :)
 
 ---
 
