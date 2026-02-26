@@ -401,6 +401,7 @@
     <Compile Include="src\Network\Messages\Attacks\BalloonShotMessage.cs" />
     <Compile Include="src\Network\Messages\Data\TransactionBeginMessage.cs" />
     <Compile Include="src\Network\Messages\Data\TransactionWorkMessage.cs" />
+    <Compile Include="src\Network\Messages\Destruction\MapObjectDestroyMessage.cs" />
     <Compile Include="src\Network\Messages\Destruction\ObjectDestroyMessage.cs" />
     <Compile Include="src\Network\Messages\EmptyMessageData.cs" />
     <Compile Include="src\Network\Messages\Objects\GripEventMessage.cs" />
@@ -426,6 +427,7 @@
     <Compile Include="src\Network\Messages\Server\ShortIdMessage.cs" />
     <Compile Include="src\Network\Messages\Server\SpawnObjectMessage.cs" />
     <Compile Include="src\Data\Containers\DataCorruptionException.cs" />
+    <Compile Include="src\Network\Messages\Server\ZoneTriggerMessage.cs" />
     <Compile Include="src\Network\Net.cs" />
     <Compile Include="src\Network\NetworkMessageTypes.cs" />
     <Compile Include="src\Network\Nodes\Client.cs" />

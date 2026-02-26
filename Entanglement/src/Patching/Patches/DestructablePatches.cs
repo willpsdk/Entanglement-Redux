@@ -1,23 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using StressLevelZero.Props;
-using StressLevelZero.Combat;
-
+﻿using StressLevelZero.Props;
 using Entanglement.Objects;
 using Entanglement.Network;
-
-using MelonLoader;
-
 using HarmonyLib;
-
 using UnityEngine;
 
 namespace Entanglement.Patching
 {
+    public static class DestructablePathHelper
+    {
+        public static string GetGameObjectPath(GameObject obj)
+        {
+            string path = obj.name;
+            while (obj.transform.parent != null)
+            {
+                obj = obj.transform.parent.gameObject;
+                path = obj.name + "/" + path;
+            }
+            return path;
+        }
+    }
+
     [HarmonyPatch(typeof(Prop_Health), "DESTROYED")]
     public static class PropHealthPatch
     {
@@ -35,16 +37,18 @@ namespace Entanglement.Patching
             TransformSyncable syncTransform = TransformSyncable.DestructCache.Get(__instance.gameObject);
             if (syncTransform)
             {
-                if (!syncTransform.IsOwner())
-                    return;
+                if (!syncTransform.IsOwner()) return;
 
-                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData()
-                {
-                    objectId = syncTransform.objectId
-                });
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData() { objectId = syncTransform.objectId });
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
+            }
+            else
+            {
+                // Map object (lock/plank)
+                if (!SteamIntegration.isHost) return;
 
-                byte[] msgBytes = message.GetBytes();
-                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, msgBytes);
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.MapObjectDestroy, new MapObjectDestroyMessageData() { objectPath = DestructablePathHelper.GetGameObjectPath(__instance.gameObject) });
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
             }
         }
     }
@@ -52,27 +56,25 @@ namespace Entanglement.Patching
     [HarmonyPatch(typeof(ObjectDestructable), "TakeDamage")]
     public static class DestructablePatch
     {
-        // FIX: Removed the unused arguments (normal, damage, crit, attackType) 
-        // to prevent Harmony from throwing an ArgumentOutOfRangeException during injection
         public static void Postfix(ObjectDestructable __instance)
         {
             if (!SteamIntegration.hasLobby) return;
-
             if (!__instance._isDead) return;
 
             TransformSyncable syncTransform = TransformSyncable.DestructCache.Get(__instance.gameObject);
             if (syncTransform)
             {
-                if (!syncTransform.IsOwner())
-                    return;
+                if (!syncTransform.IsOwner()) return;
 
-                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData()
-                {
-                    objectId = syncTransform.objectId
-                });
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData() { objectId = syncTransform.objectId });
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
+            }
+            else
+            {
+                if (!SteamIntegration.isHost) return;
 
-                byte[] msgBytes = message.GetBytes();
-                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, msgBytes);
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.MapObjectDestroy, new MapObjectDestroyMessageData() { objectPath = DestructablePathHelper.GetGameObjectPath(__instance.gameObject) });
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
             }
         }
     }

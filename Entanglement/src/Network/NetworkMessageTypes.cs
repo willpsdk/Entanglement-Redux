@@ -1,6 +1,5 @@
-﻿    namespace Entanglement.Network
+﻿namespace Entanglement.Network
 {
-    // This used to be an enum but C# doesn't like casting to explicit enum types so this is a class for now
     public class BuiltInMessageType
     {
         public static byte
@@ -43,6 +42,8 @@
             SpawnClient = 36,
             SpawnTransfer = 37,
             GripEvent = 38,
-            PlayerEvent = 39;
+            PlayerEvent = 39,
+            MapObjectDestroy = 40, // NEW: Syncs map destructibles (locks/planks)
+            ZoneTrigger = 41;      // NEW: Syncs NPC spawn zones
     }
 }

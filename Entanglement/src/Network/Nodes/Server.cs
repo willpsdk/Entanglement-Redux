@@ -17,7 +17,8 @@ namespace Entanglement.Network
     {
         public static byte maxPlayers = 8;
         public static bool isLocked = false;
-        public static LobbyType lobbyType = LobbyType.Private;
+        // FIX: Set default to Public so it shows up for other players
+        public static LobbyType lobbyType = LobbyType.Public;
 
         public const byte serverMinimum = 1;
         public const byte serverCapacity = 250;

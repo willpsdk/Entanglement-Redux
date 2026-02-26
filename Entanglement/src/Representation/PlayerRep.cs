@@ -82,7 +82,6 @@ namespace Entanglement.Representation
         public ulong playerId;
         public bool isGrounded;
 
-
 #if DEBUG
         public static PlayerRepresentation debugRepresentation;
 #endif
@@ -311,11 +310,30 @@ namespace Entanglement.Representation
                 foreach (Collider col2 in otherColliders) Physics.IgnoreCollision(col1, col2, ignore);
         }
 
+        // FIX: Dynamically find the SkeletonRig using PlayerScripts to prevent issues on custom maps
         public static void GetPlayerTransforms()
         {
-            GameObject skeletonRig = GameObject.Find("[RigManager (Default Brett)]/[SkeletonRig (GameWorld Brett)]");
+            GameObject skeletonRig = null;
 
-            if (skeletonRig)
+            if (PlayerScripts.playerRig != null)
+            {
+                Transform t = PlayerScripts.playerRig.transform.Find("[SkeletonRig (GameWorld Brett)]");
+                if (t != null) skeletonRig = t.gameObject;
+            }
+
+            // Fallback search anywhere in the scene
+            if (skeletonRig == null)
+            {
+                skeletonRig = GameObject.Find("[SkeletonRig (GameWorld Brett)]");
+            }
+
+            // Final fallback to the original strict pathing just in case
+            if (skeletonRig == null)
+            {
+                skeletonRig = GameObject.Find("[RigManager (Default Brett)]/[SkeletonRig (GameWorld Brett)]");
+            }
+
+            if (skeletonRig != null)
             {
                 syncedRoot = skeletonRig.transform;
 
@@ -387,7 +405,7 @@ namespace Entanglement.Representation
 
         public static void UpdatePlayerReps()
         {
-            // FIX: Prevent NullReferenceException during level transitions when the player rig is destroyed
+            // Prevent NullReferenceException during level transitions when the player rig is destroyed
             if (syncedRoot == null) return;
 
             foreach (PlayerRepresentation rep in representations.Values)
