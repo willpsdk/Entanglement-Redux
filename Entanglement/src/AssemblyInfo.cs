@@ -10,11 +10,11 @@ using MelonLoader;
 using Entanglement;
 
 [assembly: Guid("490e160d-251d-4ab4-a3bb-f473961ff8a1")]
-[assembly: AssemblyTitle("Entanglement")]
-[assembly: AssemblyVersion("0.3.0")]
-[assembly: AssemblyFileVersion("0.3.0")]
+[assembly: AssemblyTitle("Entanglement: Redux")]
+[assembly: AssemblyVersion("0.1.0")]
+[assembly: AssemblyFileVersion("0.1.0")]
 
-[assembly: MelonInfo(typeof(EntanglementMod), "Entanglement", "0.3.0", "zCubed, Lakatrazz")]
+[assembly: MelonInfo(typeof(EntanglementMod), "Entanglement: Redux", "0.1.0", "willpsdk, zCubed, Lakatrazz")]
 [assembly: MelonGame("Stress Level Zero", "BONEWORKS")]
 [assembly: MelonIncompatibleAssemblies("MultiplayerMod")]
 [assembly: MelonPriority(-10000)]

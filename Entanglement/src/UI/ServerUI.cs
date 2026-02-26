@@ -10,24 +10,36 @@ using UnityEngine;
 using Steamworks; // FIXED: Swapped Discord for Steamworks
 using MelonLoader;
 
-namespace Entanglement.UI {
-    public static class ServerUI {
+namespace Entanglement.UI
+{
+    public static class ServerUI
+    {
         static MenuCategory playersCategory;
 
         const string refreshText = "Refresh";
 
-        public static void CreateUI(MenuCategory category) {
+        public static void CreateUI(MenuCategory category)
+        {
             MenuCategory serverCategory = category.CreateSubCategory("Server Menu", Color.white);
 
-            serverCategory.CreateFunctionElement("Start Server", Color.white, () => { Server.StartServer(); });
+            // UPDATED: Added the ServerStarted notification popup
+            serverCategory.CreateFunctionElement("Start Server", Color.white, () => {
+                Server.StartServer();
+                EntangleNotif.ServerStarted();
+            });
 
+            // UPDATED: Added the ServerStopped notification popup
             serverCategory.CreateFunctionElement("Stop Server", Color.white, () => {
                 if (Server.instance != null)
+                {
                     Server.instance.Shutdown();
+                    EntangleNotif.ServerStopped();
+                }
             });
 
             serverCategory.CreateFunctionElement("Disconnect", Color.white, () => {
-                if (Node.activeNode is Client client) {
+                if (Node.activeNode is Client client)
+                {
                     client.DisconnectFromServer();
                 }
             });
@@ -60,19 +72,23 @@ namespace Entanglement.UI {
             playersCategory.CreateFunctionElement(refreshText, Color.white, Refresh);
         }
 
-        public static void ClearPlayers() {
+        public static void ClearPlayers()
+        {
             List<string> elementsToRemove = new List<string>();
-            foreach (MenuElement element in playersCategory.elements) {
+            foreach (MenuElement element in playersCategory.elements)
+            {
                 if (element.displayText != refreshText) elementsToRemove.Add(element.displayText);
             }
 
             foreach (string element in elementsToRemove) playersCategory.RemoveElement(element);
         }
 
-        public static void Refresh() {
+        public static void Refresh()
+        {
             ClearPlayers();
 
-            if (!SteamIntegration.hasLobby) {
+            if (!SteamIntegration.hasLobby)
+            {
                 UpdateMenu();
                 return;
             }
@@ -80,7 +96,8 @@ namespace Entanglement.UI {
             // FIXED: Steam uses GetNumLobbyMembers and GetLobbyMemberByIndex instead of an enumerable list
             int memberCount = SteamMatchmaking.GetNumLobbyMembers(SteamIntegration.lobbyId);
 
-            for (int i = 0; i < memberCount; i++) {
+            for (int i = 0; i < memberCount; i++)
+            {
                 CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
                 if (memberId == SteamIntegration.currentUser)
                     continue;
@@ -94,18 +111,21 @@ namespace Entanglement.UI {
         public static void UpdateMenu() => MenuManager.OpenCategory(playersCategory);
 
         // FIXED: Swapped Discord User for CSteamID
-        public static void AddUser(CSteamID player) {
+        public static void AddUser(CSteamID player)
+        {
             string playerName = SteamFriends.GetFriendPersonaName(player);
             Color playerColor = Color.white;
-            
+
             // FIXED: Replaced Discord lobby.OwnerId with SteamIntegration hostUser
-            if (player == SteamIntegration.hostUser) { 
+            if (player == SteamIntegration.hostUser)
+            {
                 playerName += " (Host)";
                 playerColor = Color.yellow;
             }
 
             MenuCategory userItem = playersCategory.CreateSubCategory(playerName, playerColor);
-            if (SteamIntegration.isHost) {
+            if (SteamIntegration.isHost)
+            {
                 userItem.CreateFunctionElement("Kick", Color.red, () => {
                     if (!SteamIntegration.isHost) return;
 
@@ -118,7 +138,7 @@ namespace Entanglement.UI {
                     if (!SteamIntegration.isHost) return;
 
                     // WARNING: Ensure BanList.cs is updated to accept ulong and string!
-                    BanList.BanUser(player.m_SteamID, playerName); 
+                    BanList.BanUser(player.m_SteamID, playerName);
                     Server.instance.KickUser(player.m_SteamID, playerName, DisconnectReason.Banned);
 
                     Refresh();
@@ -126,9 +146,6 @@ namespace Entanglement.UI {
 
                 userItem.CreateFunctionElement("Teleport To", Color.yellow, () => { Server.instance?.TeleportTo(player.m_SteamID); });
             }
-            
-            // Note: Discord's voiceManager UI elements were removed because Steamworks 
-            // does not have a native individual player volume mixer in the base API.
         }
     }
 }
