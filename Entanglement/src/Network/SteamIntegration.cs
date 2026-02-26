@@ -1,22 +1,15 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-
 using Steamworks;
-
 using MelonLoader;
 using UnityEngine;
-
 using Entanglement.UI;
 using Entanglement.Extensions;
 
 namespace Entanglement.Network
 {
-    public enum VoiceStatus
-    {
-        Disabled,
-        Enabled,
-    }
+    public enum VoiceStatus { Disabled, Enabled, }
 
     public static class SteamIntegration
     {
@@ -31,32 +24,25 @@ namespace Entanglement.Network
         public static CSteamID hostUser = CSteamID.Nil;
 
         public static bool isInvalid;
-
         public static bool hasLobby => lobbyId != CSteamID.Nil;
-
         public static bool isHost => hasLobby && hostUser == currentUser;
-
         public static bool isConnected => hasLobby && hostUser != currentUser;
 
         public static VoiceStatus voiceStatus = VoiceStatus.Disabled;
-
         public static Dictionary<byte, ulong> byteIds = new Dictionary<byte, ulong>();
 
-        // An ID of 0 is reserved for the host
-        public static byte localByteId = 0;
         public static byte lastByteId = 1;
 
         public static ulong GetLongId(byte shortId)
         {
             if (shortId == 0) return hostUser.m_SteamID;
-
             return byteIds.TryIdx(shortId);
         }
 
         public static byte GetByteId(ulong longId)
         {
-            if (longId == currentUser.m_SteamID) return localByteId;
-
+            // FIX: Only the host uses 0. Everyone else must be looked up so they don't steal the Host's ID!
+            if (longId == hostUser.m_SteamID) return 0;
             return byteIds.FirstOrDefault(o => o.Value == longId).Key;
         }
 
@@ -77,14 +63,10 @@ namespace Entanglement.Network
         {
             try
             {
-                if (!SteamAPI.Init())
-                {
-                    throw new Exception("SteamAPI.Init() returned false. Make sure Steam is running.");
-                }
+                if (!SteamAPI.Init()) throw new Exception("SteamAPI.Init() returned false. Make sure Steam is running.");
 
                 currentUser = SteamUser.GetSteamID();
                 EntangleLogger.Log($"Current Steam User: {SteamFriends.GetPersonaName()}");
-
                 EntangleLogger.Log("Initializing Rich Presence...");
                 DefaultRichPresence();
                 EntangleLogger.Log("Rich Presence initialized!");
@@ -99,21 +81,13 @@ namespace Entanglement.Network
         public static void DefaultRichPresence()
         {
             if (isInvalid) return;
-
             try
             {
-                // The main text shown right under "BONEWORKS"
                 SteamFriends.SetRichPresence("status", $"Playing Entanglement: Redux (v{EntanglementMod.VersionString})");
-
-                // The sub-message text
                 SteamFriends.SetRichPresence("details", "Playing Solo");
-
                 SteamFriends.SetRichPresence("connect", "");
             }
-            catch (Exception e)
-            {
-                EntangleLogger.Error($"Failed to set Rich Presence: {e.Message}\nTrace: {e.StackTrace}");
-            }
+            catch (Exception e) { EntangleLogger.Error($"Failed to set Rich Presence: {e.Message}\nTrace: {e.StackTrace}"); }
         }
 
         public static void UpdateActivity()
@@ -123,20 +97,12 @@ namespace Entanglement.Network
             if (hasLobby)
             {
                 EntangleLogger.Log($"Updating Rich Presence: {(isHost ? "Hosting" : "Playing")} in a server!");
-
-                // The main text shown right under "BONEWORKS"
                 SteamFriends.SetRichPresence("status", $"Playing Entanglement: Redux (v{EntanglementMod.VersionString})");
-
-                // The sub-message text changes whether you are the host or a client
                 SteamFriends.SetRichPresence("details", isHost ? "Hosting a Server" : "Playing in a Server");
-
                 SteamFriends.SetRichPresence("steam_display", "#StatusFull");
                 SteamFriends.SetRichPresence("connect", $"+connect_lobby {lobbyId.m_SteamID}");
             }
-            else
-            {
-                DefaultRichPresence();
-            }
+            else DefaultRichPresence();
         }
 
         public static string ParseScene(string scene)
@@ -168,46 +134,25 @@ namespace Entanglement.Network
             }
         }
 
-        public static void Update()
-        {
-            if (!isInvalid)
-            {
-                SteamAPI.RunCallbacks();
-            }
-        }
-
+        public static void Update() { if (!isInvalid) SteamAPI.RunCallbacks(); }
         public static void Flush() { }
-
-        public static void Tick()
-        {
-            Update();
-            Flush();
-        }
+        public static void Tick() { Update(); Flush(); }
 
         public static void Shutdown()
         {
-            if (!isInvalid)
-            {
-                SteamFriends.ClearRichPresence();
-                SteamAPI.Shutdown();
-            }
+            if (!isInvalid) { SteamFriends.ClearRichPresence(); SteamAPI.Shutdown(); }
         }
 
         public static void UpdateVoice(VoiceStatus status)
         {
             voiceStatus = status;
-
             if (!hasLobby) return;
 
             switch (status)
             {
                 default:
-                case VoiceStatus.Disabled:
-                    SteamUser.StopVoiceRecording();
-                    break;
-                case VoiceStatus.Enabled:
-                    SteamUser.StartVoiceRecording();
-                    break;
+                case VoiceStatus.Disabled: SteamUser.StopVoiceRecording(); break;
+                case VoiceStatus.Enabled: SteamUser.StartVoiceRecording(); break;
             }
         }
     }

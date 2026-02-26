@@ -41,11 +41,19 @@ namespace Entanglement.Network
 
         public void JoinLobby(CSteamID lobbyToJoin)
         {
-            if (SteamIntegration.hasLobby)
+            // AUTOMATIC FAILSAFE: Check if we are currently hosting a server
+            if (Server.instance != null)
             {
-                EntangleLogger.Error("Entanglement: Redux - You are already in a lobby!");
-                return;
+                EntangleLogger.Log("Entanglement: Redux - Shutting down local server to join a new lobby...");
+                Server.instance.Shutdown();
             }
+            // AUTOMATIC FAILSAFE: Check if we are already connected to a different lobby
+            else if (SteamIntegration.hasLobby)
+            {
+                EntangleLogger.Log("Entanglement: Redux - Leaving current lobby to join a new one...");
+                DisconnectFromServer(false);
+            }
+
             SteamMatchmaking.JoinLobby(lobbyToJoin);
         }
 
@@ -81,11 +89,8 @@ namespace Entanglement.Network
                 CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
                 if (memberId != SteamIntegration.currentUser && memberId != hostUser)
                 {
-                    // FIX: Replaced broken "CreatePlayerRep" call to properly spawn existing lobby members
-                    if (!PlayerRepresentation.representations.ContainsKey(memberId.m_SteamID))
-                    {
-                        PlayerRepresentation.representations.Add(memberId.m_SteamID, new PlayerRepresentation(SteamFriends.GetFriendPersonaName(memberId), memberId.m_SteamID));
-                    }
+                    // FIX: Reverted to properly register existing users to the network node!
+                    CreatePlayerRep(memberId.m_SteamID);
                 }
             }
 
