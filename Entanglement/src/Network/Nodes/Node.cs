@@ -130,13 +130,12 @@ namespace Entanglement.Network {
             }
         }
 
-        public virtual void BroadcastMessage(NetworkChannel channel, byte[] data) { }
-
-        public void BroadcastMessageP2P(NetworkChannel channel, byte[] data) { 
-            connectedUsers.ForEach((user) => { SendMessage(user, channel, data); });
-
-            if (!isServer)
-                SendMessage(SteamIntegration.hostUser.m_SteamID, channel, data);
+        public virtual void BroadcastMessageP2P(NetworkChannel channel, byte[] data)
+        {
+            foreach (ulong user in connectedUsers.ToArray())
+            {
+                SendMessage(user, channel, data);
+            }
         }
 
         public virtual void Tick() {

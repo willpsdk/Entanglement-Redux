@@ -41,13 +41,11 @@ namespace Entanglement.Network
 
         public void JoinLobby(CSteamID lobbyToJoin)
         {
-            // AUTOMATIC FAILSAFE: Check if we are currently hosting a server
             if (Server.instance != null)
             {
                 EntangleLogger.Log("Entanglement: Redux - Shutting down local server to join a new lobby...");
                 Server.instance.Shutdown();
             }
-            // AUTOMATIC FAILSAFE: Check if we are already connected to a different lobby
             else if (SteamIntegration.hasLobby)
             {
                 EntangleLogger.Log("Entanglement: Redux - Leaving current lobby to join a new one...");
@@ -64,7 +62,6 @@ namespace Entanglement.Network
 
         private void OnLobbyEntered(LobbyEnter_t result)
         {
-            // If we are currently hosting the server, ignore this so we don't spawn a Ford for ourselves.
             if (Server.instance != null)
                 return;
 
@@ -89,7 +86,6 @@ namespace Entanglement.Network
                 CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
                 if (memberId != SteamIntegration.currentUser && memberId != hostUser)
                 {
-                    // FIX: Reverted to properly register existing users to the network node!
                     CreatePlayerRep(memberId.m_SteamID);
                 }
             }
@@ -123,7 +119,6 @@ namespace Entanglement.Network
         {
             SteamIntegration.UpdateActivity();
 
-            // FIX: Ensure player models are destroyed and references removed when a client leaves
             if (PlayerRepresentation.representations.ContainsKey(userId))
             {
                 PlayerRepresentation.representations[userId].DeleteRepresentations();
@@ -145,7 +140,6 @@ namespace Entanglement.Network
             SteamIntegration.lobbyId = CSteamID.Nil;
             SteamIntegration.DefaultRichPresence();
 
-            // FIX: Completely wipe local representations so stale holograms don't break subsequent connections
             foreach (var rep in PlayerRepresentation.representations.Values)
             {
                 rep.DeleteRepresentations();
@@ -161,6 +155,20 @@ namespace Entanglement.Network
         public override void Shutdown()
         {
             DisconnectFromServer();
+
+            // FIX: Destroy the C++ callbacks to prevent memory leaks and ghost joins
+            if (lobbyJoinRequested != null)
+            {
+                lobbyJoinRequested.Unregister();
+                lobbyJoinRequested.Dispose();
+                lobbyJoinRequested = null;
+            }
+            if (lobbyEnterCallback != null)
+            {
+                lobbyEnterCallback.Unregister();
+                lobbyEnterCallback.Dispose();
+                lobbyEnterCallback = null;
+            }
         }
     }
 }

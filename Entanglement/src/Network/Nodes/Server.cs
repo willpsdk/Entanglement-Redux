@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using MelonLoader;
 using Steamworks;
@@ -47,7 +48,6 @@ namespace Entanglement.Network
                 return;
             }
 
-            // FIX: Ensure clean slate when restarting servers to prevent ghost ID crashes
             foreach (var rep in PlayerRepresentation.representations.Values)
             {
                 rep.DeleteRepresentations();
@@ -106,7 +106,8 @@ namespace Entanglement.Network
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.LevelChange, levelChangeData);
 
                 byte[] msgBytes = message.GetBytes();
-                foreach (ulong user in connectedUsers)
+                // FIX: Use ToArray() to prevent list modified crash
+                foreach (ulong user in connectedUsers.ToArray())
                     SendMessage(user, NetworkChannel.Reliable, msgBytes);
 
                 EntanglementMod.sceneChange = null;
@@ -150,7 +151,9 @@ namespace Entanglement.Network
 
             NetworkMessage disconnectMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Disconnect, disconnectData);
             byte[] disconnectBytes = disconnectMsg.GetBytes();
-            foreach (ulong user in connectedUsers)
+
+            // FIX: Use ToArray() to prevent list modified crash
+            foreach (ulong user in connectedUsers.ToArray())
             {
                 SendMessage(user, NetworkChannel.Reliable, disconnectBytes);
             }
@@ -161,7 +164,6 @@ namespace Entanglement.Network
             }
             SteamIntegration.lobbyId = CSteamID.Nil;
 
-            // FIX: Wipe Server representations on closure
             foreach (var rep in PlayerRepresentation.representations.Values)
             {
                 rep.DeleteRepresentations();
@@ -182,6 +184,14 @@ namespace Entanglement.Network
 
             CloseLobby();
             SteamIntegration.DefaultRichPresence();
+
+            // FIX: Destroy the Server callback
+            if (lobbyCreatedCallback != null)
+            {
+                lobbyCreatedCallback.Unregister();
+                lobbyCreatedCallback.Dispose();
+                lobbyCreatedCallback = null;
+            }
 
             instance = null;
             activeNode = Client.instance;
@@ -224,7 +234,6 @@ namespace Entanglement.Network
             SteamIntegration.UpdateActivity();
             userBeats.Remove(userId);
 
-            // FIX: Properly remove users out of the server array when they crash/disconnect
             if (PlayerRepresentation.representations.ContainsKey(userId))
             {
                 PlayerRepresentation.representations[userId].DeleteRepresentations();
@@ -235,12 +244,17 @@ namespace Entanglement.Network
 
         public override void BroadcastMessage(NetworkChannel channel, byte[] data) => BroadcastMessageP2P(channel, data);
 
-        public void BroadcastMessageExcept(NetworkChannel channel, byte[] data, ulong toIgnore) => connectedUsers.ForEach((user) => {
-            if (user != toIgnore)
+        // FIX: Use ToArray() to prevent list modified crash
+        public void BroadcastMessageExcept(NetworkChannel channel, byte[] data, ulong toIgnore)
+        {
+            foreach (ulong user in connectedUsers.ToArray())
             {
-                SendMessage(user, channel, data);
+                if (user != toIgnore)
+                {
+                    SendMessage(user, channel, data);
+                }
             }
-        });
+        }
 
         public void KickUser(ulong userId, string userName = null, DisconnectReason reason = DisconnectReason.Kicked)
         {
