@@ -106,7 +106,6 @@ namespace Entanglement.Network
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.LevelChange, levelChangeData);
 
                 byte[] msgBytes = message.GetBytes();
-                // FIX: Use ToArray() to prevent list modified crash
                 foreach (ulong user in connectedUsers.ToArray())
                     SendMessage(user, NetworkChannel.Reliable, msgBytes);
 
@@ -152,7 +151,6 @@ namespace Entanglement.Network
             NetworkMessage disconnectMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Disconnect, disconnectData);
             byte[] disconnectBytes = disconnectMsg.GetBytes();
 
-            // FIX: Use ToArray() to prevent list modified crash
             foreach (ulong user in connectedUsers.ToArray())
             {
                 SendMessage(user, NetworkChannel.Reliable, disconnectBytes);
@@ -185,11 +183,9 @@ namespace Entanglement.Network
             CloseLobby();
             SteamIntegration.DefaultRichPresence();
 
-            // FIX: Destroy the Server callback
             if (lobbyCreatedCallback != null)
             {
-                lobbyCreatedCallback.Unregister();
-                lobbyCreatedCallback.Dispose();
+                lobbyCreatedCallback.Cancel();
                 lobbyCreatedCallback = null;
             }
 
@@ -244,7 +240,6 @@ namespace Entanglement.Network
 
         public override void BroadcastMessage(NetworkChannel channel, byte[] data) => BroadcastMessageP2P(channel, data);
 
-        // FIX: Use ToArray() to prevent list modified crash
         public void BroadcastMessageExcept(NetworkChannel channel, byte[] data, ulong toIgnore)
         {
             foreach (ulong user in connectedUsers.ToArray())

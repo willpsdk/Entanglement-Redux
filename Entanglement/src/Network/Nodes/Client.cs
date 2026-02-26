@@ -156,7 +156,6 @@ namespace Entanglement.Network
         {
             DisconnectFromServer();
 
-            // FIX: Destroy the C++ callbacks to prevent memory leaks and ghost joins
             if (lobbyJoinRequested != null)
             {
                 lobbyJoinRequested.Unregister();
