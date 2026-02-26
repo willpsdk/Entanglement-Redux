@@ -1,14 +1,13 @@
-﻿using System;
+﻿using Entanglement.Data;
+using Entanglement.Extensions;
+using Entanglement.Objects;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
-using Entanglement.Data;
-using Entanglement.Extensions;
-using Entanglement.Objects;
-
 using UnityEngine;
+using static Entanglement.Network.TransformCreateMessageHandler;
 
 #if DEBUG
 using MelonLoader;
@@ -26,7 +25,7 @@ namespace Entanglement.Network
             NetworkMessage message = new NetworkMessage();
 
             byte[] utf8 = Encoding.UTF8.GetBytes(data.objectPath);
-            
+
             message.messageData = new byte[sizeof(ushort) * 2 + sizeof(short) + sizeof(float) + sizeof(byte) * 2 + utf8.Length];
 
             int index = 0;
@@ -46,6 +45,8 @@ namespace Entanglement.Network
 
             return message;
         }
+
+        // (Only the HandleMessage method is shown here, replace this inside your TransformCreateMessage.cs)
 
         public override void HandleMessage(NetworkMessage message, ulong sender)
         {
@@ -70,7 +71,8 @@ namespace Entanglement.Network
                 callbackIndex = BitConverter.ToUInt16(message.messageData, index);
                 index += sizeof(ushort);
             }
-            else {
+            else
+            {
                 objectId = BitConverter.ToUInt16(message.messageData, index);
                 ObjectSync.lastId = objectId;
                 index += sizeof(ushort) * 2;
@@ -92,45 +94,47 @@ namespace Entanglement.Network
 
             Transform objectTransform = objectPath.GetFromFullPath(spawnIndex, spawnTime);
             bool destroySync = false;
-            if (objectTransform) {
+            if (objectTransform)
+            {
 #if DEBUG
                 EntangleLogger.Log($"Retrieved object from path {objectPath}!");
 #endif
 
                 TransformSyncable existingSync = TransformSyncable.cache.GetOrAdd(objectTransform.gameObject);
-                if (existingSync) {
-#if DEBUG
-                    EntangleLogger.Log("Object is already synced! Don't freeze it!");
-#endif
+                if (existingSync)
+                {
                     ObjectSync.MoveSyncable(existingSync, objectId);
                     existingSync.ClearOwner();
                     existingSync.TrySetStale(ownerId);
 
-                    if (enqueueOwner) {
+                    if (enqueueOwner)
+                    {
                         existingSync.EnqueueOwner(ownerId);
                     }
                 }
-                else {
-#if DEBUG
-                    EntangleLogger.Log($"Creating sync object!");
-#endif
-
+                else
+                {
                     Syncable syncable = TransformSyncable.CreateSync(ownerId, ComponentCacheExtensions.m_RigidbodyCache.GetOrAdd(objectTransform.gameObject), objectId);
 
-                    if (enqueueOwner) {
+                    if (enqueueOwner)
+                    {
                         syncable.EnqueueOwner(ownerId);
                     }
                 }
             }
-            else {
+            else
+            {
+                // FIX: Flag the sync for destruction so the client doesn't hold onto a ghost map item
+                destroySync = true;
 #if DEBUG
-                EntangleLogger.Warn($"Failed to retrieve object from path {objectPath}!");
+                EntangleLogger.Warn($"Failed to retrieve object from path {objectPath}! Flagging for destroy.");
 #endif
             }
 
             ObjectSync.lastId = objectId;
 
-            if (Server.instance != null) {
+            if (Server.instance != null)
+            {
                 // Send callback to owner
                 IDCallbackMessageData idCallback = new IDCallbackMessageData()
                 {
@@ -142,21 +146,24 @@ namespace Entanglement.Network
                 NetworkMessage callbackMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.IDCallback, idCallback);
                 Server.instance.SendMessage(ownerId, NetworkChannel.Object, callbackMessage.GetBytes());
 
-                // Send sync create to clients
-                byte[] msgBytes = message.GetBytes();
-                Server.instance.BroadcastMessageExcept(NetworkChannel.Object, msgBytes, ownerId);
+                // Broadcast to everyone else ONLY if it wasn't a ghost object
+                if (!destroySync)
+                {
+                    byte[] msgBytes = message.GetBytes();
+                    Server.instance.BroadcastMessageExcept(NetworkChannel.Object, msgBytes, ownerId);
+                }
             }
         }
-    }
 
-    public class TransformCreateMessageData : NetworkMessageData
-    {
-        public ulong ownerId;
-        public ushort objectId;
-        public ushort callbackIndex;
-        public short spawnIndex = -1; // Used as an identifier to work-around different uuids
-        public float spawnTime = -1f;
-        public bool enqueueOwner = true;
-        public string objectPath;
+        public class TransformCreateMessageData : NetworkMessageData
+        {
+            public ulong ownerId;
+            public ushort objectId;
+            public ushort callbackIndex;
+            public short spawnIndex = -1; // Used as an identifier to work-around different uuids
+            public float spawnTime = -1f;
+            public bool enqueueOwner = true;
+            public string objectPath;
+        }
     }
 }

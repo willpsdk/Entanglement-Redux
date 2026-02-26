@@ -85,7 +85,6 @@ namespace Entanglement.Network
             SpawnableObject spawnable = SpawnableData.TryGetSpawnable(title);
 
             yield return null;
-
             yield return null;
 
             if (!spawnable) yield break;
@@ -103,29 +102,31 @@ namespace Entanglement.Network
 
             SpawnManager.SpawnOverride = false;
 
-            // Create the sync transforms
             Rigidbody[] rbs = poolee.GetComponentsInChildren<Rigidbody>();
-            if (rbs.Length == rbCount) {
-                for (ushort i = 0; i < rbs.Length; i++) {
-                    Rigidbody rb = rbs[i];
-                    GameObject go = rb.gameObject;
-                    ushort thisId = (ushort)(i + id);
 
-                    TransformSyncable existingSync = TransformSyncable.cache.GetOrAdd(go);
-                    if (existingSync)
-                    {
-                        ObjectSync.MoveSyncable(existingSync, thisId);
-                        existingSync.ClearOwner();
-                        existingSync.TrySetStale(SteamIntegration.hostUser.m_SteamID);
-                    }
-                    else
-                    {
-                        TransformSyncable.CreateSync(SteamIntegration.hostUser.m_SteamID, ComponentCacheExtensions.m_RigidbodyCache.GetOrAdd(go), thisId);
-                    }
+            // FIX: Always sync what we can, but never skip the loop entirely to prevent fatal network ID drifting
+            int loops = Math.Min(rbs.Length, rbCount);
+            for (ushort i = 0; i < loops; i++)
+            {
+                Rigidbody rb = rbs[i];
+                GameObject go = rb.gameObject;
+                ushort thisId = (ushort)(i + id);
 
-                    ObjectSync.lastId = thisId;
+                TransformSyncable existingSync = TransformSyncable.cache.GetOrAdd(go);
+                if (existingSync)
+                {
+                    ObjectSync.MoveSyncable(existingSync, thisId);
+                    existingSync.ClearOwner();
+                    existingSync.TrySetStale(SteamIntegration.hostUser.m_SteamID);
+                }
+                else
+                {
+                    TransformSyncable.CreateSync(SteamIntegration.hostUser.m_SteamID, ComponentCacheExtensions.m_RigidbodyCache.GetOrAdd(go), thisId);
                 }
             }
+
+            // FIX: Forcefully update the global ID tracking so the client stays identical to the server block
+            ObjectSync.lastId = (ushort)(id + rbCount - 1);
 
             GameObject spawnedObject = poolee.gameObject;
             var pooleeSyncable = spawnedObject.AddComponent<PooleeSyncable>();
@@ -136,16 +137,9 @@ namespace Entanglement.Network
 
     public class SpawnClientMessageData : NetworkMessageData
     {
-        // The id of the spawned object (starting at first rigidbody)
         public ushort spawnId;
-
-        // The amount of rigidbodies in the object (So we know if the object should be ignored or not)
         public byte rbCount;
-
-        // The title of the spawn pool
         public string title;
-
-        // The position and rotation of the spawned object
         public SimplifiedTransform transform;
     }
 }
