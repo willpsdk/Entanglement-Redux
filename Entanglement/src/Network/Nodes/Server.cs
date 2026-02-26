@@ -17,7 +17,6 @@ namespace Entanglement.Network
     {
         public static byte maxPlayers = 8;
         public static bool isLocked = false;
-        // FIX: Set default to Public so it shows up for other players
         public static LobbyType lobbyType = LobbyType.Public;
 
         public const byte serverMinimum = 1;
@@ -32,7 +31,6 @@ namespace Entanglement.Network
 
         public static void StartServer()
         {
-            // Anti-spam check (3-second cooldown)
             if (Time.realtimeSinceStartup - lastServerStart < 3f)
             {
                 EntangleLogger.Log("Please wait a moment before starting another server.");
@@ -48,6 +46,14 @@ namespace Entanglement.Network
                 EntangleLogger.Error("Already in a server!");
                 return;
             }
+
+            // FIX: Ensure clean slate when restarting servers to prevent ghost ID crashes
+            foreach (var rep in PlayerRepresentation.representations.Values)
+            {
+                rep.DeleteRepresentations();
+            }
+            PlayerRepresentation.representations.Clear();
+            SteamIntegration.byteIds.Clear();
 
             EntangleLogger.Log($"Started a new server instance!");
             activeNode = instance = new Server();
@@ -155,6 +161,14 @@ namespace Entanglement.Network
             }
             SteamIntegration.lobbyId = CSteamID.Nil;
 
+            // FIX: Wipe Server representations on closure
+            foreach (var rep in PlayerRepresentation.representations.Values)
+            {
+                rep.DeleteRepresentations();
+            }
+            PlayerRepresentation.representations.Clear();
+            SteamIntegration.byteIds.Clear();
+
             CleanData();
         }
 
@@ -209,6 +223,14 @@ namespace Entanglement.Network
         {
             SteamIntegration.UpdateActivity();
             userBeats.Remove(userId);
+
+            // FIX: Properly remove users out of the server array when they crash/disconnect
+            if (PlayerRepresentation.representations.ContainsKey(userId))
+            {
+                PlayerRepresentation.representations[userId].DeleteRepresentations();
+                PlayerRepresentation.representations.Remove(userId);
+            }
+            SteamIntegration.RemoveUser(userId);
         }
 
         public override void BroadcastMessage(NetworkChannel channel, byte[] data) => BroadcastMessageP2P(channel, data);

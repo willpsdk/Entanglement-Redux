@@ -3,13 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
 using UnityEngine;
-
 using Entanglement.Data;
 using Entanglement.Representation;
 using Entanglement.Extensions;
-
 using StressLevelZero;
 
 namespace Entanglement.Network
@@ -43,65 +40,77 @@ namespace Entanglement.Network
 
         public override void HandleMessage(NetworkMessage message, ulong sender)
         {
-            if (message.messageData.Length <= 0)
-                throw new IndexOutOfRangeException();
-
-            int index = 0;
-            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
-
-            if (PlayerRepresentation.representations.ContainsKey(userId))
+            try
             {
-                PlayerRepresentation rep = PlayerRepresentation.representations[userId];
+                if (message.messageData == null || message.messageData.Length <= 0)
+                    return;
 
-                if (rep.repFord)
+                int index = 0;
+                ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
+
+                if (PlayerRepresentation.representations.ContainsKey(userId))
                 {
-                    bool isGrounded = Convert.ToBoolean(message.messageData[index]);
-                    index += sizeof(byte);
-                    rep.isGrounded = isGrounded;
+                    PlayerRepresentation rep = PlayerRepresentation.representations[userId];
 
-                    List<byte> data = message.messageData.ToList();
-
-                    Vector3 rootPosition = new Vector3();
-
-                    rootPosition.x = BitConverter.ToSingle(message.messageData, index);
-                    index += sizeof(float);
-                    rootPosition.y = BitConverter.ToSingle(message.messageData, index);
-                    index += sizeof(float);
-                    rootPosition.z = BitConverter.ToSingle(message.messageData, index);
-                    index += sizeof(float);
-
-                    rep.repRoot.position = rootPosition;
-
-                    for (int r = 0; r < rep.repTransforms.Length; r++)
+                    if (rep != null && rep.repFord != null)
                     {
-                        SimplifiedTransform simpleTransform = SimplifiedTransform.FromSmallBytes(data.GetRange(index, SimplifiedTransform.size_small).ToArray(), rootPosition);
-                        index += SimplifiedTransform.size_small;
+                        bool isGrounded = Convert.ToBoolean(message.messageData[index]);
+                        index += sizeof(byte);
+                        rep.isGrounded = isGrounded;
 
-                        if (rep.repTransforms[r])
-                            simpleTransform.Apply(rep.repTransforms[r]);
-                    }
+                        List<byte> data = message.messageData.ToList();
 
-                    SimplifiedHand simplifiedLeftHand = SimplifiedHand.FromBytes(data.GetRange(index, SimplifiedHand.size).ToArray());
-                    index += SimplifiedHand.size;
-                    SimplifiedHand simplifiedRightHand = SimplifiedHand.FromBytes(data.GetRange(index, SimplifiedHand.size).ToArray());
+                        Vector3 rootPosition = new Vector3();
 
-                    rep.UpdateFingers(Handedness.LEFT, simplifiedLeftHand);
-                    rep.UpdateFingers(Handedness.RIGHT, simplifiedRightHand);
+                        rootPosition.x = BitConverter.ToSingle(message.messageData, index);
+                        index += sizeof(float);
+                        rootPosition.y = BitConverter.ToSingle(message.messageData, index);
+                        index += sizeof(float);
+                        rootPosition.z = BitConverter.ToSingle(message.messageData, index);
+                        index += sizeof(float);
 
-                    if (rep.repCanvasTransform)
-                    {
-                        rep.repCanvasTransform.position = rep.repTransforms[0].position + Vector3.up * 0.4f;
+                        rep.repRoot.position = rootPosition;
 
-                        if (Camera.current)
-                            rep.repCanvasTransform.rotation = Quaternion.LookRotation(Vector3.Normalize(rep.repCanvasTransform.position - Camera.current.transform.position), Vector3.up);
+                        for (int r = 0; r < rep.repTransforms.Length; r++)
+                        {
+                            SimplifiedTransform simpleTransform = SimplifiedTransform.FromSmallBytes(data.GetRange(index, SimplifiedTransform.size_small).ToArray(), rootPosition);
+                            index += SimplifiedTransform.size_small;
+
+                            if (rep.repTransforms[r] != null)
+                                simpleTransform.Apply(rep.repTransforms[r]);
+                        }
+
+                        SimplifiedHand simplifiedLeftHand = SimplifiedHand.FromBytes(data.GetRange(index, SimplifiedHand.size).ToArray());
+                        index += SimplifiedHand.size;
+                        SimplifiedHand simplifiedRightHand = SimplifiedHand.FromBytes(data.GetRange(index, SimplifiedHand.size).ToArray());
+
+                        rep.UpdateFingers(Handedness.LEFT, simplifiedLeftHand);
+                        rep.UpdateFingers(Handedness.RIGHT, simplifiedRightHand);
+
+                        if (rep.repCanvasTransform != null)
+                        {
+                            rep.repCanvasTransform.position = rep.repTransforms[0].position + Vector3.up * 0.4f;
+
+                            if (Camera.current != null)
+                            {
+                                Vector3 direction = Vector3.Normalize(rep.repCanvasTransform.position - Camera.current.transform.position);
+                                // Prevent a LookRotation error if the camera is perfectly inside the nametag
+                                if (direction != Vector3.zero)
+                                    rep.repCanvasTransform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+                            }
+                        }
                     }
                 }
-            }
 
-            if (Server.instance != null)
+                if (Server.instance != null)
+                {
+                    byte[] msgBytes = message.GetBytes();
+                    Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, userId);
+                }
+            }
+            catch (Exception ex)
             {
-                byte[] msgBytes = message.GetBytes();
-                Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, userId);
+                EntangleLogger.Error($"Error Handling PlayerRepSyncMessage: {ex.Message}");
             }
         }
     }

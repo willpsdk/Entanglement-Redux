@@ -56,7 +56,6 @@ namespace Entanglement.Network
 
         private void OnLobbyEntered(LobbyEnter_t result)
         {
-            // FIX: Steamworks fires a lobby enter callback when you CREATE a lobby. 
             // If we are currently hosting the server, ignore this so we don't spawn a Ford for ourselves.
             if (Server.instance != null)
                 return;
@@ -82,7 +81,11 @@ namespace Entanglement.Network
                 CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
                 if (memberId != SteamIntegration.currentUser && memberId != hostUser)
                 {
-                    CreatePlayerRep(memberId.m_SteamID);
+                    // FIX: Replaced broken "CreatePlayerRep" call to properly spawn existing lobby members
+                    if (!PlayerRepresentation.representations.ContainsKey(memberId.m_SteamID))
+                    {
+                        PlayerRepresentation.representations.Add(memberId.m_SteamID, new PlayerRepresentation(SteamFriends.GetFriendPersonaName(memberId), memberId.m_SteamID));
+                    }
                 }
             }
 
@@ -92,7 +95,10 @@ namespace Entanglement.Network
             if (PlayerScripts.playerHealth)
                 PlayerScripts.playerHealth.reloadLevelOnDeath = false;
 
-            PlayerRepresentation.representations.Add(hostUser.m_SteamID, new PlayerRepresentation(SteamFriends.GetFriendPersonaName(hostUser), hostUser.m_SteamID));
+            if (!PlayerRepresentation.representations.ContainsKey(hostUser.m_SteamID))
+            {
+                PlayerRepresentation.representations.Add(hostUser.m_SteamID, new PlayerRepresentation(SteamFriends.GetFriendPersonaName(hostUser), hostUser.m_SteamID));
+            }
 
             ConnectionMessageData connectionData = new ConnectionMessageData();
             connectionData.packedVersion = BitConverter.ToUInt16(new byte[] { EntanglementVersion.versionMajor, EntanglementVersion.versionMinor }, 0);
@@ -111,6 +117,14 @@ namespace Entanglement.Network
         public override void UserDisconnectEvent(ulong lobbyId, ulong userId)
         {
             SteamIntegration.UpdateActivity();
+
+            // FIX: Ensure player models are destroyed and references removed when a client leaves
+            if (PlayerRepresentation.representations.ContainsKey(userId))
+            {
+                PlayerRepresentation.representations[userId].DeleteRepresentations();
+                PlayerRepresentation.representations.Remove(userId);
+            }
+            SteamIntegration.RemoveUser(userId);
         }
 
         public void DisconnectFromServer(bool notif = true)
@@ -122,8 +136,18 @@ namespace Entanglement.Network
             {
                 SteamMatchmaking.LeaveLobby(SteamIntegration.lobbyId);
             }
+
             SteamIntegration.lobbyId = CSteamID.Nil;
             SteamIntegration.DefaultRichPresence();
+
+            // FIX: Completely wipe local representations so stale holograms don't break subsequent connections
+            foreach (var rep in PlayerRepresentation.representations.Values)
+            {
+                rep.DeleteRepresentations();
+            }
+            PlayerRepresentation.representations.Clear();
+            SteamIntegration.byteIds.Clear();
+
             CleanData();
         }
 
