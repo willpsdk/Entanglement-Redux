@@ -40,8 +40,7 @@ namespace Entanglement.Network
 
             byte byteId = message.messageData[index++];
 
-            if (userId == SteamIntegration.currentUser.m_SteamID)
-                SteamIntegration.localByteId = byteId;
+            // FIX: Removed the outdated localByteId check. Just register the user directly.
             SteamIntegration.RegisterUser(userId, byteId);
         }
     }
