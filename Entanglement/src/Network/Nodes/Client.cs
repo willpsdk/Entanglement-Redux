@@ -82,47 +82,74 @@ namespace Entanglement.Network
                 return;
             }
 
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+            EntangleLogger.Log("[CLIENT JOIN] Lobby successfully entered", ConsoleColor.Cyan);
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+
             SteamIntegration.lobbyId = new CSteamID(result.m_ulSteamIDLobby);
             SteamIntegration.hostUser = SteamMatchmaking.GetLobbyOwner(SteamIntegration.lobbyId);
             hostUser = SteamIntegration.hostUser;
 
-            EntangleLogger.Verbose($"Successfully joined lobby. Host resolved to SteamID: {hostUser.m_SteamID}");
-            EntangleLogger.Log($"Entanglement: Redux - Joined {SteamFriends.GetFriendPersonaName(hostUser)}'s server!");
+            EntangleLogger.Log($"[CLIENT JOIN] Host resolved: {SteamFriends.GetFriendPersonaName(hostUser)}", ConsoleColor.Yellow);
+            EntangleLogger.Log($"Entanglement: Redux - Joined {SteamFriends.GetFriendPersonaName(hostUser)}'s server!", ConsoleColor.Green);
             EntangleNotif.JoinServer(SteamFriends.GetFriendPersonaName(hostUser));
 
+            EntangleLogger.Log("[CLIENT JOIN] Connecting to Steam server...", ConsoleColor.Yellow);
             ConnectToSteamServer();
+            EntangleLogger.Log("[CLIENT JOIN] ✓ Steam connection established", ConsoleColor.Green);
 
             int memberCount = SteamMatchmaking.GetNumLobbyMembers(SteamIntegration.lobbyId);
-            EntangleLogger.Verbose($"Fetching existing {memberCount} lobby members to create representations...");
+            EntangleLogger.Log($"[CLIENT JOIN] Fetching {memberCount} existing lobby members...", ConsoleColor.Yellow);
 
             for (int i = 0; i < memberCount; i++)
             {
                 CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
                 if (memberId != SteamIntegration.currentUser && memberId != hostUser)
                 {
+                    EntangleLogger.Log($"[CLIENT JOIN]   Creating rep for player {i}: {memberId.m_SteamID}", ConsoleColor.Cyan);
                     CreatePlayerRep(memberId.m_SteamID);
                 }
             }
+            EntangleLogger.Log("[CLIENT JOIN] ✓ All player representations created", ConsoleColor.Green);
 
             SteamIntegration.UpdateActivity();
             ObjectSync.OnCleanup();
+            EntangleLogger.Log("[CLIENT JOIN] Object sync cleaned up", ConsoleColor.Yellow);
 
             if (PlayerScripts.playerHealth)
-                PlayerScripts.playerHealth.reloadLevelOnDeath = false;
-
-            if (!PlayerRepresentation.representations.ContainsKey(hostUser.m_SteamID))
             {
-                PlayerRepresentation.representations.Add(hostUser.m_SteamID, new PlayerRepresentation(SteamFriends.GetFriendPersonaName(hostUser), hostUser.m_SteamID));
+                PlayerScripts.playerHealth.reloadLevelOnDeath = false;
+                EntangleLogger.Log("[CLIENT JOIN] Player health configured", ConsoleColor.Yellow);
             }
 
-            EntangleLogger.Verbose("Constructing and sending BuiltInMessageType.Connection to Host...");
+            // FIX: Only create host representation if we're NOT the host
+            // Don't create a representation for yourself!
+            if (hostUser.m_SteamID != SteamIntegration.currentUser.m_SteamID)
+            {
+                if (!PlayerRepresentation.representations.ContainsKey(hostUser.m_SteamID))
+                {
+                    EntangleLogger.Log($"[CLIENT JOIN] Creating representation for host: {SteamFriends.GetFriendPersonaName(hostUser)}", ConsoleColor.Yellow);
+                    PlayerRepresentation.representations.Add(hostUser.m_SteamID, new PlayerRepresentation(SteamFriends.GetFriendPersonaName(hostUser), hostUser.m_SteamID));
+                    EntangleLogger.Log("[CLIENT JOIN] ✓ Host representation created", ConsoleColor.Green);
+                }
+            }
+            else
+            {
+                EntangleLogger.Log("[CLIENT JOIN] Not creating representation for self (you are the host)", ConsoleColor.Yellow);
+            }
+
+            EntangleLogger.Log("[CLIENT JOIN] Sending connection message to host...", ConsoleColor.Yellow);
             ConnectionMessageData connectionData = new ConnectionMessageData();
             connectionData.packedVersion = BitConverter.ToUInt16(new byte[] { EntanglementVersion.versionMajor, EntanglementVersion.versionMinor }, 0);
 
             NetworkMessage conMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Connection, connectionData);
             SendMessage(hostUser.m_SteamID, NetworkChannel.Reliable, conMsg.GetBytes());
+            EntangleLogger.Log("[CLIENT JOIN] ✓ Connection message sent", ConsoleColor.Green);
 
             SteamIntegration.RegisterUser(hostUser.m_SteamID, 0);
+
+            EntangleLogger.Log("[CLIENT JOIN] Client fully connected and ready", ConsoleColor.Green);
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
         }
 
         public override void UserConnectedEvent(ulong lobbyId, ulong userId)
@@ -147,6 +174,10 @@ namespace Entanglement.Network
         public void DisconnectFromServer(bool notif = true)
         {
             EntangleLogger.Verbose("DisconnectFromServer() called - Cleaning up client state.");
+
+            // Prevent repeated disconnections
+            if (!SteamIntegration.hasLobby)
+                return;
 
             if (notif)
                 EntangleNotif.LeftServer();
@@ -173,6 +204,10 @@ namespace Entanglement.Network
 
         public override void Tick()
         {
+            // Don't tick if not connected, or if we're a server
+            if (!SteamIntegration.hasLobby || Node.isServer)
+                return;
+
             // Handle heartbeat sending and timeout detection
             heartbeatTimer += Time.deltaTime;
             hostHeartbeat += Time.deltaTime;

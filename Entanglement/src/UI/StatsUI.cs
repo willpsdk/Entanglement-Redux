@@ -25,28 +25,37 @@ namespace Entanglement.UI
 
         public static void CreateUI(MenuCategory category)
         {
-            MenuCategory statsCategory = category.CreateSubCategory("Net Stats", Color.white);
+            try
+            {
+                MenuCategory statsCategory = category.CreateSubCategory("Net Stats", Color.white);
 
-            downElem = statsCategory.elements[statsCategory.elements.Count > 0 ? statsCategory.elements.Count - 1 : 0] as IntElement;
-            upElem = statsCategory.elements[statsCategory.elements.Count > 0 ? statsCategory.elements.Count - 1 : 0] as IntElement;
+                // Create elements and store references immediately
+                statsCategory.CreateIntElement("Bytes Down", Color.white, 0, null);
+                downElem = statsCategory.elements.Last() as IntElement;
 
-            statsCategory.CreateIntElement("Bytes Down", Color.white, 0, null);
-            downElem = statsCategory.elements[statsCategory.elements.Count - 1] as IntElement;
+                statsCategory.CreateIntElement("Bytes Up", Color.white, 0, null);
+                upElem = statsCategory.elements.Last() as IntElement;
 
-            statsCategory.CreateIntElement("Bytes Up", Color.white, 0, null);
-            upElem = statsCategory.elements[statsCategory.elements.Count - 1] as IntElement;
+                statsCategory.CreateIntElement("Players", Color.white, 0, null);
+                playerCountElem = statsCategory.elements.Last() as IntElement;
 
-            statsCategory.CreateIntElement("Players", Color.white, 0, null);
-            playerCountElem = statsCategory.elements[statsCategory.elements.Count - 1] as IntElement;
+                statsCategory.CreateIntElement("Objects Synced", Color.white, 0, null);
+                objectCountElem = statsCategory.elements.Last() as IntElement;
 
-            statsCategory.CreateIntElement("Objects Synced", Color.white, 0, null);
-            objectCountElem = statsCategory.elements[statsCategory.elements.Count - 1] as IntElement;
+                EntangleLogger.Verbose("StatsUI initialized successfully");
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Error($"Failed to create StatsUI: {ex.Message}");
+            }
         }
 
         public static void UpdateUI()
         {
-            if (Node.activeNode == null)
-                return;
+            try
+            {
+                if (Node.activeNode == null || downElem == null || upElem == null || playerCountElem == null || objectCountElem == null)
+                    return;
 
             // Update byte counts
             downElem.SetValue((int)Node.activeNode.recievedByteCount);
@@ -61,15 +70,20 @@ namespace Entanglement.UI
                 lastUploadBps = Node.activeNode.sentByteCount / BANDWIDTH_CHECK_INTERVAL;
             }
 
-            // Update counts
-            int playerCount = PlayerRepresentation.representations.Count;
-            int objectCount = ObjectSync.syncedObjects.Count;
-            playerCountElem.SetValue(playerCount);
-            objectCountElem.SetValue(objectCount);
+                         // Update counts
+                            int playerCount = PlayerRepresentation.representations.Count;
+                            int objectCount = ObjectSync.syncedObjects.Count;
+                            playerCountElem.SetValue(playerCount);
+                            objectCountElem.SetValue(objectCount);
 
-            // Reset counters
-            Node.activeNode.recievedByteCount = 0;
-            Node.activeNode.sentByteCount = 0;
-        }
-    }
-}
+                            // Reset counters
+                            Node.activeNode.recievedByteCount = 0;
+                            Node.activeNode.sentByteCount = 0;
+                        }
+                        catch (Exception ex)
+                        {
+                            EntangleLogger.Error($"Error updating StatsUI: {ex.Message}");
+                        }
+                    }
+                }
+            }

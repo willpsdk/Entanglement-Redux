@@ -119,9 +119,13 @@ namespace Entanglement.Network
                 BroadcastMessage(NetworkChannel.Unreliable, heartbeatMsg.GetBytes());
             }
 
-            // Check for client timeouts
+            // Check for client timeouts (excluding the host!)
             foreach (ulong userId in userBeats.Keys.ToArray())
             {
+                // FIX: Never timeout the host
+                if (userId == SteamIntegration.currentUser.m_SteamID)
+                    continue;
+
                 userBeats[userId] += Time.deltaTime;
                 if (userBeats[userId] > HEARTBEAT_TIMEOUT)
                 {
@@ -258,7 +262,11 @@ namespace Entanglement.Network
             NetworkMessage idMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.ShortId, idMessageData);
             BroadcastMessage(NetworkChannel.Reliable, idMessage.GetBytes());
 
-            userBeats.Add(userId, 0f);
+            // FIX: NEVER track heartbeat for the host (only for connected clients)
+            if (userId != SteamIntegration.currentUser.m_SteamID)
+            {
+                userBeats.Add(userId, 0f);
+            }
         }
 
         public override void UserDisconnectEvent(ulong lobbyId, ulong userId)

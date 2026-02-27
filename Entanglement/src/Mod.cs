@@ -220,39 +220,73 @@ namespace Entanglement
         {
             if (SteamIntegration.isInvalid) return;
 
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+            EntangleLogger.Log($"[LEVEL CHANGE] OnSceneWasInitialized: {sceneName} (Index: {buildIndex})", ConsoleColor.Cyan);
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+
             ModuleHandler.OnSceneWasInitialized(buildIndex, sceneName);
 
+            EntangleLogger.Log("[LEVEL CHANGE] Getting SpawnableData...", ConsoleColor.Yellow);
             SpawnableData.GetData();
-            PlayerScripts.GetPlayerScripts();
-            PlayerRepresentation.GetPlayerTransforms();
+            EntangleLogger.Log("[LEVEL CHANGE] ✓ SpawnableData loaded", ConsoleColor.Green);
 
+            EntangleLogger.Log("[LEVEL CHANGE] Getting PlayerScripts...", ConsoleColor.Yellow);
+            PlayerScripts.GetPlayerScripts();
+            EntangleLogger.Log("[LEVEL CHANGE] ✓ PlayerScripts initialized", ConsoleColor.Green);
+
+            EntangleLogger.Log("[LEVEL CHANGE] Getting PlayerTransforms...", ConsoleColor.Yellow);
+            PlayerRepresentation.GetPlayerTransforms();
+            EntangleLogger.Log("[LEVEL CHANGE] ✓ PlayerTransforms loaded", ConsoleColor.Green);
+
+            EntangleLogger.Log($"[LEVEL CHANGE] Recreating {PlayerRepresentation.representations.Count} player representations...", ConsoleColor.Yellow);
             foreach (var rep in PlayerRepresentation.representations.Values)
                 rep.RecreateRepresentations();
+            EntangleLogger.Log("[LEVEL CHANGE] ✓ Player representations recreated", ConsoleColor.Green);
 
-            Client.instance.currentScene = (byte)buildIndex;
+            if (Client.instance != null)
+            {
+                Client.instance.currentScene = (byte)buildIndex;
+                EntangleLogger.Log($"[LEVEL CHANGE] Client scene updated to: {buildIndex}", ConsoleColor.Yellow);
+            }
             sceneChange = (byte)buildIndex;
 
             SteamIntegration.targetScene = sceneName.ToLower();
             SteamIntegration.UpdateActivity();
+
+            EntangleLogger.Log("[LEVEL CHANGE] Level change initialization complete - Scene ready for play", ConsoleColor.Green);
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
         }
 
         public override void BONEWORKS_OnLoadingScreen()
         {
             if (SteamIntegration.isInvalid) return;
 
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+            EntangleLogger.Log("[LEVEL CHANGE] BONEWORKS_OnLoadingScreen called - Beginning cleanup phase", ConsoleColor.Cyan);
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+
             ModuleHandler.OnLoadingScreen();
             LoadingScreen.OverrideScreen();
+            EntangleLogger.Log("[LEVEL CHANGE] Module handlers and loading screen called", ConsoleColor.Yellow);
 
+            EntangleLogger.Log("[LEVEL CHANGE] Clearing ObjectSync...", ConsoleColor.Yellow);
             ObjectSync.OnCleanup();
             ObjectSync.poolPairs.Clear();
+            StoryModeSync.ClearAll();
+            EntangleLogger.Log("[LEVEL CHANGE] ✓ ObjectSync cleared", ConsoleColor.Green);
 
+            EntangleLogger.Log("[LEVEL CHANGE] Clearing Poolee caches...", ConsoleColor.Yellow);
             // FIX: Clear the Poolee caches on level load to prevent ID conflicts
             PooleeSyncable._Cache.Clear();
             PooleeSyncable._PooleeLookup.Clear();
+            EntangleLogger.Log("[LEVEL CHANGE] ✓ Poolee caches cleared", ConsoleColor.Green);
 
 #if DEBUG
             PlayerRepresentation.debugRepresentation = null;
 #endif
+
+            EntangleLogger.Log("[LEVEL CHANGE] Cleanup phase complete - Ready for new scene", ConsoleColor.Green);
+            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
         }
 
         public override void OnApplicationQuit()

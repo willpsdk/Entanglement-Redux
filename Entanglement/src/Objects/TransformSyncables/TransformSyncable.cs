@@ -64,6 +64,10 @@ namespace Entanglement.Objects
 
         public override void SyncUpdate()
         {
+            // Safety check - ensure we have an active node
+            if (Node.activeNode == null)
+                return;
+
             // Rate limit object syncs to 20 Hz to reduce network traffic
             lastSyncTime += Time.fixedDeltaTime;
             if (lastSyncTime < OBJECT_SYNC_INTERVAL)
@@ -77,7 +81,10 @@ namespace Entanglement.Objects
             _cachedSyncData.simplifiedTransform = new SimplifiedTransform(transform, rb);
 
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, _cachedSyncData);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+            if (message != null)
+            {
+                Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+            }
 
             if (targetGo)
             {

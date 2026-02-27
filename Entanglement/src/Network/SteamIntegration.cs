@@ -48,7 +48,26 @@ namespace Entanglement.Network
 
         public static byte CreateByteId() => lastByteId++;
 
-        public static void RegisterUser(ulong userId, byte byteId) => byteIds.Add(byteId, userId);
+        // FIX: Prevent "An item with the same key has already been added" error
+        public static void RegisterUser(ulong userId, byte byteId)
+        {
+            if (!byteIds.ContainsKey(byteId))
+            {
+                byteIds.Add(byteId, userId);
+                EntangleLogger.Verbose($"[SteamIntegration] Registered user {userId} with byte ID {byteId}");
+            }
+            else if (byteIds[byteId] != userId)
+            {
+                // If the key exists but points to a different user, update it
+                EntangleLogger.Verbose($"[SteamIntegration] Updated user mapping for byte ID {byteId}: {byteIds[byteId]} -> {userId}");
+                byteIds[byteId] = userId;
+            }
+            else
+            {
+                // Same user already registered, no action needed
+                EntangleLogger.Verbose($"[SteamIntegration] User {userId} already registered with byte ID {byteId}");
+            }
+        }
 
         public static byte RegisterUser(ulong userId)
         {
@@ -57,7 +76,16 @@ namespace Entanglement.Network
             return byteId;
         }
 
-        public static void RemoveUser(ulong userId) => byteIds.Remove(GetByteId(userId));
+        // FIX: Added null check for RemoveUser
+        public static void RemoveUser(ulong userId)
+        {
+            byte byteId = GetByteId(userId);
+            if (byteId > 0)
+            {
+                byteIds.Remove(byteId);
+                EntangleLogger.Verbose($"[SteamIntegration] Removed user {userId} (byte ID {byteId})");
+            }
+        }
 
         public static void Initialize()
         {

@@ -8,6 +8,9 @@ namespace Entanglement
 {
     public static class EntangleNotif
     {
+        private static float lastDisconnectNotifTime = -10f;
+        private const float DISCONNECT_NOTIF_COOLDOWN = 2f;
+
         public static void PlayerJoin(string username)
         {
             Notifications.SendNotification($"{username} has joined the server!", 4f);
@@ -20,6 +23,11 @@ namespace Entanglement
 
         public static void PlayerDisconnect(DisconnectReason reason)
         {
+            // Debounce to prevent notification spam
+            if (UnityEngine.Time.time - lastDisconnectNotifTime < DISCONNECT_NOTIF_COOLDOWN)
+                return;
+
+            lastDisconnectNotifTime = UnityEngine.Time.time;
             Notifications.SendNotification($"You were disconnected for reason {reason}.", 4f);
         }
 
@@ -30,6 +38,11 @@ namespace Entanglement
 
         public static void LeftServer()
         {
+            // Debounce to prevent notification spam
+            if (UnityEngine.Time.time - lastDisconnectNotifTime < DISCONNECT_NOTIF_COOLDOWN)
+                return;
+
+            lastDisconnectNotifTime = UnityEngine.Time.time;
             Notifications.SendNotification("You left the server.", 4f);
         }
 

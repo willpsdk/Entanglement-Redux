@@ -119,24 +119,32 @@ namespace Entanglement.Representation
         {
             try
             {
+                EntangleLogger.Verbose($"[RepCreation] Starting for player {playerName} (ID: {playerId})");
+
+                EntangleLogger.Verbose("[RepCreation]   Loading holographic material...");
                 repHologram = Material.Instantiate(playerRepBundle.LoadAsset<Material>("PlayerHolographic"));
 
+                EntangleLogger.Verbose("[RepCreation]   Instantiating player representation model...");
                 repFord = GameObject.Instantiate(playerRepBundle.LoadAsset<GameObject>("PlayerRep"));
                 repFord.name = $"PlayerRep.{playerId}";
 
                 repRoot = repFord.transform;
+                EntangleLogger.Verbose("[RepCreation]   ✓ Model instantiated");
 
+                EntangleLogger.Verbose("[RepCreation]   Setting up SFX components...");
                 repGunSFX = repRoot.Find("GunSFX").GetComponent<GunSFX>();
                 repBalloonSFX = repRoot.Find("BalloonSFX").GetComponent<GunSFX>();
                 repStabSFX = repRoot.Find("StabSFX").GetComponent<GunSFX>();
                 repPowerPunchSFX = repRoot.Find("PuncherSFX").GetComponent<GravGunSFX>();
 
+                EntangleLogger.Verbose("[RepCreation]   Setting up physics body...");
                 Transform repBodyBody = repRoot.Find("Body");
                 repBody = repBodyBody.GetComponent<SLZ_Body>();
                 repBody.OnStart();
 
                 ragdollBody = repRoot.Find("Ragdoll").GetComponent<SLZ_Body>();
 
+                EntangleLogger.Verbose("[RepCreation]   Setting up animator...");
                 Transform repAnimatorBody = repRoot.Find("Brett@neutral");
                 repAnimator = repAnimatorBody.GetComponent<Animator>();
                 repAnimator.runtimeAnimatorController = PlayerScripts.playerAnimatorController;
@@ -150,17 +158,21 @@ namespace Entanglement.Representation
                     repAnimator.SetInteger("AnimState", 0);
                     repAnimator.SetLayerWeight(1, 0f); // Disable upper body layer if it exists
                 }
+                EntangleLogger.Verbose("[RepCreation]   ✓ Animator configured");
 
                 repGeo = repAnimatorBody.Find("geoGrp");
                 repSHJnt = repAnimatorBody.Find("SHJntGrp");
 
+                EntangleLogger.Verbose("[RepCreation]   Getting transform references...");
                 repTransforms[0] = repRoot.Find("Head");
                 repTransforms[1] = repRoot.Find("Hand (left)");
                 repTransforms[2] = repRoot.Find("Hand (right)");
 
                 colliders = repRoot.GetComponentsInChildren<Collider>();
+                EntangleLogger.Verbose($"[RepCreation]   Found {colliders.Length} colliders");
 
                 // Create and setup the nametag canvas after getting the head transform
+                EntangleLogger.Verbose("[RepCreation]   Creating nametag canvas...");
                 repCanvas = new GameObject("RepCanvas");
                 repCanvasComponent = repCanvas.AddComponent<Canvas>();
                 repCanvasComponent.renderMode = RenderMode.WorldSpace;
@@ -172,16 +184,31 @@ namespace Entanglement.Representation
                 {
                     repCanvasTransform.SetParent(repTransforms[0], false);
                     repCanvasTransform.localPosition = Vector3.up * 0.4f;
+                    EntangleLogger.Verbose("[RepCreation]   ✓ Nametag parented to head");
                 }
                 else
                 {
                     repCanvasTransform.position = repRoot.position + Vector3.up * 0.4f;
+                    EntangleLogger.Verbose("[RepCreation]   ⚠ Nametag positioned at root");
                 }
 
                 repNameText = repCanvas.AddComponent<TextMeshProUGUI>();
                 repNameText.alignment = TextAlignmentOptions.Midline;
                 repNameText.enableAutoSizing = true;
                 repNameText.text = playerName;
+
+                // FIX: Hide nametag for local player so they can't see their own name
+                bool isLocalPlayer = playerId == SteamIntegration.currentUser.m_SteamID;
+                if (isLocalPlayer)
+                {
+                    repCanvas.SetActive(false);
+                    EntangleLogger.Verbose($"[RepCreation]   ⚠ Nametag DISABLED for local player: {playerName} (ID: {playerId})");
+                }
+                else
+                {
+                    repCanvas.SetActive(true);
+                    EntangleLogger.Verbose($"[RepCreation]   ✓ Nametag ENABLED for remote player: {playerName} (ID: {playerId})");
+                }
 
                 if (isCustomSkinned && currentSkinPath != null)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
@@ -451,6 +478,10 @@ namespace Entanglement.Representation
             if (!SteamIntegration.hasLobby)
                 return;
 
+            // Ensure we have a valid node
+            if (Node.activeNode == null)
+                return;
+
             // Rate limit player syncs to 30 Hz to reduce network traffic
             lastPlayerSyncTime += Time.deltaTime;
             if (lastPlayerSyncTime < PLAYER_SYNC_INTERVAL)
@@ -463,7 +494,10 @@ namespace Entanglement.Representation
             if (syncData != null)
             {
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.PlayerRepSync, syncData);
-                Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+                if (message != null)
+                {
+                    Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+                }
             }
             else
                 GetPlayerTransforms();
@@ -472,6 +506,10 @@ namespace Entanglement.Representation
         public static void SyncAnimationState()
         {
             if (!SteamIntegration.hasLobby)
+                return;
+
+            // Ensure we have a valid node
+            if (Node.activeNode == null)
                 return;
 
             // Rate limit animation syncs to 20 Hz to reduce network traffic
@@ -486,7 +524,10 @@ namespace Entanglement.Representation
             if (animData != null)
             {
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.AnimationSync, animData);
-                Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+                if (message != null)
+                {
+                    Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+                }
             }
         }
 

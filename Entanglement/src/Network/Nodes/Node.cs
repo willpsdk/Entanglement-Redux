@@ -5,6 +5,7 @@ using System.IO;
 
 using MelonLoader;
 using Steamworks;
+using UnityEngine;
 
 using Entanglement.Representation;
 using Entanglement.Compat.Playermodels;
@@ -27,6 +28,9 @@ namespace Entanglement.Network
         public static bool isServer => activeNode is Server;
 
         protected Callback<P2PSessionRequest_t> sessionRequestCallback;
+        private List<ulong> lastKnownMembers = new List<ulong>();
+        private float memberCheckTimer = 0f;
+        private const float MEMBER_CHECK_INTERVAL = 2f; // Check every 2 seconds
 
         public Node()
         {
@@ -37,6 +41,51 @@ namespace Entanglement.Network
         {
             CSteamID remoteId = request.m_steamIDRemote;
             SteamNetworking.AcceptP2PSessionWithUser(remoteId);
+        }
+
+        public void CheckLobbyMemberChanges()
+        {
+            // Periodically check if lobby members have changed
+            if (!SteamIntegration.hasLobby)
+                return;
+
+            memberCheckTimer += Time.deltaTime;
+            if (memberCheckTimer < MEMBER_CHECK_INTERVAL)
+                return;
+
+            memberCheckTimer = 0f;
+
+            // Get current members
+            List<ulong> currentMembers = new List<ulong>();
+            int memberCount = SteamMatchmaking.GetNumLobbyMembers(SteamIntegration.lobbyId);
+
+            for (int i = 0; i < memberCount; i++)
+            {
+                CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
+                currentMembers.Add(memberId.m_SteamID);
+            }
+
+            // Check for new members
+            foreach (ulong memberId in currentMembers)
+            {
+                if (!lastKnownMembers.Contains(memberId))
+                {
+                    EntangleLogger.Verbose($"Detected new member joined: {memberId}");
+                    OnSteamUserJoined(SteamIntegration.lobbyId.m_SteamID, memberId);
+                }
+            }
+
+            // Check for departed members
+            foreach (ulong memberId in lastKnownMembers)
+            {
+                if (!currentMembers.Contains(memberId))
+                {
+                    EntangleLogger.Verbose($"Detected member left: {memberId}");
+                    OnSteamUserLeft(SteamIntegration.lobbyId.m_SteamID, memberId);
+                }
+            }
+
+            lastKnownMembers = currentMembers;
         }
 
         public void ConnectToSteamServer()
@@ -81,6 +130,13 @@ namespace Entanglement.Network
 
         public void CreatePlayerRep(ulong userId)
         {
+            // FIX: CRITICAL - Never create a representation for the local player!
+            if (userId == SteamIntegration.currentUser.m_SteamID)
+            {
+                EntangleLogger.Verbose($"[Node] Skipping representation creation for local player: {userId}");
+                return;
+            }
+
             if (connectedUsers.Contains(userId))
                 return;
 
@@ -89,10 +145,20 @@ namespace Entanglement.Network
             CSteamID steamId = new CSteamID(userId);
             string username = SteamFriends.GetFriendPersonaName(steamId);
 
-            PlayerRepresentation.representations.Add(userId, new PlayerRepresentation(username, userId));
-            userDatas.Add(userId, steamId);
-
-            EntangleNotif.PlayerJoin($"{username}");
+            try
+            {
+                if (!PlayerRepresentation.representations.ContainsKey(userId))
+                {
+                    PlayerRepresentation.representations.Add(userId, new PlayerRepresentation(username, userId));
+                    userDatas.Add(userId, steamId);
+                    EntangleNotif.PlayerJoin($"{username}");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                EntangleLogger.Error($"Error creating player representation for {username} ({userId}): {ex.Message}");
+                connectedUsers.Remove(userId);
+            }
         }
 
         public void CleanData()
@@ -184,6 +250,9 @@ namespace Entanglement.Network
 
         public virtual void Tick()
         {
+            // Check for lobby member changes periodically
+            CheckLobbyMemberChanges();
+
             for (int channel = 0; channel <= 4; channel++)
             {
                 uint msgSize;
