@@ -192,6 +192,7 @@ namespace Entanglement
 
             StatsUI.UpdateUI();
             PlayerRepresentation.SyncPlayerReps();
+            PlayerRepresentation.SyncAnimationState();
             DataTransaction.Process();
         }
 

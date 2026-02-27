@@ -119,25 +119,53 @@ namespace Entanglement.Network
             if (data.Length <= 0)
                 return;
 
-            NetworkMessage message = new NetworkMessage();
+            try
+            {
+                NetworkMessage message = new NetworkMessage();
 
-            message.messageType = data[0];
-            message.messageData = new byte[data.Length - sizeof(byte)];
+                message.messageType = data[0];
+                message.messageData = new byte[data.Length - sizeof(byte)];
 
-            for (int b = sizeof(byte); b < data.Length; b++)
-                message.messageData[b - sizeof(byte)] = data[b];
+                for (int b = sizeof(byte); b < data.Length; b++)
+                    message.messageData[b - sizeof(byte)] = data[b];
 
-            recievedByteCount += (uint)data.Length;
-            NetworkMessage.ReadMessage(message, userId);
+                recievedByteCount += (uint)data.Length;
+                NetworkMessage.ReadMessage(message, userId);
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Error($"Error processing message from {userId}: {ex.Message}");
+            }
         }
 
         public void SendMessage(ulong userId, NetworkChannel channel, byte[] data)
         {
-            if (SteamIntegration.hasLobby)
+            if (!SteamIntegration.hasLobby)
+                return;
+
+            try
             {
                 EP2PSend sendType = channel == NetworkChannel.Unreliable ? EP2PSend.k_EP2PSendUnreliable : EP2PSend.k_EP2PSendReliable;
-                SteamNetworking.SendP2PPacket(new CSteamID(userId), data, (uint)data.Length, sendType, (int)channel);
-                sentByteCount += (uint)data.Length;
+                bool success = SteamNetworking.SendP2PPacket(new CSteamID(userId), data, (uint)data.Length, sendType, (int)channel);
+
+                if (success)
+                {
+                    sentByteCount += (uint)data.Length;
+                }
+                else
+                {
+                    EntangleLogger.Error($"Failed to send P2P packet to user {userId}. Channel: {channel}, Size: {data.Length} bytes");
+
+                    // If this is a client talking to server, we might want to disconnect
+                    if (this is Client client && userId == client.hostUser.m_SteamID)
+                    {
+                        EntangleLogger.Verbose("Attempting to reconnect to host...");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Error($"Exception in SendMessage to {userId}: {ex.Message}");
             }
         }
 

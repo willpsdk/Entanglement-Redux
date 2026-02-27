@@ -46,6 +46,10 @@ namespace Entanglement.Objects
         public const float maximumForce = 150000f;
         public const float linearLimit = 0.005f;
 
+        // Rate limiting: 20 Hz max for object sync (1/20 = 0.05 seconds between syncs)
+        private float lastSyncTime = 0f;
+        private const float OBJECT_SYNC_INTERVAL = 1f / 20f;
+
         protected float timeOfDisable = 0f;
 
         private TransformSyncMessageData _cachedSyncData;
@@ -60,6 +64,13 @@ namespace Entanglement.Objects
 
         public override void SyncUpdate()
         {
+            // Rate limit object syncs to 20 Hz to reduce network traffic
+            lastSyncTime += Time.fixedDeltaTime;
+            if (lastSyncTime < OBJECT_SYNC_INTERVAL)
+                return;
+
+            lastSyncTime = 0f;
+
             if (_cachedSyncData == null) _cachedSyncData = new TransformSyncMessageData();
 
             _cachedSyncData.objectId = objectId;

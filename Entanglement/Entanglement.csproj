@@ -414,6 +414,7 @@
     <Compile Include="src\Network\Messages\Pools\SpawnClientMessage.cs" />
     <Compile Include="src\Network\Messages\Pools\SpawnRequestMessage.cs" />
     <Compile Include="src\Network\Messages\Pools\SpawnTransferMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\AnimationSyncMessage.cs" />
     <Compile Include="src\Network\Messages\Representation\PlayerEventMessage.cs" />
     <Compile Include="src\Network\Messages\Server\DisconnectMessage.cs" />
     <Compile Include="src\Network\Messages\Representation\GripRadiusMessage.cs" />

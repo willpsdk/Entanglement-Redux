@@ -43,7 +43,8 @@
             SpawnTransfer = 37,
             GripEvent = 38,
             PlayerEvent = 39,
-            MapObjectDestroy = 40, // NEW: Syncs map destructibles (locks/planks)
-            ZoneTrigger = 41;      // NEW: Syncs NPC spawn zones
+            MapObjectDestroy = 40,     // Syncs map destructibles (locks/planks)
+            ZoneTrigger = 41,          // Syncs NPC spawn zones
+            AnimationSync = 42;        // NEW: Syncs animator state and animation parameters
     }
 }

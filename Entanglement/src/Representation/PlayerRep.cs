@@ -29,6 +29,14 @@ namespace Entanglement.Representation
         public static Transform[] syncedPoints = new Transform[3];
         public static Transform syncedRoot;
 
+        // Rate limiting: 30 Hz max for player sync (1/30 = 0.0333 seconds between syncs)
+        private static float lastPlayerSyncTime = 0f;
+        private const float PLAYER_SYNC_INTERVAL = 1f / 30f;
+
+        // Rate limiting: 20 Hz max for animation sync (1/20 = 0.05 seconds between syncs)
+        private static float lastAnimationSyncTime = 0f;
+        private const float ANIMATION_SYNC_INTERVAL = 1f / 20f;
+
         public Transform[] repTransforms = new Transform[3];
         public Transform repRoot;
 
@@ -67,6 +75,13 @@ namespace Entanglement.Representation
         public Vector3 repSavedVel = Vector3.zero;
         public Vector3 prevRepRootPos = Vector3.zero;
 
+        // Interpolation values for smooth movement
+        public Vector3 lastSyncPosition = Vector3.zero;
+        public Vector3 targetSyncPosition = Vector3.zero;
+        public Quaternion lastSyncRotation = Quaternion.identity;
+        public Quaternion targetSyncRotation = Quaternion.identity;
+        public float interpolationAlpha = 1f;
+
         public string playerName;
         public ulong playerId;
         public bool isGrounded;
@@ -97,23 +112,13 @@ namespace Entanglement.Representation
             if (repFord) GameObject.Destroy(repFord);
             if (repCanvas) GameObject.Destroy(repCanvas);
             if (currentSkinObject) GameObject.Destroy(currentSkinObject);
+            if (currentSkinBundle) currentSkinBundle.Unload(false);
         }
 
         public void RecreateRepresentations()
         {
             try
             {
-                repCanvas = new GameObject("RepCanvas");
-                repCanvasComponent = repCanvas.AddComponent<Canvas>();
-                repCanvasComponent.renderMode = RenderMode.WorldSpace;
-                repCanvasTransform = repCanvas.transform;
-                repCanvasTransform.localScale = Vector3.one / 200.0f;
-
-                repNameText = repCanvas.AddComponent<TextMeshProUGUI>();
-                repNameText.alignment = TextAlignmentOptions.Midline;
-                repNameText.enableAutoSizing = true;
-                repNameText.text = playerName;
-
                 repHologram = Material.Instantiate(playerRepBundle.LoadAsset<Material>("PlayerHolographic"));
 
                 repFord = GameObject.Instantiate(playerRepBundle.LoadAsset<GameObject>("PlayerRep"));
@@ -137,6 +142,15 @@ namespace Entanglement.Representation
                 repAnimator.runtimeAnimatorController = PlayerScripts.playerAnimatorController;
                 activeAnimator = repAnimator;
                 repAnimationManager = repAnimatorBody.GetComponent<CharacterAnimationManager>();
+
+                // Initialize animator state to idle/neutral
+                if (repAnimator != null)
+                {
+                    repAnimator.SetFloat("Speed", 0f);
+                    repAnimator.SetInteger("AnimState", 0);
+                    repAnimator.SetLayerWeight(1, 0f); // Disable upper body layer if it exists
+                }
+
                 repGeo = repAnimatorBody.Find("geoGrp");
                 repSHJnt = repAnimatorBody.Find("SHJntGrp");
 
@@ -145,6 +159,29 @@ namespace Entanglement.Representation
                 repTransforms[2] = repRoot.Find("Hand (right)");
 
                 colliders = repRoot.GetComponentsInChildren<Collider>();
+
+                // Create and setup the nametag canvas after getting the head transform
+                repCanvas = new GameObject("RepCanvas");
+                repCanvasComponent = repCanvas.AddComponent<Canvas>();
+                repCanvasComponent.renderMode = RenderMode.WorldSpace;
+                repCanvasTransform = repCanvas.transform;
+                repCanvasTransform.localScale = Vector3.one / 200.0f;
+
+                // Parent canvas to head to keep it with the player representation
+                if (repTransforms[0] != null)
+                {
+                    repCanvasTransform.SetParent(repTransforms[0], false);
+                    repCanvasTransform.localPosition = Vector3.up * 0.4f;
+                }
+                else
+                {
+                    repCanvasTransform.position = repRoot.position + Vector3.up * 0.4f;
+                }
+
+                repNameText = repCanvas.AddComponent<TextMeshProUGUI>();
+                repNameText.alignment = TextAlignmentOptions.Midline;
+                repNameText.enableAutoSizing = true;
+                repNameText.text = playerName;
 
                 if (isCustomSkinned && currentSkinPath != null)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
@@ -351,22 +388,105 @@ namespace Entanglement.Representation
             data.simplifiedLeftHand = new SimplifiedHand(PlayerScripts.playerLeftHand.fingerCurl);
             data.simplifiedRightHand = new SimplifiedHand(PlayerScripts.playerRightHand.fingerCurl);
 
+            // Add animation state
+            if (syncedRoot != null)
+            {
+                data.isJumping = !data.isGrounded;
+            }
+
+            return data;
+        }
+
+        public static AnimationSyncData GetAnimationSyncData()
+        {
+            // Check if all required components are initialized
+            if (syncedRoot == null || PlayerScripts.playerRig == null)
+                return null;
+
+            AnimationSyncData data = new AnimationSyncData();
+            data.userId = (ulong)SteamIntegration.currentUser.m_SteamID;
+
+            // Calculate movement speed based on position change
+            Vector3 currentPos = syncedRoot.position;
+            Vector3 posChange = currentPos - syncedRoot.position; // This frame's position change
+
+            // Use head position for more accurate movement calculation
+            if (syncedPoints[0] != null)
+            {
+                Vector3 headPos = syncedPoints[0].position;
+                Vector3 horizontalDelta = new Vector3(headPos.x - syncedRoot.position.x, 0, headPos.z - syncedRoot.position.z);
+                data.movementSpeed = horizontalDelta.magnitude / Time.deltaTime;
+            }
+
+            data.movementSpeed = Mathf.Clamp(data.movementSpeed, 0f, 10f);
+
+            // Get grounding state
+            data.isJumping = !PlayerScripts.playerGrounder.isGrounded;
+            data.isFalling = !PlayerScripts.playerGrounder.isGrounded && data.jumpHeight < 0f;
+
+            // Get jump height from head rigidbody if available
+            if (PlayerScripts.playerLeftHand != null && PlayerScripts.playerLeftHand.GetComponent<Rigidbody>() != null)
+            {
+                Rigidbody headRb = PlayerScripts.playerLeftHand.GetComponent<Rigidbody>();
+                if (headRb != null)
+                {
+                    data.bodyVelocity = headRb.velocity;
+                    data.jumpHeight = headRb.velocity.y;
+                }
+            }
+
+            // Set animation state based on movement
+            if (data.movementSpeed > 2f)
+                data.animState = 2; // Running
+            else if (data.movementSpeed > 0.5f)
+                data.animState = 1; // Walking
+            else
+                data.animState = 0; // Idle
+
             return data;
         }
 
         public static void SyncPlayerReps()
         {
-            if (SteamIntegration.hasLobby)
-            {
-                var syncData = GetPlayerSyncData();
+            if (!SteamIntegration.hasLobby)
+                return;
 
-                if (syncData != null)
-                {
-                    NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.PlayerRepSync, syncData);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
-                }
-                else
-                    GetPlayerTransforms();
+            // Rate limit player syncs to 30 Hz to reduce network traffic
+            lastPlayerSyncTime += Time.deltaTime;
+            if (lastPlayerSyncTime < PLAYER_SYNC_INTERVAL)
+                return;
+
+            lastPlayerSyncTime = 0f;
+
+            var syncData = GetPlayerSyncData();
+
+            if (syncData != null)
+            {
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.PlayerRepSync, syncData);
+                Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+            }
+            else
+                GetPlayerTransforms();
+        }
+
+        public static void SyncAnimationState()
+        {
+            if (!SteamIntegration.hasLobby)
+                return;
+
+            // Rate limit animation syncs to 20 Hz to reduce network traffic
+            lastAnimationSyncTime += Time.deltaTime;
+            if (lastAnimationSyncTime < ANIMATION_SYNC_INTERVAL)
+                return;
+
+            lastAnimationSyncTime = 0f;
+
+            var animData = GetAnimationSyncData();
+
+            if (animData != null)
+            {
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.AnimationSync, animData);
+                Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
             }
         }
 
@@ -379,6 +499,13 @@ namespace Entanglement.Representation
             foreach (PlayerRepresentation rep in representations.Values)
             {
                 if (rep == null || rep.repRoot == null) continue;
+
+                // Update interpolation (smooth movement over 0.1 seconds)
+                if (rep.interpolationAlpha < 1f)
+                {
+                    rep.interpolationAlpha += Time.fixedDeltaTime * 10f; // Complete in ~0.1 seconds
+                    rep.repRoot.position = Vector3.Lerp(rep.lastSyncPosition, rep.targetSyncPosition, rep.interpolationAlpha);
+                }
 
                 float dist = (centerPos - rep.repRoot.position).sqrMagnitude;
 

@@ -28,7 +28,24 @@ namespace Entanglement.Objects
 
         public static void OnCleanup()
         {
-            try { RemoveObjects(); } catch (Exception e) { EntangleLogger.Error($"Error in ObjectSync.OnCleanup: {e.Message}"); }
+            try
+            {
+                RemoveObjects();
+            }
+            catch (Exception e)
+            {
+                EntangleLogger.Error($"Error in ObjectSync.OnCleanup: {e.Message}");
+            }
+
+            try
+            {
+                // Clean up poolPairs to prevent memory leaks
+                poolPairs.Clear();
+            }
+            catch (Exception e)
+            {
+                EntangleLogger.Error($"Error clearing poolPairs: {e.Message}");
+            }
 
             // FIX: Force the ID back to zero on scene change so it never hits the 65,535 limit
             lastId = 0;
@@ -36,14 +53,25 @@ namespace Entanglement.Objects
             // FIX: Clean out the caches to prevent old level props from holding memory
             TransformSyncable.cache = new CustomComponentCache<TransformSyncable>();
             TransformSyncable.DestructCache = new CustomComponentCache<TransformSyncable>();
+
+            EntangleLogger.Verbose("ObjectSync cleanup completed. All synced objects, pools, and caches cleared.");
         }
 
         public static void RemoveObjects()
         {
-            foreach (Syncable syncable in syncedObjects.Values)
+            foreach (Syncable syncable in syncedObjects.Values.ToList())
             {
-                try { syncable.Cleanup(); }
-                catch (Exception e) { EntangleLogger.Error($"Error cleaning up syncable {syncable?.objectId}: {e.Message}"); }
+                try
+                {
+                    if (syncable != null)
+                    {
+                        syncable.Cleanup();
+                    }
+                }
+                catch (Exception e)
+                {
+                    EntangleLogger.Error($"Error cleaning up syncable {syncable?.objectId}: {e.Message}");
+                }
             }
             syncedObjects.Clear();
             queuedSyncs.Clear();

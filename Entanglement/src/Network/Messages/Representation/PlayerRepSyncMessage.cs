@@ -69,7 +69,10 @@ namespace Entanglement.Network
                         rootPosition.z = BitConverter.ToSingle(message.messageData, index);
                         index += sizeof(float);
 
-                        rep.repRoot.position = rootPosition;
+                        // Store the position for interpolation
+                        rep.lastSyncPosition = rep.repRoot.position;
+                        rep.targetSyncPosition = rootPosition;
+                        rep.interpolationAlpha = 0f; // Start interpolation from beginning
 
                         for (int r = 0; r < rep.repTransforms.Length; r++)
                         {
@@ -89,14 +92,18 @@ namespace Entanglement.Network
 
                         if (rep.repCanvasTransform != null)
                         {
-                            rep.repCanvasTransform.position = rep.repTransforms[0].position + Vector3.up * 0.4f;
-
-                            if (Camera.current != null)
+                            // Only update position if canvas is not parented to head
+                            if (rep.repCanvasTransform.parent != rep.repTransforms[0])
                             {
-                                Vector3 direction = Vector3.Normalize(rep.repCanvasTransform.position - Camera.current.transform.position);
-                                // Prevent a LookRotation error if the camera is perfectly inside the nametag
-                                if (direction != Vector3.zero)
-                                    rep.repCanvasTransform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+                                rep.repCanvasTransform.position = rep.repTransforms[0].position + Vector3.up * 0.4f;
+
+                                if (Camera.current != null)
+                                {
+                                    Vector3 direction = Vector3.Normalize(rep.repCanvasTransform.position - Camera.current.transform.position);
+                                    // Prevent a LookRotation error if the camera is perfectly inside the nametag
+                                    if (direction != Vector3.zero)
+                                        rep.repCanvasTransform.rotation = Quaternion.LookRotation(direction, Vector3.up);
+                                }
                             }
                         }
                     }
@@ -123,5 +130,11 @@ namespace Entanglement.Network
         public Vector3 rootPosition;
         public SimplifiedHand simplifiedLeftHand;
         public SimplifiedHand simplifiedRightHand;
+
+        // Animation state for smoother remote player animation
+        public float movementSpeed = 0f;           // Movement magnitude for locomotion animation
+        public float movementDirection = 0f;       // Direction angle for turning
+        public bool isJumping = false;             // Jump state
+        public int animState = 0;                  // General animation state (idle, running, etc)
     }
 }

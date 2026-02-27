@@ -31,6 +31,10 @@ namespace Entanglement.Network
         public byte currentScene = 0;
         public float hostHeartbeat;
 
+        private float heartbeatTimer = 0f;
+        private const float HEARTBEAT_INTERVAL = 5f;
+        private const float HEARTBEAT_TIMEOUT = 40f;
+
         protected Callback<GameLobbyJoinRequested_t> lobbyJoinRequested;
         protected Callback<LobbyEnter_t> lobbyEnterCallback;
 
@@ -166,6 +170,30 @@ namespace Entanglement.Network
         }
 
         public override void BroadcastMessage(NetworkChannel channel, byte[] data) => SendMessage(hostUser.m_SteamID, channel, data);
+
+        public override void Tick()
+        {
+            // Handle heartbeat sending and timeout detection
+            heartbeatTimer += Time.deltaTime;
+            hostHeartbeat += Time.deltaTime;
+
+            if (heartbeatTimer >= HEARTBEAT_INTERVAL)
+            {
+                heartbeatTimer = 0f;
+                NetworkMessage heartbeatMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Heartbeat, new EmptyMessageData());
+                SendMessage(hostUser.m_SteamID, NetworkChannel.Unreliable, heartbeatMsg.GetBytes());
+            }
+
+            // Check if host has timed out
+            if (hostHeartbeat > HEARTBEAT_TIMEOUT)
+            {
+                EntangleLogger.Error($"Server host timed out after {HEARTBEAT_TIMEOUT} seconds. Disconnecting...");
+                DisconnectFromServer(true);
+                return;
+            }
+
+            base.Tick();
+        }
 
         public override void Shutdown()
         {

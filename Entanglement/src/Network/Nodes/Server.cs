@@ -104,8 +104,32 @@ namespace Entanglement.Network
             ConnectToSteamServer();
         }
 
+        private float heartbeatTimer = 0f;
+        private const float HEARTBEAT_INTERVAL = 5f;
+        private const float HEARTBEAT_TIMEOUT = 40f;
+
         public override void Tick()
         {
+            // Handle heartbeat sending and timeout detection
+            heartbeatTimer += Time.deltaTime;
+            if (heartbeatTimer >= HEARTBEAT_INTERVAL)
+            {
+                heartbeatTimer = 0f;
+                NetworkMessage heartbeatMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Heartbeat, new EmptyMessageData());
+                BroadcastMessage(NetworkChannel.Unreliable, heartbeatMsg.GetBytes());
+            }
+
+            // Check for client timeouts
+            foreach (ulong userId in userBeats.Keys.ToArray())
+            {
+                userBeats[userId] += Time.deltaTime;
+                if (userBeats[userId] > HEARTBEAT_TIMEOUT)
+                {
+                    EntangleLogger.Log($"Client {userId} timed out after {HEARTBEAT_TIMEOUT} seconds. Disconnecting...");
+                    OnSteamUserLeft(SteamIntegration.lobbyId.m_SteamID, userId);
+                }
+            }
+
             if (EntanglementMod.sceneChange != null)
             {
                 EntangleLogger.Log($"Notifying clients of scene change to {EntanglementMod.sceneChange}...");

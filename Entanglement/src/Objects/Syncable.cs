@@ -18,6 +18,10 @@ namespace Entanglement.Objects
         public ulong staleOwner = 0;
         public ulong lastOwner = 0;
 
+        // Ownership conflict detection
+        private float ownershipTimeoutTimer = 0f;
+        private const float OWNERSHIP_TIMEOUT = 5f; // Reset ownership if not updated in 5 seconds
+
         public ushort objectId = 0;
         public bool isValid = false;
 
@@ -50,6 +54,7 @@ namespace Entanglement.Objects
         public virtual void EnqueueOwner(ulong owner) {
             if (!ownerQueue.Contains(owner)) ownerQueue.Add(owner);
             UpdateStale();
+            ownershipTimeoutTimer = 0f; // Reset timeout on ownership change
             UpdateOwner();
         }
 
@@ -57,6 +62,7 @@ namespace Entanglement.Objects
         public virtual void DequeueOwner(ulong owner) {
             if (ownerQueue.Contains(owner)) ownerQueue.Remove(owner);
             UpdateStale();
+            ownershipTimeoutTimer = 0f; // Reset timeout on ownership change
             UpdateOwner();
         }
 
