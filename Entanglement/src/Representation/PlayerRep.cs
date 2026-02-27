@@ -285,26 +285,36 @@ namespace Entanglement.Representation
 
         public static void GetPlayerTransforms()
         {
-            if (syncedRoot == null)
+            if (PlayerScripts.playerRig != null)
             {
-                var rigManager = GameObject.FindObjectOfType<StressLevelZero.Rig.RigManager>();
-                if (rigManager != null)
+                // Set the root to the RigManager's transform
+                syncedRoot = PlayerScripts.playerRig.transform;
+
+                // Use the direct references from the PhysicsRig rather than string searching
+                var physRig = PlayerScripts.playerRig.physicsRig;
+
+                if (physRig != null)
                 {
-                    Transform t = rigManager.transform.Find("[SkeletonRig (GameWorld Brett)]");
-                    syncedRoot = t != null ? t : rigManager.transform;
-                }
-                else
-                {
-                    GameObject fallbackRig = GameObject.Find("[RigManager (Default Brett)]/[SkeletonRig (GameWorld Brett)]");
-                    if (fallbackRig != null) syncedRoot = fallbackRig.transform;
+                    syncedPoints[0] = physRig.m_head;
+
+                    if (PlayerScripts.playerLeftHand != null)
+                        syncedPoints[1] = PlayerScripts.playerLeftHand.transform;
+
+                    if (PlayerScripts.playerRightHand != null)
+                        syncedPoints[2] = PlayerScripts.playerRightHand.transform;
                 }
             }
-
-            if (syncedRoot != null)
+            else
             {
-                if (syncedPoints[0] == null) syncedPoints[0] = GetTransformDeep(syncedRoot, "Head");
-                if (syncedPoints[1] == null) syncedPoints[1] = GetTransformDeep(syncedRoot, "Hand (left)");
-                if (syncedPoints[2] == null) syncedPoints[2] = GetTransformDeep(syncedRoot, "Hand (right)");
+                // Fallback just in case PlayerScripts hasn't initialized it yet
+                var rigManager = GameObject.FindObjectOfType<StressLevelZero.Rig.RigManager>();
+                if (rigManager != null && rigManager.physicsRig != null)
+                {
+                    syncedRoot = rigManager.transform;
+                    syncedPoints[0] = rigManager.physicsRig.m_head;
+                    syncedPoints[1] = rigManager.physicsRig.leftHand.transform;
+                    syncedPoints[2] = rigManager.physicsRig.rightHand.transform;
+                }
             }
         }
 
