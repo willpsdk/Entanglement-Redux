@@ -176,11 +176,14 @@ namespace Entanglement.Network
             voiceStatus = status;
             if (!hasLobby) return;
 
-            switch (status)
+            // FIX: Use new proximity-based voice chat system
+            if (status == VoiceStatus.Enabled)
             {
-                default:
-                case VoiceStatus.Disabled: SteamUser.StopVoiceRecording(); break;
-                case VoiceStatus.Enabled: SteamUser.StartVoiceRecording(); break;
+                Managers.VoiceChatManager.SetVoiceChatMode(Managers.VoiceChatManager.VoiceChatMode.Proximity);
+            }
+            else
+            {
+                Managers.VoiceChatManager.SetVoiceChatMode(Managers.VoiceChatManager.VoiceChatMode.Disabled);
             }
         }
     }

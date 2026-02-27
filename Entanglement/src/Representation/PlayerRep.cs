@@ -29,13 +29,13 @@ namespace Entanglement.Representation
         public static Transform[] syncedPoints = new Transform[3];
         public static Transform syncedRoot;
 
-        // Rate limiting: 30 Hz max for player sync (1/30 = 0.0333 seconds between syncs)
+        // FIX: Increase sync rate to 60Hz for buttery smooth movement (1/60 = 0.0167 seconds between syncs)
         private static float lastPlayerSyncTime = 0f;
-        private const float PLAYER_SYNC_INTERVAL = 1f / 30f;
+        private const float PLAYER_SYNC_INTERVAL = 1f / 60f;
 
-        // Rate limiting: 20 Hz max for animation sync (1/20 = 0.05 seconds between syncs)
+        // FIX: Increase animation sync to 30Hz for smooth animation (1/30 = 0.0333 seconds between syncs)
         private static float lastAnimationSyncTime = 0f;
-        private const float ANIMATION_SYNC_INTERVAL = 1f / 20f;
+        private const float ANIMATION_SYNC_INTERVAL = 1f / 30f;
 
         public Transform[] repTransforms = new Transform[3];
         public Transform repRoot;
@@ -86,6 +86,15 @@ namespace Entanglement.Representation
         public ulong playerId;
         public bool isGrounded;
 
+        // FIX: Cache renderers to avoid expensive GetComponentsInChildren every frame
+        private Renderer[] _cachedRenderers = null;
+        private float _rendererCheckTimer = 0f;
+        private float rendererCheckInterval = 0.5f; // Only check every 0.5 seconds
+
+        // FIX: Talking animation state
+        private bool isTalking = false;
+        private float talkingAnimationBlend = 0f;
+
 #if DEBUG
         public static PlayerRepresentation debugRepresentation;
 #endif
@@ -115,6 +124,17 @@ namespace Entanglement.Representation
             if (currentSkinBundle) currentSkinBundle.Unload(false);
         }
 
+        // FIX: Helper to set layer for all child objects (prevents zone culling)
+        private static void SetLayerRecursive(GameObject obj, int layer)
+        {
+            if (obj == null) return;
+            obj.layer = layer;
+            foreach (Transform child in obj.transform)
+            {
+                SetLayerRecursive(child.gameObject, layer);
+            }
+        }
+
         public void RecreateRepresentations()
         {
             try
@@ -130,6 +150,12 @@ namespace Entanglement.Representation
 
                 repRoot = repFord.transform;
                 EntangleLogger.Verbose("[RepCreation]   ✓ Model instantiated");
+
+                // FIX: Set player rep to a layer that won't be culled by zone systems
+                // Use "Default" layer to avoid NPC culling systems
+                int defaultLayer = LayerMask.NameToLayer("Default");
+                SetLayerRecursive(repRoot.gameObject, defaultLayer);
+                EntangleLogger.Verbose($"[RepCreation]   ✓ Set to layer: {defaultLayer}");
 
                 EntangleLogger.Verbose("[RepCreation]   Setting up SFX components...");
                 repGunSFX = repRoot.Find("GunSFX").GetComponent<GunSFX>();
@@ -324,6 +350,37 @@ namespace Entanglement.Representation
                 SaveVelocity();
                 repBody.FullBodyUpdate(repInputVel, Vector3.zero);
                 if (repBody.ArtToBlender != null) repBody.ArtToBlender.UpdateBlender();
+
+                // FIX: Ensure all renderers stay visible (prevents body disappearing in certain level areas)
+                // The level might have culling/visibility systems that disable renderers
+                if (repGeo != null)
+                {
+                    foreach (Renderer renderer in repGeo.GetComponentsInChildren<Renderer>(true))
+                    {
+                        if (renderer != null && !renderer.enabled)
+                            renderer.enabled = true;
+                    }
+                }
+
+                // Ensure body gameobject is active
+                if (repBody.gameObject != null && !repBody.gameObject.activeSelf)
+                    repBody.gameObject.SetActive(true);
+
+                // FIX: Update talking animation blend smoothly
+                if (isTalking)
+                {
+                    talkingAnimationBlend = Mathf.Lerp(talkingAnimationBlend, 1f, Time.deltaTime * 5f);
+                }
+                else
+                {
+                    talkingAnimationBlend = Mathf.Lerp(talkingAnimationBlend, 0f, Time.deltaTime * 5f);
+                }
+
+                // Apply talking parameter to animator
+                if (activeAnimator != null)
+                {
+                    activeAnimator.SetFloat("Talk", talkingAnimationBlend);
+                }
             }
             catch (Exception e)
             {
@@ -347,6 +404,13 @@ namespace Entanglement.Representation
         }
 
         public void UpdateFingers(Handedness hand, SimplifiedHand handData) => UpdateFingers(hand, handData.indexCurl, handData.middleCurl, handData.ringCurl, handData.pinkyCurl, handData.thumbCurl);
+
+        // FIX: Set talking state for mouth animation
+        public void SetTalking(bool talking)
+        {
+            isTalking = talking;
+            EntangleLogger.Verbose($"[Talking] {playerName} is {(talking ? "talking" : "silent")}");
+        }
 
         public void IgnoreCollision(Rigidbody otherBody, bool ignore)
         {
@@ -556,6 +620,23 @@ namespace Entanglement.Representation
                     rep.repRoot.gameObject.SetActive(true);
                 }
 
+                // FIX: Optimize renderer visibility check - cache renderers and only check periodically
+                rep._rendererCheckTimer += Time.fixedDeltaTime;
+                if (rep._rendererCheckTimer >= rep.rendererCheckInterval)
+                {
+                    rep._rendererCheckTimer = 0f;
+
+                    if (rep._cachedRenderers == null)
+                        rep._cachedRenderers = rep.repRoot.GetComponentsInChildren<Renderer>(true);
+
+                    // Re-enable any renderers that were culled
+                    foreach (Renderer renderer in rep._cachedRenderers)
+                    {
+                        if (renderer != null && !renderer.enabled)
+                            renderer.enabled = true;
+                    }
+                }
+
                 // Update interpolation (smooth movement over 0.1 seconds)
                 if (rep.interpolationAlpha < 1f)
                 {
@@ -565,13 +646,11 @@ namespace Entanglement.Representation
 
                 float dist = (centerPos - rep.repRoot.position).sqrMagnitude;
 
-                // Continue executing IK even if centerPos is Vector3.zero to prevent freezing
-                if (dist < 1000000f || centerPos == Vector3.zero)
-                {
-                    rep.UpdateIK();
-                    if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
-                        rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
-                }
+                // FIX: Removed aggressive distance culling - always update IK for smooth animation
+                // This prevents players from disappearing when moving to different rooms
+                rep.UpdateIK();
+                if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
+                    rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
             }
         }
     }

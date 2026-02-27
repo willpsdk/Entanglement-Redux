@@ -145,6 +145,10 @@ namespace Entanglement
                 return;
             }
 
+            // FIX: Initialize voice chat manager
+            Managers.VoiceChatManager.Initialize();
+            EntangleLogger.Log("Entanglement: Redux - Voice chat initialized!");
+
             EntangleLogger.Log("Welcome to Entanglement: Redux!", ConsoleColor.DarkYellow);
         }
 
@@ -194,6 +198,9 @@ namespace Entanglement
             PlayerRepresentation.SyncPlayerReps();
             PlayerRepresentation.SyncAnimationState();
             DataTransaction.Process();
+
+            // FIX: Update voice chat proximity detection every frame
+            Managers.VoiceChatManager.Tick();
         }
 
         public override void OnFixedUpdate()
@@ -294,6 +301,9 @@ namespace Entanglement
             if (SteamIntegration.isInvalid) return;
 
             ModuleHandler.OnApplicationQuit();
+
+            // FIX: Cleanup voice chat
+            Managers.VoiceChatManager.CleanupAll();
 
             Node.activeNode.Shutdown();
             SteamIntegration.Shutdown();

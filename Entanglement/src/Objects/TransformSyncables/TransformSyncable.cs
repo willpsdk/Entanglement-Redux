@@ -46,9 +46,9 @@ namespace Entanglement.Objects
         public const float maximumForce = 150000f;
         public const float linearLimit = 0.005f;
 
-        // Rate limiting: 20 Hz max for object sync (1/20 = 0.05 seconds between syncs)
+        // FIX: Increase to 60Hz for smooth object sync matching player sync (1/60 = 0.0167 seconds between syncs)
         private float lastSyncTime = 0f;
-        private const float OBJECT_SYNC_INTERVAL = 1f / 20f;
+        private const float OBJECT_SYNC_INTERVAL = 1f / 60f;
 
         protected float timeOfDisable = 0f;
 

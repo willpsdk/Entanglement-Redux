@@ -120,21 +120,34 @@ namespace Entanglement.Managers
         /// </summary>
         public static void UpdateDoor(int doorInstanceId, bool isOpen, bool isLocked = false, float animState = 0f)
         {
-            if (!SteamIntegration.hasLobby || !SteamIntegration.isHost)
+            if (!SteamIntegration.hasLobby)
                 return;
 
             if (syncedDoors.ContainsKey(doorInstanceId))
             {
                 StoryDoorSyncData data = syncedDoors[doorInstanceId];
-                
+
                 if (data.isOpen != isOpen || data.isLocked != isLocked)
                 {
                     data.isOpen = isOpen;
                     data.isLocked = isLocked;
                     data.state = animState;
 
-                    NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.StoryDoorSync, data);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
+                    // FIX: Both host and clients should broadcast door changes immediately
+                    // to prevent desync when multiple players interact with doors
+                    if (Node.activeNode != null)
+                    {
+                        NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.StoryDoorSync, data);
+                        if (SteamIntegration.isHost)
+                        {
+                            Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
+                        }
+                        else
+                        {
+                            // Clients send to host
+                            Node.activeNode.SendMessage(SteamIntegration.hostUser.m_SteamID, NetworkChannel.Reliable, message.GetBytes());
+                        }
+                    }
                 }
             }
         }

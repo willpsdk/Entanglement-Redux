@@ -48,6 +48,7 @@
             AnimationSync = 42,             // Syncs animator state and animation parameters
             StoryNPCSync = 43,              // NEW: Syncs NPC spawning and state
             StoryDoorSync = 44,             // NEW: Syncs door opening/closing
-            StoryDestructibleSync = 45;     // NEW: Syncs destructible objects (windows, walls)
+            StoryDestructibleSync = 45,     // NEW: Syncs destructible objects (windows, walls)
+            TalkingSync = 46;               // NEW: Syncs player talking state for mouth animations
     }
 }
