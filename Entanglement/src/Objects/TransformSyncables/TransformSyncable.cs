@@ -1,24 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections;
-using System.Linq;
-
-using UnityEngine;
-
-using Entanglement.Network;
-using Entanglement.Data;
+﻿using Entanglement.Data;
 using Entanglement.Extensions;
-using Entanglement.Representation;
+using Entanglement.Network;
 using Entanglement.Patching;
-
-using StressLevelZero.Pool;
-using StressLevelZero.Interaction;
-using StressLevelZero.Props.Weapons;
-using StressLevelZero.Props;
-
-using Utilties;
-
+using Entanglement.Representation;
 using MelonLoader;
+using StressLevelZero.Interaction;
+using StressLevelZero.Pool;
+using StressLevelZero.Props;
+using StressLevelZero.Props.Weapons;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using Utilties;
+using static Entanglement.Network.TransformCreateMessageHandler;
 
 namespace Entanglement.Objects
 {
@@ -93,7 +89,6 @@ namespace Entanglement.Objects
         {
             if (lastOwner == SteamIntegration.currentUser.m_SteamID) objectHealth = GetHealth();
 
-            // FIX: Corrected casing from setHealth to SetHealth
             if (!IsOwner()) SetHealth(float.PositiveInfinity);
             else SetHealth(objectHealth);
 
@@ -212,7 +207,6 @@ namespace Entanglement.Objects
             if (isValid)
             {
                 JointCheck();
-                // FIX: Corrected casing from setHealth to SetHealth
                 if (!IsOwner()) SetHealth(float.PositiveInfinity);
             }
         }
@@ -254,7 +248,6 @@ namespace Entanglement.Objects
             syncObj._CachedDestructable = go.GetComponentInChildren<ObjectDestructable>(true);
             syncObj._CachedHealth = go.GetComponentInChildren<Prop_Health>(true);
 
-            // FIX: Changed indexing [] to .Add() call as CustomComponentCache doesn't support indexing
             if (syncObj._CachedDestructable) DestructCache.Add(syncObj._CachedDestructable.gameObject, syncObj);
             if (syncObj._CachedHealth) DestructCache.Add(syncObj._CachedHealth.gameObject, syncObj);
 

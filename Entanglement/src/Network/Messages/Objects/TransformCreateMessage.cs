@@ -7,7 +7,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
-using static Entanglement.Network.TransformCreateMessageHandler;
 
 #if DEBUG
 using MelonLoader;
@@ -45,8 +44,6 @@ namespace Entanglement.Network
 
             return message;
         }
-
-        // (Only the HandleMessage method is shown here, replace this inside your TransformCreateMessage.cs)
 
         public override void HandleMessage(NetworkMessage message, ulong sender)
         {
@@ -154,16 +151,17 @@ namespace Entanglement.Network
                 }
             }
         }
+    }
 
-        public class TransformCreateMessageData : NetworkMessageData
-        {
-            public ulong ownerId;
-            public ushort objectId;
-            public ushort callbackIndex;
-            public short spawnIndex = -1; // Used as an identifier to work-around different uuids
-            public float spawnTime = -1f;
-            public bool enqueueOwner = true;
-            public string objectPath;
-        }
+    // This is now outside of TransformCreateMessageHandler, making it accessible to TransformSyncable.cs
+    public class TransformCreateMessageData : NetworkMessageData
+    {
+        public ulong ownerId;
+        public ushort objectId;
+        public ushort callbackIndex;
+        public short spawnIndex = -1; // Used as an identifier to work-around different uuids
+        public float spawnTime = -1f;
+        public bool enqueueOwner = true;
+        public string objectPath;
     }
 }

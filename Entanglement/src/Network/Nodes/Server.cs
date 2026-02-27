@@ -32,6 +32,8 @@ namespace Entanglement.Network
 
         public static void StartServer()
         {
+            EntangleLogger.Verbose("StartServer() called.");
+
             if (Time.realtimeSinceStartup - lastServerStart < 3f)
             {
                 EntangleLogger.Log("Please wait a moment before starting another server.");
@@ -48,6 +50,7 @@ namespace Entanglement.Network
                 return;
             }
 
+            EntangleLogger.Verbose("Clearing old player representations and IDs for fresh server state.");
             foreach (var rep in PlayerRepresentation.representations.Values)
             {
                 rep.DeleteRepresentations();
@@ -73,12 +76,15 @@ namespace Entanglement.Network
             }
 
             EntangleLogger.Log($"Creating a Steam lobby with a capacity of {maxPlayers} players!");
+            EntangleLogger.Verbose($"Requesting SteamMatchmaking.CreateLobby with type: {eType}");
             SteamAPICall_t call = SteamMatchmaking.CreateLobby(eType, maxPlayers);
             lobbyCreatedCallback.Set(call);
         }
 
         private void OnLobbyCreated(LobbyCreated_t result, bool bIOFailure)
         {
+            EntangleLogger.Verbose($"OnLobbyCreated callback fired. EResult: {result.m_eResult}");
+
             if (result.m_eResult != EResult.k_EResultOK || bIOFailure)
             {
                 EntangleLogger.Error($"Failed to create lobby! Reason: {result.m_eResult}");
@@ -87,6 +93,8 @@ namespace Entanglement.Network
 
             SteamIntegration.lobbyId = new CSteamID(result.m_ulSteamIDLobby);
             SteamIntegration.hostUser = SteamIntegration.currentUser;
+
+            EntangleLogger.Verbose($"Lobby ID assigned successfully: {SteamIntegration.lobbyId.m_SteamID}");
 
             SteamMatchmaking.SetLobbyData(SteamIntegration.lobbyId, "name", $"{SteamFriends.GetPersonaName()}'s Server");
             SteamMatchmaking.SetLobbyData(SteamIntegration.lobbyId, "version", EntanglementMod.VersionString);
@@ -130,6 +138,7 @@ namespace Entanglement.Network
 
             if (maxPlayers < connectedUsers.Count)
             {
+                EntangleLogger.Verbose("Max players reduced below connected count. Kicking excess players...");
                 uint usersToDisconnect = (uint)connectedUsers.Count - maxPlayers;
 
                 DisconnectMessageData disconnectData = new DisconnectMessageData();
@@ -145,6 +154,7 @@ namespace Entanglement.Network
 
         public void CloseLobby()
         {
+            EntangleLogger.Verbose("CloseLobby() called. Broadcasting disconnect to all clients...");
             DisconnectMessageData disconnectData = new DisconnectMessageData();
             disconnectData.disconnectReason = (byte)DisconnectReason.ServerClosed;
 
@@ -174,6 +184,7 @@ namespace Entanglement.Network
 
         public override void Shutdown()
         {
+            EntangleLogger.Verbose("Server Shutdown() called.");
             if (SteamIntegration.hasLobby && !SteamIntegration.isHost)
             {
                 EntangleLogger.Error("Unable to close the server as a client!");
@@ -195,6 +206,7 @@ namespace Entanglement.Network
 
         public override void UserConnectedEvent(ulong lobbyId, ulong userId)
         {
+            EntangleLogger.Verbose($"[Server] UserConnectedEvent fired for SteamID: {userId}. Processing initial handshakes.");
             LevelChangeMessageData levelChangeData = new LevelChangeMessageData() { sceneIndex = (byte)StressLevelZero.Utilities.BoneworksSceneManager.currentSceneIndex };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.LevelChange, levelChangeData);
             SendMessage(userId, NetworkChannel.Reliable, message.GetBytes());
@@ -227,6 +239,7 @@ namespace Entanglement.Network
 
         public override void UserDisconnectEvent(ulong lobbyId, ulong userId)
         {
+            EntangleLogger.Verbose($"[Server] UserDisconnectEvent fired for SteamID: {userId}. Cleaning up representations.");
             SteamIntegration.UpdateActivity();
             userBeats.Remove(userId);
 
@@ -253,6 +266,7 @@ namespace Entanglement.Network
 
         public void KickUser(ulong userId, string userName = null, DisconnectReason reason = DisconnectReason.Kicked)
         {
+            EntangleLogger.Verbose($"Initiating kick sequence for SteamID {userId} with reason: {reason}");
             DisconnectMessageData disconnectData = new DisconnectMessageData();
             disconnectData.disconnectReason = (byte)reason;
 
