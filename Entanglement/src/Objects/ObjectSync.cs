@@ -59,18 +59,21 @@ namespace Entanglement.Objects
 
         public static void RemoveObjects()
         {
+            // FIX: Check if objects are valid before cleanup (prevents IL2CPP garbage collection errors)
             foreach (Syncable syncable in syncedObjects.Values.ToList())
             {
                 try
                 {
-                    if (syncable != null)
+                    // FIX: Check if the syncable and its gameObject still exist before cleanup
+                    if (syncable != null && syncable.gameObject != null)
                     {
                         syncable.Cleanup();
                     }
                 }
                 catch (Exception e)
                 {
-                    EntangleLogger.Error($"Error cleaning up syncable {syncable?.objectId}: {e.Message}");
+                    // Silently ignore cleanup errors - object may have already been destroyed
+                    EntangleLogger.Verbose($"Syncable {syncable?.objectId} cleanup skipped: {e.Message}");
                 }
             }
             syncedObjects.Clear();

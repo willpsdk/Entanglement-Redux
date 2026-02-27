@@ -197,6 +197,9 @@ namespace Entanglement.Representation
                 repNameText.enableAutoSizing = true;
                 repNameText.text = playerName;
 
+                // FIX: Add billboard script to make nametag always face player
+                repCanvas.AddComponent<NametagBillboard>();
+
                 // FIX: Hide nametag for local player so they can't see their own name
                 bool isLocalPlayer = playerId == SteamIntegration.currentUser.m_SteamID;
                 if (isLocalPlayer)
@@ -208,6 +211,12 @@ namespace Entanglement.Representation
                 {
                     repCanvas.SetActive(true);
                     EntangleLogger.Verbose($"[RepCreation]   ✓ Nametag ENABLED for remote player: {playerName} (ID: {playerId})");
+                }
+
+                // FIX: Ensure all renderers are enabled so player doesn't disappear
+                foreach (Renderer renderer in repRoot.GetComponentsInChildren<Renderer>(true))
+                {
+                    renderer.enabled = true;
                 }
 
                 if (isCustomSkinned && currentSkinPath != null)
@@ -540,6 +549,12 @@ namespace Entanglement.Representation
             foreach (PlayerRepresentation rep in representations.Values)
             {
                 if (rep == null || rep.repRoot == null) continue;
+
+                // FIX: Ensure player representation stays visible
+                if (!rep.repRoot.gameObject.activeSelf)
+                {
+                    rep.repRoot.gameObject.SetActive(true);
+                }
 
                 // Update interpolation (smooth movement over 0.1 seconds)
                 if (rep.interpolationAlpha < 1f)

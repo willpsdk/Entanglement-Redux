@@ -219,10 +219,11 @@ namespace Entanglement.Network
                 SendMessage(hostUser.m_SteamID, NetworkChannel.Unreliable, heartbeatMsg.GetBytes());
             }
 
-            // Check if host has timed out
-            if (hostHeartbeat > HEARTBEAT_TIMEOUT)
+            // FIX: Check if host has timed out - but with safety buffer
+            // Don't timeout immediately - wait for HEARTBEAT_TIMEOUT + buffer
+            if (hostHeartbeat > HEARTBEAT_TIMEOUT + 5f)
             {
-                EntangleLogger.Error($"Server host timed out after {HEARTBEAT_TIMEOUT} seconds. Disconnecting...");
+                EntangleLogger.Error($"Server host timed out after {hostHeartbeat}s. Disconnecting...");
                 DisconnectFromServer(true);
                 return;
             }
