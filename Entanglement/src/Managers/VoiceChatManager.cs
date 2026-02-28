@@ -358,25 +358,62 @@ namespace Entanglement.Managers
             mutedPlayers.Remove(playerId);
         }
 
+        public static void CleanupVoiceData()
+        {
+            // FIX: Cleanup on level change to prevent memory leaks and audio issues
+            try
+            {
+                foreach (var audioSource in playerAudioSources.Values)
+                {
+                    if (audioSource != null && audioSource.gameObject != null)
+                        UnityEngine.Object.Destroy(audioSource.gameObject);
+                }
+                playerAudioSources.Clear();
+
+                foreach (var clip in playerVoiceClips.Values)
+                {
+                    if (clip != null)
+                        UnityEngine.Object.Destroy(clip);
+                }
+                playerVoiceClips.Clear();
+
+                voiceRecordingTimer = 0f;
+                wasLocalPlayerTalking = false;
+                EntangleLogger.Verbose("[VoiceChat] Voice data cleaned up");
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Error($"Error cleaning up voice data: {ex.Message}");
+            }
+        }
+
         public static void CleanupAll()
         {
             foreach (var audioSource in playerAudioSources.Values)
             {
-                if (audioSource != null)
+                if (audioSource != null && audioSource.gameObject != null)
                     UnityEngine.Object.Destroy(audioSource.gameObject);
             }
             playerAudioSources.Clear();
 
             foreach (var clip in playerVoiceClips.Values)
             {
-                UnityEngine.Object.Destroy(clip);
+                if (clip != null)
+                    UnityEngine.Object.Destroy(clip);
             }
             playerVoiceClips.Clear();
 
             // FIX: Clean up mute list
             mutedPlayers.Clear();
 
-            SteamUser.StopVoiceRecording();
+            try
+            {
+                SteamUser.StopVoiceRecording();
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Verbose($"Error stopping voice recording: {ex.Message}");
+            }
         }
     }
 }

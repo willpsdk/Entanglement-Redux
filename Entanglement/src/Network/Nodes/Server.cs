@@ -110,45 +110,86 @@ namespace Entanglement.Network
 
         public override void Tick()
         {
-            // Handle heartbeat sending and timeout detection
-            heartbeatTimer += Time.deltaTime;
-            if (heartbeatTimer >= HEARTBEAT_INTERVAL)
+            try
             {
-                heartbeatTimer = 0f;
-                NetworkMessage heartbeatMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Heartbeat, new EmptyMessageData());
-                BroadcastMessage(NetworkChannel.Unreliable, heartbeatMsg.GetBytes());
-            }
-
-            // Check for client timeouts (excluding the host!)
-            foreach (ulong userId in userBeats.Keys.ToArray())
-            {
-                // FIX: Never timeout the host
-                if (userId == SteamIntegration.currentUser.m_SteamID)
-                    continue;
-
-                userBeats[userId] += Time.deltaTime;
-                if (userBeats[userId] > HEARTBEAT_TIMEOUT)
+                // Handle heartbeat sending and timeout detection
+                heartbeatTimer += Time.deltaTime;
+                if (heartbeatTimer >= HEARTBEAT_INTERVAL)
                 {
-                    EntangleLogger.Log($"Client {userId} timed out after {HEARTBEAT_TIMEOUT} seconds. Disconnecting...");
-                    OnSteamUserLeft(SteamIntegration.lobbyId.m_SteamID, userId);
+                    heartbeatTimer = 0f;
+                    NetworkMessage heartbeatMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Heartbeat, new EmptyMessageData());
+                    BroadcastMessage(NetworkChannel.Unreliable, heartbeatMsg.GetBytes());
                 }
-            }
 
-            if (EntanglementMod.sceneChange != null)
+                // Check for client timeouts (excluding the host!)
+                foreach (ulong userId in userBeats.Keys.ToArray())
+                {
+                    // FIX: Never timeout the host
+                    if (userId == SteamIntegration.currentUser.m_SteamID)
+                        continue;
+
+                    userBeats[userId] += Time.deltaTime;
+                    if (userBeats[userId] > HEARTBEAT_TIMEOUT)
+                    {
+                        EntangleLogger.Log($"Client {userId} timed out after {HEARTBEAT_TIMEOUT} seconds. Disconnecting...");
+                        OnSteamUserLeft(SteamIntegration.lobbyId.m_SteamID, userId);
+                    }
+                }
+
+                // FIX: Better level change broadcasting with error handling
+                if (EntanglementMod.sceneChange != null)
+                {
+                    try
+                    {
+                        EntangleLogger.Log($"[Server] Broadcasting scene change to {EntanglementMod.sceneChange} to {connectedUsers.Count} clients...", ConsoleColor.Cyan);
+
+                        LevelChangeMessageData levelChangeData = new LevelChangeMessageData()
+                        {
+                            sceneIndex = (byte)EntanglementMod.sceneChange,
+                            sceneReload = true
+                        };
+
+                        NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.LevelChange, levelChangeData);
+                        byte[] msgBytes = message.GetBytes();
+
+                        int failedSends = 0;
+                        foreach (ulong user in connectedUsers.ToArray())
+                        {
+                            try
+                            {
+                                SendMessage(user, NetworkChannel.Reliable, msgBytes);
+                            }
+                            catch (Exception ex)
+                            {
+                                failedSends++;
+                                EntangleLogger.Verbose($"Failed to send level change to user {user}: {ex.Message}");
+                            }
+                        }
+
+                        if (failedSends > 0)
+                        {
+                            EntangleLogger.Warn($"[Server] Failed to send level change to {failedSends}/{connectedUsers.Count} clients");
+                        }
+                        else
+                        {
+                            EntangleLogger.Log($"[Server] Successfully broadcast level change to all {connectedUsers.Count} clients", ConsoleColor.Green);
+                        }
+
+                        EntanglementMod.sceneChange = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        EntangleLogger.Error($"[Server] Critical error broadcasting level change: {ex.Message}\n{ex.StackTrace}");
+                        EntanglementMod.sceneChange = null;
+                    }
+                }
+
+                base.Tick();
+            }
+            catch (Exception ex)
             {
-                EntangleLogger.Log($"Notifying clients of scene change to {EntanglementMod.sceneChange}...");
-
-                LevelChangeMessageData levelChangeData = new LevelChangeMessageData() { sceneIndex = (byte)EntanglementMod.sceneChange, sceneReload = true };
-                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.LevelChange, levelChangeData);
-
-                byte[] msgBytes = message.GetBytes();
-                foreach (ulong user in connectedUsers.ToArray())
-                    SendMessage(user, NetworkChannel.Reliable, msgBytes);
-
-                EntanglementMod.sceneChange = null;
+                EntangleLogger.Error($"[Server] Error in Tick: {ex.Message}\n{ex.StackTrace}");
             }
-
-            base.Tick();
         }
 
         public void UpdateLobbyConfig()

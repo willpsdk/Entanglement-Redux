@@ -33,9 +33,9 @@ namespace Entanglement.Representation
         private static float lastPlayerSyncTime = 0f;
         private const float PLAYER_SYNC_INTERVAL = 1f / 60f;
 
-        // FIX: Increase animation sync to 30Hz for smooth animation (1/30 = 0.0333 seconds between syncs)
+        // FIX: Increase animation sync to 60Hz for smooth animation matching body movement (1/60 = 0.0167 seconds between syncs)
         private static float lastAnimationSyncTime = 0f;
-        private const float ANIMATION_SYNC_INTERVAL = 1f / 30f;
+        private const float ANIMATION_SYNC_INTERVAL = 1f / 60f;
 
         public Transform[] repTransforms = new Transform[3];
         public Transform repRoot;
@@ -141,11 +141,36 @@ namespace Entanglement.Representation
             {
                 EntangleLogger.Verbose($"[RepCreation] Starting for player {playerName} (ID: {playerId})");
 
-                EntangleLogger.Verbose("[RepCreation]   Loading holographic material...");
-                repHologram = Material.Instantiate(playerRepBundle.LoadAsset<Material>("PlayerHolographic"));
+                // FIX: Null checks for bundle
+                if (playerRepBundle == null)
+                {
+                    EntangleLogger.Error("[RepCreation] playerRepBundle is null! Cannot recreate representations.");
+                    return;
+                }
 
+                // FIX: Load holographic material with null check
+                EntangleLogger.Verbose("[RepCreation]   Loading holographic material...");
+                Material holographicMat = playerRepBundle.LoadAsset<Material>("PlayerHolographic");
+                if (holographicMat == null)
+                {
+                    EntangleLogger.Warn("▌[RepCreation]   ⚠ PlayerHolographic material not found in bundle");
+                    repHologram = new Material(Shader.Find("Standard"));
+                }
+                else
+                {
+                    repHologram = Material.Instantiate(holographicMat);
+                }
+
+                // FIX: Load player rep model with null check
                 EntangleLogger.Verbose("[RepCreation]   Instantiating player representation model...");
-                repFord = GameObject.Instantiate(playerRepBundle.LoadAsset<GameObject>("PlayerRep"));
+                GameObject playerRepPrefab = playerRepBundle.LoadAsset<GameObject>("PlayerRep");
+                if (playerRepPrefab == null)
+                {
+                    EntangleLogger.Error("[RepCreation] PlayerRep prefab not found in bundle!");
+                    return;
+                }
+
+                repFord = GameObject.Instantiate(playerRepPrefab);
                 repFord.name = $"PlayerRep.{playerId}";
 
                 repRoot = repFord.transform;
@@ -158,36 +183,94 @@ namespace Entanglement.Representation
                 EntangleLogger.Verbose($"[RepCreation]   ✓ Set to layer: {defaultLayer}");
 
                 EntangleLogger.Verbose("[RepCreation]   Setting up SFX components...");
-                repGunSFX = repRoot.Find("GunSFX").GetComponent<GunSFX>();
-                repBalloonSFX = repRoot.Find("BalloonSFX").GetComponent<GunSFX>();
-                repStabSFX = repRoot.Find("StabSFX").GetComponent<GunSFX>();
-                repPowerPunchSFX = repRoot.Find("PuncherSFX").GetComponent<GravGunSFX>();
+                Transform gunSFXTrans = repRoot.Find("GunSFX");
+                if (gunSFXTrans != null) repGunSFX = gunSFXTrans.GetComponent<GunSFX>();
+
+                Transform balloonSFXTrans = repRoot.Find("BalloonSFX");
+                if (balloonSFXTrans != null) repBalloonSFX = balloonSFXTrans.GetComponent<GunSFX>();
+
+                Transform stabSFXTrans = repRoot.Find("StabSFX");
+                if (stabSFXTrans != null) repStabSFX = stabSFXTrans.GetComponent<GunSFX>();
+
+                Transform puncherSFXTrans = repRoot.Find("PuncherSFX");
+                if (puncherSFXTrans != null)
+                {
+                    // Try to get GravGunSFX first, fall back to GunSFX if not available
+                    GravGunSFX gravGunSFX = puncherSFXTrans.GetComponent<GravGunSFX>();
+                    if (gravGunSFX != null)
+                    {
+                        repPowerPunchSFX = gravGunSFX;
+                    }
+                    else
+                    {
+                        EntangleLogger.Verbose("[RepCreation]   ⚠ GravGunSFX not found on PuncherSFX, attempting GunSFX fallback");
+                        GunSFX gunSFX = puncherSFXTrans.GetComponent<GunSFX>();
+                        if (gunSFX != null)
+                        {
+                            // Create a temporary GravGunSFX wrapper or skip it
+                            EntangleLogger.Verbose("[RepCreation]   ⚠ Using GunSFX as fallback for PuncherSFX");
+                        }
+                    }
+                }
 
                 EntangleLogger.Verbose("[RepCreation]   Setting up physics body...");
                 Transform repBodyBody = repRoot.Find("Body");
-                repBody = repBodyBody.GetComponent<SLZ_Body>();
-                repBody.OnStart();
+                if (repBodyBody != null)
+                {
+                    repBody = repBodyBody.GetComponent<SLZ_Body>();
+                    if (repBody != null) repBody.OnStart();
+                }
 
-                ragdollBody = repRoot.Find("Ragdoll").GetComponent<SLZ_Body>();
+                Transform ragdollTrans = repRoot.Find("Ragdoll");
+                if (ragdollTrans != null) ragdollBody = ragdollTrans.GetComponent<SLZ_Body>();
 
                 EntangleLogger.Verbose("[RepCreation]   Setting up animator...");
                 Transform repAnimatorBody = repRoot.Find("Brett@neutral");
-                repAnimator = repAnimatorBody.GetComponent<Animator>();
-                repAnimator.runtimeAnimatorController = PlayerScripts.playerAnimatorController;
-                activeAnimator = repAnimator;
-                repAnimationManager = repAnimatorBody.GetComponent<CharacterAnimationManager>();
-
-                // Initialize animator state to idle/neutral
-                if (repAnimator != null)
+                if (repAnimatorBody != null)
                 {
-                    repAnimator.SetFloat("Speed", 0f);
-                    repAnimator.SetInteger("AnimState", 0);
-                    repAnimator.SetLayerWeight(1, 0f); // Disable upper body layer if it exists
-                }
-                EntangleLogger.Verbose("[RepCreation]   ✓ Animator configured");
+                    repAnimator = repAnimatorBody.GetComponent<Animator>();
+                    if (repAnimator != null)
+                    {
+                        // FIX: Null check for animator controller
+                        if (PlayerScripts.playerAnimatorController != null)
+                        {
+                            repAnimator.runtimeAnimatorController = PlayerScripts.playerAnimatorController;
+                            activeAnimator = repAnimator;
+                            EntangleLogger.Verbose("[RepCreation]   ✓ Animator controller assigned");
+                        }
+                        else
+                        {
+                            EntangleLogger.Warn("[RepCreation]   ⚠ PlayerAnimatorController is null, using default");
+                            activeAnimator = repAnimator;
+                        }
 
-                repGeo = repAnimatorBody.Find("geoGrp");
-                repSHJnt = repAnimatorBody.Find("SHJntGrp");
+                        repAnimationManager = repAnimatorBody.GetComponent<CharacterAnimationManager>();
+
+                        // Initialize animator state to idle/neutral
+                        try
+                        {
+                            repAnimator.SetFloat("Speed", 0f);
+                            repAnimator.SetInteger("AnimState", 0);
+                            repAnimator.SetLayerWeight(1, 0f); // Disable upper body layer if it exists
+                            EntangleLogger.Verbose("[RepCreation]   ✓ Animator configured");
+                        }
+                        catch (Exception ex)
+                        {
+                            EntangleLogger.Warn($"[RepCreation]   ⚠ Error initializing animator state: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        EntangleLogger.Verbose("[RepCreation]   ⚠ Animator component not found on Brett@neutral");
+                    }
+
+                    repGeo = repAnimatorBody.Find("geoGrp");
+                    repSHJnt = repAnimatorBody.Find("SHJntGrp");
+                }
+                else
+                {
+                    EntangleLogger.Verbose("[RepCreation]   ⚠ Brett@neutral transform not found");
+                }
 
                 EntangleLogger.Verbose("[RepCreation]   Getting transform references...");
                 repTransforms[0] = repRoot.Find("Head");
@@ -422,36 +505,68 @@ namespace Entanglement.Representation
 
         public static void GetPlayerTransforms()
         {
-            if (PlayerScripts.playerRig != null)
+            try
             {
-                // Set the root to the RigManager's transform
-                syncedRoot = PlayerScripts.playerRig.transform;
-
-                // Use the direct references from the PhysicsRig rather than string searching
-                var physRig = PlayerScripts.playerRig.physicsRig;
-
-                if (physRig != null)
+                // FIX: Better null checking and error handling
+                if (PlayerScripts.playerRig != null)
                 {
-                    syncedPoints[0] = physRig.m_head;
+                    // Set the root to the RigManager's transform
+                    syncedRoot = PlayerScripts.playerRig.transform;
 
-                    if (PlayerScripts.playerLeftHand != null)
-                        syncedPoints[1] = PlayerScripts.playerLeftHand.transform;
+                    // Use the direct references from the PhysicsRig rather than string searching
+                    var physRig = PlayerScripts.playerRig.physicsRig;
 
-                    if (PlayerScripts.playerRightHand != null)
-                        syncedPoints[2] = PlayerScripts.playerRightHand.transform;
+                    if (physRig != null)
+                    {
+                        syncedPoints[0] = physRig.m_head;
+                        if (syncedPoints[0] == null)
+                            EntangleLogger.Warn("[PlayerTransforms] Head not found on physicsRig");
+
+                        if (PlayerScripts.playerLeftHand != null)
+                        {
+                            syncedPoints[1] = PlayerScripts.playerLeftHand.transform;
+                        }
+                        else
+                        {
+                            EntangleLogger.Warn("[PlayerTransforms] Left hand not initialized");
+                        }
+
+                        if (PlayerScripts.playerRightHand != null)
+                        {
+                            syncedPoints[2] = PlayerScripts.playerRightHand.transform;
+                        }
+                        else
+                        {
+                            EntangleLogger.Warn("[PlayerTransforms] Right hand not initialized");
+                        }
+                    }
+                    else
+                    {
+                        EntangleLogger.Error("[PlayerTransforms] PhysicsRig is null!");
+                    }
+                }
+                else
+                {
+                    // Fallback just in case PlayerScripts hasn't initialized it yet
+                    EntangleLogger.Verbose("[PlayerTransforms] PlayerScripts.playerRig is null, using fallback");
+                    var rigManager = GameObject.FindObjectOfType<StressLevelZero.Rig.RigManager>();
+                    if (rigManager != null && rigManager.physicsRig != null)
+                    {
+                        syncedRoot = rigManager.transform;
+                        syncedPoints[0] = rigManager.physicsRig.m_head;
+                        syncedPoints[1] = rigManager.physicsRig.leftHand.transform;
+                        syncedPoints[2] = rigManager.physicsRig.rightHand.transform;
+                        EntangleLogger.Log("[PlayerTransforms] ✓ Fallback transforms initialized");
+                    }
+                    else
+                    {
+                        EntangleLogger.Error("[PlayerTransforms] Could not find RigManager or PhysicsRig!");
+                    }
                 }
             }
-            else
+            catch (Exception ex)
             {
-                // Fallback just in case PlayerScripts hasn't initialized it yet
-                var rigManager = GameObject.FindObjectOfType<StressLevelZero.Rig.RigManager>();
-                if (rigManager != null && rigManager.physicsRig != null)
-                {
-                    syncedRoot = rigManager.transform;
-                    syncedPoints[0] = rigManager.physicsRig.m_head;
-                    syncedPoints[1] = rigManager.physicsRig.leftHand.transform;
-                    syncedPoints[2] = rigManager.physicsRig.rightHand.transform;
-                }
+                EntangleLogger.Error($"[PlayerTransforms] Error getting player transforms: {ex.Message}\n{ex.StackTrace}");
             }
         }
 

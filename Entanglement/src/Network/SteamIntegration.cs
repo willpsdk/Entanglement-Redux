@@ -91,17 +91,48 @@ namespace Entanglement.Network
         {
             try
             {
-                if (!SteamAPI.Init()) throw new Exception("SteamAPI.Init() returned false. Make sure Steam is running.");
+                EntangleLogger.Log("Attempting to initialize Steam API...");
+
+                if (!SteamAPI.Init())
+                {
+                    throw new Exception(
+                        "SteamAPI.Init() returned false. This usually means:\n" +
+                        "1. Steam is not running - Please launch Steam first\n" +
+                        "2. steam_appid.txt is missing in game folder\n" +
+                        "3. Steam AppID is incorrect\n" +
+                        "4. Running BONEWORKS outside of Steam\n" +
+                        "5. Steam client needs to be updated\n" +
+                        "6. Your Steam account doesn't own BONEWORKS\n" +
+                        "\nFIX: Make sure to launch BONEWORKS through Steam, not directly!"
+                    );
+                }
 
                 currentUser = SteamUser.GetSteamID();
+                EntangleLogger.Log($"✓ Steam API initialized successfully!");
                 EntangleLogger.Log($"Current Steam User: {SteamFriends.GetPersonaName()}");
                 EntangleLogger.Log("Initializing Rich Presence...");
                 DefaultRichPresence();
-                EntangleLogger.Log("Rich Presence initialized!");
+                EntangleLogger.Log("✓ Rich Presence initialized!");
             }
             catch (Exception e)
             {
-                EntangleLogger.Error($"Failed to initialize the Steam Client! Continuing without Entanglement!\nDid you make sure to start the game with Steam open?\nFailed with reason: {e.Message}\nTrace: {e.StackTrace}");
+                EntangleLogger.Error($"\n" +
+                    $"═══════════════════════════════════════════════════════\n" +
+                    $"STEAM INITIALIZATION FAILED!\n" +
+                    $"═══════════════════════════════════════════════════════\n" +
+                    $"Error: {e.Message}\n" +
+                    $"═══════════════════════════════════════════════════════\n" +
+                    $"\n" +
+                    $"TROUBLESHOOTING STEPS:\n" +
+                    $"1. Make sure Steam is running\n" +
+                    $"2. Close and reopen Steam completely\n" +
+                    $"3. Launch BONEWORKS from Steam (don't run .exe directly)\n" +
+                    $"4. Verify BONEWORKS files in Steam properties\n" +
+                    $"5. Update Steam client to latest version\n" +
+                    $"6. Restart your PC\n" +
+                    $"\n" +
+                    $"Full error: {e.StackTrace}\n" +
+                    $"═══════════════════════════════════════════════════════");
                 isInvalid = true;
             }
         }

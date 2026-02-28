@@ -46,6 +46,11 @@ namespace Entanglement
 
         public static bool hasUnpatched = false;
 
+        // FIX: Add level change state machine to prevent race conditions
+        private static bool _isLevelChanging = false;
+        private static float _levelChangeTimeout = 0f;
+        private const float LEVEL_CHANGE_TIMEOUT = 10f; // 10 second timeout
+
         public override void OnApplicationStart()
         {
             entanglementAssembly = Assembly.GetExecutingAssembly();
@@ -227,73 +232,215 @@ namespace Entanglement
         {
             if (SteamIntegration.isInvalid) return;
 
-            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
-            EntangleLogger.Log($"[LEVEL CHANGE] OnSceneWasInitialized: {sceneName} (Index: {buildIndex})", ConsoleColor.Cyan);
-            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
-
-            ModuleHandler.OnSceneWasInitialized(buildIndex, sceneName);
-
-            EntangleLogger.Log("[LEVEL CHANGE] Getting SpawnableData...", ConsoleColor.Yellow);
-            SpawnableData.GetData();
-            EntangleLogger.Log("[LEVEL CHANGE] ✓ SpawnableData loaded", ConsoleColor.Green);
-
-            EntangleLogger.Log("[LEVEL CHANGE] Getting PlayerScripts...", ConsoleColor.Yellow);
-            PlayerScripts.GetPlayerScripts();
-            EntangleLogger.Log("[LEVEL CHANGE] ✓ PlayerScripts initialized", ConsoleColor.Green);
-
-            EntangleLogger.Log("[LEVEL CHANGE] Getting PlayerTransforms...", ConsoleColor.Yellow);
-            PlayerRepresentation.GetPlayerTransforms();
-            EntangleLogger.Log("[LEVEL CHANGE] ✓ PlayerTransforms loaded", ConsoleColor.Green);
-
-            EntangleLogger.Log($"[LEVEL CHANGE] Recreating {PlayerRepresentation.representations.Count} player representations...", ConsoleColor.Yellow);
-            foreach (var rep in PlayerRepresentation.representations.Values)
-                rep.RecreateRepresentations();
-            EntangleLogger.Log("[LEVEL CHANGE] ✓ Player representations recreated", ConsoleColor.Green);
-
-            if (Client.instance != null)
+            try
             {
-                Client.instance.currentScene = (byte)buildIndex;
-                EntangleLogger.Log($"[LEVEL CHANGE] Client scene updated to: {buildIndex}", ConsoleColor.Yellow);
+                EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+                EntangleLogger.Log($"[LEVEL CHANGE] OnSceneWasInitialized: {sceneName} (Index: {buildIndex})", ConsoleColor.Cyan);
+                EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+
+                try
+                {
+                    ModuleHandler.OnSceneWasInitialized(buildIndex, sceneName);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error in ModuleHandler.OnSceneWasInitialized: {ex.Message}");
+                }
+
+                // FIX: Load SpawnableData with error handling
+                try
+                {
+                    EntangleLogger.Log("[LEVEL CHANGE] Getting SpawnableData...", ConsoleColor.Yellow);
+                    SpawnableData.GetData();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ SpawnableData loaded", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error loading SpawnableData: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                // FIX: Get player scripts with null checks
+                try
+                {
+                    EntangleLogger.Log("[LEVEL CHANGE] Getting PlayerScripts...", ConsoleColor.Yellow);
+                    PlayerScripts.GetPlayerScripts();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ PlayerScripts initialized", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error initializing PlayerScripts: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                // FIX: Get player transforms with error handling
+                try
+                {
+                    EntangleLogger.Log("[LEVEL CHANGE] Getting PlayerTransforms...", ConsoleColor.Yellow);
+                    PlayerRepresentation.GetPlayerTransforms();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ PlayerTransforms loaded", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error loading PlayerTransforms: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                // FIX: Recreate representations with per-player error handling
+                try
+                {
+                    EntangleLogger.Log($"[LEVEL CHANGE] Recreating {PlayerRepresentation.representations.Count} player representations...", ConsoleColor.Yellow);
+                    var repsToRecreate = PlayerRepresentation.representations.Values.ToList();
+                    foreach (var rep in repsToRecreate)
+                    {
+                        try
+                        {
+                            if (rep != null)
+                            {
+                                rep.RecreateRepresentations();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            EntangleLogger.Error($"[LEVEL CHANGE] Error recreating representation for {rep?.playerName}: {ex.Message}");
+                        }
+                    }
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ Player representations recreated", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error recreating player representations: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                // FIX: Update client state with null check
+                try
+                {
+                    if (Client.instance != null)
+                    {
+                        Client.instance.currentScene = (byte)buildIndex;
+                        EntangleLogger.Log($"[LEVEL CHANGE] Client scene updated to: {buildIndex}", ConsoleColor.Yellow);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error updating client scene: {ex.Message}");
+                }
+
+                // FIX: Set the scene change flag for the server to broadcast
+                try
+                {
+                    sceneChange = (byte)buildIndex;
+                    SteamIntegration.targetScene = sceneName.ToLower();
+                    SteamIntegration.UpdateActivity();
+                    EntangleLogger.Log($"[LEVEL CHANGE] Set sceneChange flag to {buildIndex}", ConsoleColor.Yellow);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error setting scene change flag: {ex.Message}");
+                }
+
+                _isLevelChanging = false;
+                EntangleLogger.Log("[LEVEL CHANGE] Level change initialization complete - Scene ready for play", ConsoleColor.Green);
+                EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
             }
-            sceneChange = (byte)buildIndex;
-
-            SteamIntegration.targetScene = sceneName.ToLower();
-            SteamIntegration.UpdateActivity();
-
-            EntangleLogger.Log("[LEVEL CHANGE] Level change initialization complete - Scene ready for play", ConsoleColor.Green);
-            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+            catch (Exception ex)
+            {
+                EntangleLogger.Error($"[LEVEL CHANGE] Critical error in OnSceneWasInitialized: {ex.Message}\n{ex.StackTrace}");
+                _isLevelChanging = false;
+            }
         }
 
         public override void BONEWORKS_OnLoadingScreen()
         {
             if (SteamIntegration.isInvalid) return;
 
-            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
-            EntangleLogger.Log("[LEVEL CHANGE] BONEWORKS_OnLoadingScreen called - Beginning cleanup phase", ConsoleColor.Cyan);
-            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+            try
+            {
+                EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+                EntangleLogger.Log("[LEVEL CHANGE] BONEWORKS_OnLoadingScreen called - Beginning cleanup phase", ConsoleColor.Cyan);
+                EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
 
-            ModuleHandler.OnLoadingScreen();
-            LoadingScreen.OverrideScreen();
-            EntangleLogger.Log("[LEVEL CHANGE] Module handlers and loading screen called", ConsoleColor.Yellow);
+                _isLevelChanging = true;
+                _levelChangeTimeout = LEVEL_CHANGE_TIMEOUT;
 
-            EntangleLogger.Log("[LEVEL CHANGE] Clearing ObjectSync...", ConsoleColor.Yellow);
-            ObjectSync.OnCleanup();
-            ObjectSync.poolPairs.Clear();
-            StoryModeSync.ClearAll();
-            EntangleLogger.Log("[LEVEL CHANGE] ✓ ObjectSync cleared", ConsoleColor.Green);
+                try
+                {
+                    ModuleHandler.OnLoadingScreen();
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error in ModuleHandler.OnLoadingScreen: {ex.Message}");
+                }
 
-            EntangleLogger.Log("[LEVEL CHANGE] Clearing Poolee caches...", ConsoleColor.Yellow);
-            // FIX: Clear the Poolee caches on level load to prevent ID conflicts
-            PooleeSyncable._Cache.Clear();
-            PooleeSyncable._PooleeLookup.Clear();
-            EntangleLogger.Log("[LEVEL CHANGE] ✓ Poolee caches cleared", ConsoleColor.Green);
+                try
+                {
+                    LoadingScreen.OverrideScreen();
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error overriding loading screen: {ex.Message}");
+                }
+                EntangleLogger.Log("[LEVEL CHANGE] Module handlers and loading screen called", ConsoleColor.Yellow);
+
+                // FIX: More comprehensive cleanup to prevent crashes
+                try
+                {
+                    EntangleLogger.Log("[LEVEL CHANGE] Clearing ObjectSync...", ConsoleColor.Yellow);
+                    ObjectSync.OnCleanup();
+                    ObjectSync.poolPairs.Clear();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ ObjectSync cleared", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error clearing ObjectSync: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                try
+                {
+                    EntangleLogger.Log("[LEVEL CHANGE] Clearing StoryModeSync...", ConsoleColor.Yellow);
+                    StoryModeSync.ClearAll();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ StoryModeSync cleared", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error clearing StoryModeSync: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                try
+                {
+                    EntangleLogger.Log("[LEVEL CHANGE] Clearing Poolee caches...", ConsoleColor.Yellow);
+                    // FIX: Clear the Poolee caches on level load to prevent ID conflicts
+                    if (PooleeSyncable._Cache != null)
+                        PooleeSyncable._Cache.Clear();
+                    if (PooleeSyncable._PooleeLookup != null)
+                        PooleeSyncable._PooleeLookup.Clear();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ Poolee caches cleared", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error clearing Poolee caches: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                try
+                {
+                    EntangleLogger.Log("[LEVEL CHANGE] Cleaning up voice chat...", ConsoleColor.Yellow);
+                    Managers.VoiceChatManager.CleanupVoiceData();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ Voice chat data cleared", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error cleaning up voice chat: {ex.Message}\n{ex.StackTrace}");
+                }
 
 #if DEBUG
-            PlayerRepresentation.debugRepresentation = null;
+                PlayerRepresentation.debugRepresentation = null;
 #endif
 
-            EntangleLogger.Log("[LEVEL CHANGE] Cleanup phase complete - Ready for new scene", ConsoleColor.Green);
-            EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+                EntangleLogger.Log("[LEVEL CHANGE] Cleanup phase complete - Ready for new scene", ConsoleColor.Green);
+                EntangleLogger.Log("═══════════════════════════════════════════════════════", ConsoleColor.Cyan);
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Error($"[LEVEL CHANGE] Critical error in BONEWORKS_OnLoadingScreen: {ex.Message}\n{ex.StackTrace}");
+                _isLevelChanging = false;
+            }
         }
 
         public override void OnApplicationQuit()

@@ -8,6 +8,7 @@ using MelonLoader;
 
 namespace Entanglement.Network {
     // This is a WIP feature so it isn't gonna be registered for now
+    [Net.NoAutoRegister]
     public class TransactionWorkMessageHandler : NetworkMessageHandler<TransactionWorkMessageData> {
         public override NetworkMessage CreateMessage(TransactionWorkMessageData data) {
             NetworkMessage message = new NetworkMessage();

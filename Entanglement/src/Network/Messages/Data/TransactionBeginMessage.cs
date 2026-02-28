@@ -11,6 +11,7 @@ using Entanglement.Data;
 namespace Entanglement.Network
 {
     // This is a WIP feature so it isn't gonna be registered for now
+    [Net.NoAutoRegister]
     public class TransactionBeginMessageHandler : NetworkMessageHandler<TransactionBeginMessageData> {
         public override NetworkMessage CreateMessage(TransactionBeginMessageData data) {
             NetworkMessage message = new NetworkMessage();

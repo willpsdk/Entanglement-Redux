@@ -1,4 +1,5 @@
 ﻿using System;
+using MelonLoader;
 
 namespace Entanglement.Network
 {
@@ -15,19 +16,51 @@ namespace Entanglement.Network
 
         public override void HandleMessage(NetworkMessage message, ulong sender)
         {
-            if (message.messageData.Length <= 0)
-                throw new IndexOutOfRangeException();
+            try
+            {
+                if (message.messageData.Length < 2)
+                {
+                    EntangleLogger.Error("[LevelChange] Received invalid level change message - data too short");
+                    throw new IndexOutOfRangeException("Level change message data is too short");
+                }
 
-            byte index = message.messageData[0];
-            bool reload = Convert.ToBoolean(message.messageData[1]);
+                byte index = message.messageData[0];
+                bool reload = Convert.ToBoolean(message.messageData[1]);
 
-            if (index == Client.instance.currentScene && !reload)
-                return;
+                // FIX: Null check to prevent crashes if client isn't fully initialized
+                if (Client.instance == null)
+                {
+                    EntangleLogger.Warn("[LevelChange] Received level change but Client.instance is null, ignoring");
+                    return;
+                }
 
-            // FIX: Ensure the client updates their tracked scene so they don't get stuck in transition
-            Client.instance.currentScene = index;
+                // FIX: Only load if it's a different scene or a reload is requested
+                if (index == Client.instance.currentScene && !reload)
+                {
+                    EntangleLogger.Verbose($"[LevelChange] Already in scene {index}, skipping load");
+                    return;
+                }
 
-            StressLevelZero.Utilities.BoneworksSceneManager.LoadScene(index);
+                EntangleLogger.Log($"[LevelChange] Client received level change to scene {index} (reload: {reload})", ConsoleColor.Cyan);
+
+                // FIX: Update the client's tracked scene immediately to prevent race conditions
+                Client.instance.currentScene = index;
+
+                // FIX: Catch exceptions during scene load to prevent client crashes
+                try
+                {
+                    StressLevelZero.Utilities.BoneworksSceneManager.LoadScene(index);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LevelChange] Failed to load scene {index}: {ex.Message}\n{ex.StackTrace}");
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Error($"[LevelChange] Error handling level change message: {ex.Message}\n{ex.StackTrace}");
+            }
         }
     }
 
