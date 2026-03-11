@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 
 using Entanglement.Data;
+using Entanglement.Managers;
 
 using UnityEngine;
 
@@ -61,6 +62,15 @@ namespace Entanglement.Network
                 index += sizeof(float);
 
                 // Find destructible by instance ID and update state
+                StoryModeSync.ApplyRemoteDestructibleState(new StoryDestructibleSyncData
+                {
+                    destructibleInstanceId = destructibleId,
+                    isDestroyed = isDestroyed,
+                    health = health,
+                    damageAmount = damageAmount,
+                    damagePosition = damagePos,
+                });
+
                 EntangleLogger.Verbose($"Received destructible sync: ID={destructibleId}, Destroyed={isDestroyed}, Health={health}");
 
                 // Server relays to other clients

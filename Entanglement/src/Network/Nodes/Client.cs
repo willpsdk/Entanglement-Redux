@@ -168,6 +168,15 @@ namespace Entanglement.Network
                 PlayerRepresentation.representations[userId].DeleteRepresentations();
                 PlayerRepresentation.representations.Remove(userId);
             }
+
+            foreach (var syncable in ObjectSync.syncedObjects.Values)
+            {
+                if (syncable == null)
+                    continue;
+
+                syncable.DequeueOwner(userId);
+            }
+
             SteamIntegration.RemoveUser(userId);
         }
 

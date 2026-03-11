@@ -66,7 +66,7 @@ namespace Entanglement.Managers
             if (syncedNPCs.ContainsKey(npcInstanceId))
             {
                 StoryNPCSyncData data = syncedNPCs[npcInstanceId];
-                
+
                 // Only send update if significant change
                 if (Vector3.Distance(data.position, npcTransform.position) > 0.1f ||
                     data.isAlive != isAlive ||
@@ -195,7 +195,7 @@ namespace Entanglement.Managers
             if (syncedDestructibles.ContainsKey(destructibleId))
             {
                 StoryDestructibleSyncData data = syncedDestructibles[destructibleId];
-                
+
                 if (data.isDestroyed != isDestroyed || Mathf.Abs(data.health - health) > 1f)
                 {
                     data.isDestroyed = isDestroyed;
@@ -242,6 +242,54 @@ namespace Entanglement.Managers
         public static bool TryGetDestructibleState(int destructibleId, out StoryDestructibleSyncData data)
         {
             return syncedDestructibles.TryGetValue(destructibleId, out data);
+        }
+
+        public static void ApplyRemoteNPCState(StoryNPCSyncData data)
+        {
+            if (data == null)
+                return;
+
+            syncedNPCs[data.npcInstanceId] = data;
+        }
+
+        public static void ApplyRemoteDoorState(StoryDoorSyncData data)
+        {
+            if (data == null)
+                return;
+
+            syncedDoors[data.doorInstanceId] = data;
+        }
+
+        public static void ApplyRemoteDestructibleState(StoryDestructibleSyncData data)
+        {
+            if (data == null)
+                return;
+
+            syncedDestructibles[data.destructibleInstanceId] = data;
+        }
+
+        public static void SendFullStateTo(ulong userId)
+        {
+            if (!SteamIntegration.hasLobby || !SteamIntegration.isHost || Node.activeNode == null)
+                return;
+
+            foreach (var npc in syncedNPCs.Values)
+            {
+                NetworkMessage npcMessage = NetworkMessage.CreateMessage(BuiltInMessageType.StoryNPCSync, npc);
+                Node.activeNode.SendMessage(userId, NetworkChannel.Reliable, npcMessage.GetBytes());
+            }
+
+            foreach (var door in syncedDoors.Values)
+            {
+                NetworkMessage doorMessage = NetworkMessage.CreateMessage(BuiltInMessageType.StoryDoorSync, door);
+                Node.activeNode.SendMessage(userId, NetworkChannel.Reliable, doorMessage.GetBytes());
+            }
+
+            foreach (var destructible in syncedDestructibles.Values)
+            {
+                NetworkMessage destructibleMessage = NetworkMessage.CreateMessage(BuiltInMessageType.StoryDestructibleSync, destructible);
+                Node.activeNode.SendMessage(userId, NetworkChannel.Reliable, destructibleMessage.GetBytes());
+            }
         }
     }
 }

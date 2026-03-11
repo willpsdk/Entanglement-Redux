@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 using Entanglement.Data;
 using Entanglement.Extensions;
+using Entanglement.Managers;
 
 using MelonLoader;
 
@@ -65,6 +66,15 @@ namespace Entanglement.Network
                 index += sizeof(float);
 
                 // Find door by instance ID and update state
+                StoryModeSync.ApplyRemoteDoorState(new StoryDoorSyncData
+                {
+                    doorInstanceId = doorInstanceId,
+                    isOpen = isOpen,
+                    isLocked = isLocked,
+                    state = state,
+                    position = position,
+                });
+
                 EntangleLogger.Verbose($"Received door sync: ID={doorInstanceId}, Open={isOpen}, State={state}");
 
                 // Server relays to other clients

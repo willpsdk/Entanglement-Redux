@@ -8,6 +8,9 @@ using UnityEngine;
 
 using Entanglement.Representation;
 using Entanglement.Data;
+using Entanglement.Managers;
+using Entanglement.Objects;
+using Entanglement.Extensions;
 using StressLevelZero;
 
 namespace Entanglement.Network
@@ -303,10 +306,47 @@ namespace Entanglement.Network
             NetworkMessage idMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.ShortId, idMessageData);
             BroadcastMessage(NetworkChannel.Reliable, idMessage.GetBytes());
 
+            ReplaySyncedObjectsTo(userId);
+            StoryModeSync.SendFullStateTo(userId);
+
             // FIX: NEVER track heartbeat for the host (only for connected clients)
             if (userId != SteamIntegration.currentUser.m_SteamID)
             {
                 userBeats.Add(userId, 0f);
+            }
+        }
+
+        private void ReplaySyncedObjectsTo(ulong userId)
+        {
+            foreach (var pair in ObjectSync.syncedObjects)
+            {
+                TransformSyncable sync = pair.Value as TransformSyncable;
+                if (sync == null || sync.transform == null)
+                    continue;
+
+                ObjectSync.GetPooleeData(sync.transform, out Rigidbody[] _, out string overrideRootName, out short spawnIndex, out float spawnTime);
+
+                TransformCreateMessageData createData = new TransformCreateMessageData
+                {
+                    ownerId = sync.staleOwner != 0 ? sync.staleOwner : SteamIntegration.hostUser.m_SteamID,
+                    objectId = sync.objectId,
+                    callbackIndex = 0,
+                    spawnIndex = spawnIndex,
+                    spawnTime = spawnTime,
+                    enqueueOwner = false,
+                    objectPath = sync.transform.GetFullPath(overrideRootName),
+                };
+
+                NetworkMessage createMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformCreate, createData);
+                SendMessage(userId, NetworkChannel.Reliable, createMessage.GetBytes());
+
+                TransformSyncMessageData transformData = new TransformSyncMessageData
+                {
+                    objectId = sync.objectId,
+                    simplifiedTransform = new SimplifiedTransform(sync.transform, sync.rb),
+                };
+                NetworkMessage transformMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, transformData);
+                SendMessage(userId, NetworkChannel.Reliable, transformMessage.GetBytes());
             }
         }
 
@@ -321,6 +361,15 @@ namespace Entanglement.Network
                 PlayerRepresentation.representations[userId].DeleteRepresentations();
                 PlayerRepresentation.representations.Remove(userId);
             }
+
+            foreach (var syncable in ObjectSync.syncedObjects.Values)
+            {
+                if (syncable == null)
+                    continue;
+
+                syncable.DequeueOwner(userId);
+            }
+
             SteamIntegration.RemoveUser(userId);
         }
 

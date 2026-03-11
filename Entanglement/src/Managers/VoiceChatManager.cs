@@ -42,6 +42,7 @@ namespace Entanglement.Managers
         private static Dictionary<ulong, bool> mutedPlayers = new Dictionary<ulong, bool>(); // Track muted players
         private static float voiceRecordingTimer = 0f;
         private const float VOICE_UPDATE_INTERVAL = 0.1f; // Update voice every 100ms
+        private const uint VOICE_SAMPLE_RATE = 11025;
 
         // FIX: Track talking state for animations
         private static bool wasLocalPlayerTalking = false;
@@ -313,13 +314,11 @@ namespace Entanglement.Managers
                 // If we have voice data, player is talking
                 bool isCurrentlyTalking = writeBytes > 0 && result == Steamworks.EVoiceResult.k_EVoiceResultOK;
 
-                // Send update if talking state changed
                 if (isCurrentlyTalking != wasLocalPlayerTalking)
                 {
                     wasLocalPlayerTalking = isCurrentlyTalking;
 
-                    // Create and send talking sync message
-                    var talkingData = new Network.TalkingSyncData
+                    var talkingData = new TalkingSyncData
                     {
                         userId = SteamIntegration.currentUser.m_SteamID,
                         isTalking = isCurrentlyTalking
@@ -332,10 +331,74 @@ namespace Entanglement.Managers
                         EntangleLogger.Verbose($"Broadcast talking state: {isCurrentlyTalking}");
                     }
                 }
+
+                if (writeBytes > 0 && result == Steamworks.EVoiceResult.k_EVoiceResultOK)
+                {
+                    byte[] payload = new byte[writeBytes];
+                    Buffer.BlockCopy(voiceData, 0, payload, 0, (int)writeBytes);
+
+                    VoiceDataMessageData voiceDataMessage = new VoiceDataMessageData
+                    {
+                        userId = SteamIntegration.currentUser.m_SteamID,
+                        compressedVoiceData = payload,
+                    };
+
+                    NetworkMessage voiceMessage = NetworkMessage.CreateMessage(BuiltInMessageType.VoiceData, voiceDataMessage);
+                    Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, voiceMessage.GetBytes());
+                }
             }
             catch (Exception ex)
             {
                 EntangleLogger.Verbose($"Error detecting talking state: {ex.Message}");
+            }
+        }
+
+        public static void ReceiveVoicePacket(ulong playerId, byte[] compressedData)
+        {
+            if (compressedData == null || compressedData.Length == 0)
+                return;
+
+            if (IsPlayerMuted(playerId))
+                return;
+
+            try
+            {
+                AudioSource audioSource = null;
+                if (!playerAudioSources.TryGetValue(playerId, out audioSource) || audioSource == null)
+                {
+                    if (!PlayerRepresentation.representations.TryGetValue(playerId, out PlayerRepresentation rep) || rep == null || rep.repRoot == null)
+                        return;
+
+                    CreateAudioSource(playerId, rep.repRoot);
+                    if (!playerAudioSources.TryGetValue(playerId, out audioSource) || audioSource == null)
+                        return;
+                }
+
+                byte[] decompressed = new byte[48000];
+                uint written;
+                EVoiceResult decompressResult = SteamUser.DecompressVoice(compressedData, (uint)compressedData.Length, decompressed, (uint)decompressed.Length, out written, VOICE_SAMPLE_RATE);
+
+                if (decompressResult != EVoiceResult.k_EVoiceResultOK || written < 2)
+                    return;
+
+                int sampleCount = (int)written / 2;
+                float[] samples = new float[sampleCount];
+
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    short pcm = BitConverter.ToInt16(decompressed, i * 2);
+                    samples[i] = pcm / 32768f;
+                }
+
+                AudioClip clip = AudioClip.Create($"VoicePacket_{playerId}_{Time.frameCount}", sampleCount, 1, (int)VOICE_SAMPLE_RATE, false);
+                clip.SetData(samples, 0);
+                audioSource.volume = outputVolume;
+                audioSource.PlayOneShot(clip, outputVolume);
+                UnityEngine.Object.Destroy(clip, 1f);
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Verbose($"Error receiving voice packet from {playerId}: {ex.Message}");
             }
         }
 

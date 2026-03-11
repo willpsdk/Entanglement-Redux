@@ -18,12 +18,12 @@ namespace Entanglement.Network
         {
             NetworkMessage message = new NetworkMessage();
 
-            message.messageData = new byte[sizeof(byte) + sizeof(ushort)];
+            message.messageData = new byte[sizeof(byte) + sizeof(float)];
 
             int index = 0;
             message.messageData[index++] = (byte)data.attackType;
 
-            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((ushort)(data.attackDamage * 10000f)), ref index);
+            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.attackDamage), ref index);
 
             return message;
         }
@@ -36,7 +36,7 @@ namespace Entanglement.Network
             int index = 0;
             AttackType attackType = (AttackType)message.messageData[index++];
 
-            float attackDamage = BitConverter.ToUInt16(message.messageData, index) / 10000f;
+            float attackDamage = BitConverter.ToSingle(message.messageData, index);
 
             PlayerScripts.playerHealth.TAKEDAMAGE(attackDamage);
 

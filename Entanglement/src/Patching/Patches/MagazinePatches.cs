@@ -64,9 +64,9 @@ namespace Entanglement.Patching {
             }
 
             TransformSyncable gunSync = TransformSyncable.cache.GetOrAdd(gun.gameObject);
-            if (!gunSync || !gunSync.IsOwner()) {
+            if (!gunSync) {
 #if DEBUG
-                EntangleLogger.Log("Not owner of gun or not synced!");
+                EntangleLogger.Log("Gun not synced!");
 #endif
                 return;
             }
@@ -107,9 +107,9 @@ namespace Entanglement.Patching {
             }
 
             TransformSyncable gunSync = TransformSyncable.cache.GetOrAdd(gun.gameObject);
-            if (!gunSync || !gunSync.IsOwner()) {
+            if (!gunSync) {
 #if DEBUG
-                EntangleLogger.Log("Not owner of gun or not synced!");
+                EntangleLogger.Log("Gun not synced!");
 #endif
                 return;
             }

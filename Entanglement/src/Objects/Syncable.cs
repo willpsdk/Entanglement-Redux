@@ -52,7 +52,11 @@ namespace Entanglement.Objects
 
         // CHANGED: long -> ulong
         public virtual void EnqueueOwner(ulong owner) {
-            if (!ownerQueue.Contains(owner)) ownerQueue.Add(owner);
+            if (ownerQueue.Contains(owner))
+                ownerQueue.Remove(owner);
+
+            // Latest interaction wins ownership priority (important for force-grab sync).
+            ownerQueue.Insert(0, owner);
             UpdateStale();
             ownershipTimeoutTimer = 0f; // Reset timeout on ownership change
             UpdateOwner();
@@ -96,7 +100,19 @@ namespace Entanglement.Objects
 
         public void UpdateStale() {
             lastOwner = staleOwner;
-            if (ownerQueue.Count > 0) staleOwner = ownerQueue[0]; 
+            if (ownerQueue.Count > 0)
+            {
+                staleOwner = ownerQueue[0];
+            }
+            else if (SteamIntegration.hasLobby)
+            {
+                // Fallback to host ownership when queue is empty so dropped objects keep simulating.
+                staleOwner = SteamIntegration.hostUser.m_SteamID;
+            }
+            else
+            {
+                staleOwner = 0;
+            }
         }
 
         public bool IsOwner() {

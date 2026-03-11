@@ -70,9 +70,35 @@ namespace Entanglement.Network
                         index += sizeof(float);
 
                         // Store the position for interpolation
-                        rep.lastSyncPosition = rep.repRoot.position;
-                        rep.targetSyncPosition = rootPosition;
-                        rep.interpolationAlpha = 0f; // Start interpolation from beginning
+                        float delta = Vector3.Distance(rep.repRoot.position, rootPosition);
+                        float now = Time.realtimeSinceStartup;
+                        float packetInterval = rep.lastSyncReceiveTime > 0f ? now - rep.lastSyncReceiveTime : 1f / 60f;
+                        rep.lastSyncReceiveTime = now;
+                        packetInterval = Mathf.Clamp(packetInterval, 1f / 120f, 0.25f);
+                        rep.syncPacketInterval = packetInterval;
+
+                        if (delta > 6f)
+                        {
+                            // Hard snap on very large corrections to avoid rubberband trails.
+                            rep.repRoot.position = rootPosition;
+                            rep.lastSyncPosition = rootPosition;
+                            rep.targetSyncPosition = rootPosition;
+                            rep.targetSyncVelocity = Vector3.zero;
+                            rep.interpolationAlpha = 1f;
+                        }
+                        else
+                        {
+                            Vector3 previousTarget = rep.targetSyncPosition;
+                            rep.lastSyncPosition = rep.repRoot.position;
+                            rep.targetSyncPosition = rootPosition;
+                            rep.interpolationAlpha = 0f; // Start interpolation from beginning
+
+                            Vector3 estimatedVelocity = (rootPosition - previousTarget) / packetInterval;
+                            rep.targetSyncVelocity = Vector3.ClampMagnitude(estimatedVelocity, 25f);
+
+                            float estimatedRate = 1f / packetInterval;
+                            rep.interpolationSpeed = Mathf.Clamp(estimatedRate * 0.6f, 8f, 35f);
+                        }
 
                         for (int r = 0; r < rep.repTransforms.Length; r++)
                         {

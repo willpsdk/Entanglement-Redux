@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Reflection;
 
 using UnityEngine;
 
@@ -23,7 +24,7 @@ namespace Entanglement.Network
         {
             NetworkMessage message = new NetworkMessage();
 
-            message.messageData = new byte[sizeof(byte) * 4 + sizeof(short) * 3 + SimplifiedTransform.size];
+            message.messageData = new byte[sizeof(byte) * 4 + sizeof(float) * 3 + SimplifiedTransform.size];
 
             int index = 0;
             // User
@@ -35,13 +36,13 @@ namespace Entanglement.Network
             // Type
             message.messageData[index++] = (byte)variables.AttackType;
             // Damage
-            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((short)(variables.AttackDamage * 10000f)), ref index);
+            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(variables.AttackDamage), ref index);
             // Mass
-            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((short)(variables.ProjectileMass * 10000f)), ref index);
+            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(variables.ProjectileMass), ref index);
             // Tracer
             message.messageData[index++] = Convert.ToByte(variables.Tracer);
             // Velocity
-            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((short)variables.ExitVelocity), ref index);
+            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(variables.ExitVelocity), ref index);
             // Transform
             message.messageData = message.messageData.AddBytes(data.bulletTransform.GetBytes(), ref index);
 
@@ -61,16 +62,16 @@ namespace Entanglement.Network
             // Type
             AttackType attackType = (AttackType)message.messageData[index++];
             // Damage
-            float attackDamage = (float)BitConverter.ToInt16(message.messageData, index) / 10000f;
-            index += sizeof(short);
+            float attackDamage = BitConverter.ToSingle(message.messageData, index);
+            index += sizeof(float);
             // Mass
-            float projectileMass = (float)BitConverter.ToInt16(message.messageData, index) / 10000f;
-            index += sizeof(short);
+            float projectileMass = BitConverter.ToSingle(message.messageData, index);
+            index += sizeof(float);
             // Tracer
             bool tracer = Convert.ToBoolean(message.messageData[index++]);
             // Velocity
-            float exitVelocity = BitConverter.ToInt16(message.messageData, index);
-            index += sizeof(short);
+            float exitVelocity = BitConverter.ToSingle(message.messageData, index);
+            index += sizeof(float);
             // Get Bullet Object
             BulletObject bulletObj = new BulletObject();
             AmmoVariables ammoVariables = new AmmoVariables();
@@ -91,6 +92,9 @@ namespace Entanglement.Network
             Quaternion rotation = bulletTransform.rotation.ExpandQuat();
             PoolSpawner.SpawnProjectile(position, rotation, bulletObj, "1911", null);
             PoolSpawner.SpawnMuzzleFlare(position, rotation, PoolSpawner.MuzzleFlareType.Default);
+
+            // Fallback deterministic NPC hit application for remote peers (Nullbody/Omni cases).
+            ApplyNpcDamageFallback(position, rotation, attackDamage);
             // Play Sound
             if (PlayerRepresentation.representations.ContainsKey(userId)) {
                 PlayerRepresentation rep = PlayerRepresentation.representations[userId];
@@ -103,6 +107,46 @@ namespace Entanglement.Network
                 byte[] msgBytes = message.GetBytes();
                 Server.instance.BroadcastMessageExcept(NetworkChannel.Attack, msgBytes, userId);
             }
+        }
+
+        private static void ApplyNpcDamageFallback(Vector3 position, Quaternion rotation, float attackDamage)
+        {
+            try
+            {
+                if (!Physics.Raycast(position, rotation * Vector3.forward, out RaycastHit hit, 400f))
+                    return;
+
+                if (hit.collider == null || hit.collider.transform == null)
+                    return;
+
+                Transform root = hit.collider.transform.root;
+                if (root == null || root.gameObject == null)
+                    return;
+
+                string name = root.gameObject.name.ToLowerInvariant();
+                if (!(name.Contains("null") || name.Contains("omni") || name.Contains("projector")))
+                    return;
+
+                Component[] components = root.gameObject.GetComponentsInChildren<Component>(true);
+                foreach (Component component in components)
+                {
+                    if (component == null)
+                        continue;
+
+                    Type type = component.GetType();
+
+                    MethodInfo takeDamage = type.GetMethod("TAKEDAMAGE", new[] { typeof(float) })
+                                            ?? type.GetMethod("TakeDamage", new[] { typeof(float) })
+                                            ?? type.GetMethod("ApplyDamage", new[] { typeof(float) });
+
+                    if (takeDamage != null)
+                    {
+                        takeDamage.Invoke(component, new object[] { attackDamage });
+                        return;
+                    }
+                }
+            }
+            catch { }
         }
     }
 

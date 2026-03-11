@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 
 using Entanglement.Data;
+using Entanglement.Managers;
 using Entanglement.Objects;
 using Entanglement.Representation;
 
@@ -82,7 +83,16 @@ namespace Entanglement.Network
                 index += sizeof(float);
 
                 // Find NPC by instance ID and update state
-                // This would require keeping a registry of NPCs - implementation depends on Boneworks API
+                StoryModeSync.ApplyRemoteNPCState(new StoryNPCSyncData
+                {
+                    npcInstanceId = npcInstanceId,
+                    isAlive = isAlive,
+                    isActive = isActive,
+                    health = health,
+                    position = position,
+                    rotation = rotation,
+                });
+
                 EntangleLogger.Verbose($"Received NPC sync: ID={npcInstanceId}, Alive={isAlive}, Health={health}");
 
                 // Server relays to other clients

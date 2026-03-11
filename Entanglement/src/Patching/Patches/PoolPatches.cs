@@ -151,7 +151,7 @@ namespace Entanglement.Patching
                     };
 
                     NetworkMessage transferMessage = NetworkMessage.CreateMessage(BuiltInMessageType.SpawnTransfer, data);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Object, transferMessage.GetBytes());
+                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, transferMessage.GetBytes());
                 }
                 return;
             }
@@ -228,7 +228,7 @@ namespace Entanglement.Patching
             };
 
             NetworkMessage clientMessage = NetworkMessage.CreateMessage(BuiltInMessageType.SpawnClient, data);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Object, clientMessage.GetBytes());
+            Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, clientMessage.GetBytes());
 
             var pooleeSyncable = spawnedObject.AddComponent<PooleeSyncable>();
             pooleeSyncable.id = id;

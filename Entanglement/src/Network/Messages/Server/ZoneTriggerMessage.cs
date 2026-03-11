@@ -3,7 +3,9 @@ using UnityEngine;
 using StressLevelZero.Zones;
 using Entanglement.Patching;
 using Entanglement.Network;
+using Entanglement.Representation;
 using Entanglement.Data; // Added the correct namespace for PlayerScripts
+using Entanglement.Extensions;
 
 namespace Entanglement.Network
 {
@@ -14,31 +16,82 @@ namespace Entanglement.Network
         public override NetworkMessage CreateMessage(ZoneTriggerMessageData data)
         {
             NetworkMessage message = new NetworkMessage();
-            message.messageData = Encoding.UTF8.GetBytes(data.zonePath);
+
+            // format: isPlayerTrigger|isEnter|fullPath
+            string payload = $"{(data.isPlayerTrigger ? 1 : 0)}|{(data.isEnter ? 1 : 0)}|{data.zonePath}";
+            message.messageData = Encoding.UTF8.GetBytes(payload);
             return message;
         }
 
         public override void HandleMessage(NetworkMessage message, ulong sender)
         {
-            string zonePath = Encoding.UTF8.GetString(message.messageData);
-            GameObject targetZone = GameObject.Find(zonePath);
+            string payload = Encoding.UTF8.GetString(message.messageData);
+
+            bool isPlayerTrigger = false;
+            bool isEnter = true;
+            string zonePath = payload;
+
+            string[] split = payload.Split(new[] { '|' }, 3);
+            if (split.Length == 3)
+            {
+                isPlayerTrigger = split[0] == "1";
+                isEnter = split[1] == "1";
+                zonePath = split[2];
+            }
+
+            Transform targetTransform = zonePath.GetFromFullPath();
+            GameObject targetZone = targetTransform != null ? targetTransform.gameObject : GameObject.Find(zonePath);
 
             if (targetZone != null)
             {
                 SceneZone zone = targetZone.GetComponent<SceneZone>();
-                if (zone != null)
-                {
-                    // Temporarily bypass the patch tracking so the client actually runs the game's spawn method
-                    ZoneTrackingUtilities.networkIgnore = true;
+                PlayerTrigger trigger = targetZone.GetComponent<PlayerTrigger>();
 
-                    // FIX: Changed from StressLevelZero.Player.PlayerScripts to Entanglement.Data.PlayerScripts
-                    if (PlayerScripts.playerRig != null)
+                if (isPlayerTrigger && trigger == null)
+                    return;
+                if (!isPlayerTrigger && zone == null)
+                    return;
+
+                if (zone != null || trigger != null)
+                {
+                    if (PlayerScripts.playerRig != null && PlayerScripts.playerRig.physicsRig != null)
                     {
-                        Collider playerCol = PlayerScripts.playerRig.physicsRig.m_pelvis.GetComponent<Collider>();
-                        zone.OnTriggerEnter(playerCol);
+                        Collider playerCol = null;
+
+                        if (PlayerScripts.playerRig.physicsRig.m_pelvis != null)
+                            playerCol = PlayerScripts.playerRig.physicsRig.m_pelvis.GetComponent<Collider>();
+
+                        if (playerCol == null && PlayerScripts.playerRig.physicsRig.m_head != null)
+                            playerCol = PlayerScripts.playerRig.physicsRig.m_head.GetComponent<Collider>();
+
+                        if (playerCol != null)
+                        {
+                            ZoneTrackingUtilities.networkReplay = true;
+                            try
+                            {
+                                if (isPlayerTrigger)
+                                {
+                                    if (isEnter)
+                                        trigger.OnTriggerEnter(playerCol);
+                                    else
+                                        trigger.OnTriggerExit(playerCol);
+                                }
+                                else if (zone != null)
+                                {
+                                    if (isEnter)
+                                        zone.OnTriggerEnter(playerCol);
+                                    else
+                                        zone.OnTriggerExit(playerCol);
+                                }
+                            }
+                            finally
+                            {
+                                ZoneTrackingUtilities.networkReplay = false;
+                            }
+                        }
                     }
 
-                    ZoneTrackingUtilities.networkIgnore = false;
+                    PlayerRepresentation.ForceRefreshAllRemoteRepresentations();
                 }
             }
         }
@@ -47,5 +100,7 @@ namespace Entanglement.Network
     public class ZoneTriggerMessageData : NetworkMessageData
     {
         public string zonePath;
+        public bool isPlayerTrigger;
+        public bool isEnter;
     }
 }

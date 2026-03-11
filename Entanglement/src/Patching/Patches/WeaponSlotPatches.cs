@@ -28,7 +28,16 @@ namespace Entanglement.Patching
                 TransformCollisionMessageData data = new TransformCollisionMessageData() { objectId = tran.objectId, enabled = false };
 
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformCollision, data);
-                Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
+
+                TransformSyncMessageData syncData = new TransformSyncMessageData()
+                {
+                    objectId = tran.objectId,
+                    simplifiedTransform = new SimplifiedTransform(tran.transform, tran.rb)
+                };
+
+                NetworkMessage syncMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, syncData);
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, syncMessage.GetBytes());
             }
         }
     }
@@ -44,7 +53,16 @@ namespace Entanglement.Patching
                 TransformCollisionMessageData data = new TransformCollisionMessageData() { objectId = tran.objectId, enabled = true };
 
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformCollision, data);
-                Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
+
+                TransformSyncMessageData syncData = new TransformSyncMessageData()
+                {
+                    objectId = tran.objectId,
+                    simplifiedTransform = new SimplifiedTransform(tran.transform, tran.rb)
+                };
+
+                NetworkMessage syncMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, syncData);
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, syncMessage.GetBytes());
             }
         }
     }

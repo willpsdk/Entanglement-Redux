@@ -42,9 +42,15 @@ namespace Entanglement.Network
             ushort objectId = BitConverter.ToUInt16(message.messageData, index);
             index += sizeof(ushort);
 
-            if (ObjectSync.TryGetSyncable(objectId, out Syncable syncable)) {
-                bool isAdd = Convert.ToBoolean(message.messageData[index++]);
+            bool isAdd = Convert.ToBoolean(message.messageData[index++]);
 
+            if (Server.instance != null)
+            {
+                // Server is authority: normalize owner identity to actual sender to prevent queue desync/spoof.
+                userId = sender;
+            }
+
+            if (ObjectSync.TryGetSyncable(objectId, out Syncable syncable)) {
                 // Try to enqueue the user
                 if (isAdd) {
                     syncable.EnqueueOwner(userId);
@@ -57,8 +63,15 @@ namespace Entanglement.Network
 
             if (Server.instance != null)
             {
-                byte[] msgBytes = message.GetBytes();
-                Server.instance.BroadcastMessage(NetworkChannel.Object, msgBytes);
+                TransformQueueMessageData relayData = new TransformQueueMessageData
+                {
+                    userId = userId,
+                    objectId = objectId,
+                    isAdd = isAdd,
+                };
+
+                NetworkMessage relayMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, relayData);
+                Server.instance.BroadcastMessageExcept(NetworkChannel.Reliable, relayMessage.GetBytes(), sender);
             }
         }
     }

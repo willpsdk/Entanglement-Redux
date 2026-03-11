@@ -68,12 +68,14 @@ namespace Entanglement.Objects
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit object syncs to 20 Hz to reduce network traffic
+            // Rate limit object syncs to configured interval
             lastSyncTime += Time.fixedDeltaTime;
             if (lastSyncTime < OBJECT_SYNC_INTERVAL)
                 return;
 
-            lastSyncTime = 0f;
+            lastSyncTime -= OBJECT_SYNC_INTERVAL;
+            if (lastSyncTime > OBJECT_SYNC_INTERVAL)
+                lastSyncTime = 0f;
 
             if (_cachedSyncData == null) _cachedSyncData = new TransformSyncMessageData();
 
@@ -97,7 +99,7 @@ namespace Entanglement.Objects
 
         public override bool ShouldSync()
         {
-            if (rb && rb.IsSleeping()) return false;
+            if (rb && rb.IsSleeping() && !HasChangedPositions()) return false;
             return HasChangedPositions();
         }
 
@@ -306,11 +308,14 @@ namespace Entanglement.Objects
             ulong userId = SteamIntegration.currentUser.m_SteamID;
             if (ownerQueue.Contains(userId)) return;
 
-            if (Server.instance != null) EnqueueOwner(userId);
+            // Optimistic local ownership handoff to avoid one-roundtrip freeze when grabbing objects as client.
+            EnqueueOwner(userId);
 
             TransformQueueMessageData queueData = new TransformQueueMessageData() { userId = userId, objectId = objectId, isAdd = true };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+            Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
+
+            MelonCoroutines.Start(CoOwnershipResyncPulse());
         }
 
         public void OnValidDequeue()
@@ -318,11 +323,37 @@ namespace Entanglement.Objects
             ulong userId = SteamIntegration.currentUser.m_SteamID;
             if (!ownerQueue.Contains(userId)) return;
 
-            if (Server.instance != null) DequeueOwner(userId);
+            DequeueOwner(userId);
 
             TransformQueueMessageData queueData = new TransformQueueMessageData() { userId = userId, objectId = objectId, isAdd = false };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+            Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
+
+            MelonCoroutines.Start(CoOwnershipResyncPulse());
+        }
+
+        private IEnumerator CoOwnershipResyncPulse()
+        {
+            // Small burst of reliable transform syncs to settle contested grabs/holster movement.
+            for (int i = 0; i < 8; i++)
+            {
+                if (!isValid || Node.activeNode == null)
+                    yield break;
+
+                if (IsOwner())
+                {
+                    TransformSyncMessageData data = new TransformSyncMessageData
+                    {
+                        objectId = objectId,
+                        simplifiedTransform = new SimplifiedTransform(transform, rb)
+                    };
+
+                    NetworkMessage msg = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, data);
+                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, msg.GetBytes());
+                }
+
+                yield return null;
+            }
         }
 
         public IEnumerator WaitUntilValid(Action onFinish)

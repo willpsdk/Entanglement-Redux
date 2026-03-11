@@ -45,7 +45,7 @@ namespace Entanglement.Representation
         public GameObject repCanvas;
         public Canvas repCanvasComponent;
         public Transform repCanvasTransform;
-        public TextMeshProUGUI repNameText;
+        public TMP_Text repNameText;
 
         public Transform repGeo;
         public Transform repSHJnt;
@@ -81,6 +81,10 @@ namespace Entanglement.Representation
         public Quaternion lastSyncRotation = Quaternion.identity;
         public Quaternion targetSyncRotation = Quaternion.identity;
         public float interpolationAlpha = 1f;
+        public float interpolationSpeed = 10f;
+        public float lastSyncReceiveTime = 0f;
+        public float syncPacketInterval = 1f / 60f;
+        public Vector3 targetSyncVelocity = Vector3.zero;
 
         public string playerName;
         public ulong playerId;
@@ -89,11 +93,12 @@ namespace Entanglement.Representation
         // FIX: Cache renderers to avoid expensive GetComponentsInChildren every frame
         private Renderer[] _cachedRenderers = null;
         private float _rendererCheckTimer = 0f;
-        private float rendererCheckInterval = 0.5f; // Only check every 0.5 seconds
+        private float rendererCheckInterval = 0.1f; // Check frequently to counter aggressive zone culling
 
         // FIX: Talking animation state
         private bool isTalking = false;
         private float talkingAnimationBlend = 0f;
+        private float groundedGraceTimer = 0f;
 
 #if DEBUG
         public static PlayerRepresentation debugRepresentation;
@@ -129,9 +134,27 @@ namespace Entanglement.Representation
         {
             if (obj == null) return;
             obj.layer = layer;
-            foreach (Transform child in obj.transform)
+            Transform root = obj.transform;
+            int childCount = root.childCount;
+            for (int i = 0; i < childCount; i++)
             {
-                SetLayerRecursive(child.gameObject, layer);
+                Transform child = root.GetChild(i);
+                if (child != null)
+                    SetLayerRecursive(child.gameObject, layer);
+            }
+        }
+
+        private static void SetTagRecursive(GameObject obj, string tag)
+        {
+            if (obj == null) return;
+            obj.tag = tag;
+            Transform root = obj.transform;
+            int childCount = root.childCount;
+            for (int i = 0; i < childCount; i++)
+            {
+                Transform child = root.GetChild(i);
+                if (child != null)
+                    SetTagRecursive(child.gameObject, tag);
             }
         }
 
@@ -176,11 +199,17 @@ namespace Entanglement.Representation
                 repRoot = repFord.transform;
                 EntangleLogger.Verbose("[RepCreation]   ✓ Model instantiated");
 
-                // FIX: Set player rep to a layer that won't be culled by zone systems
-                // Use "Default" layer to avoid NPC culling systems
-                int defaultLayer = LayerMask.NameToLayer("Default");
-                SetLayerRecursive(repRoot.gameObject, defaultLayer);
-                EntangleLogger.Verbose($"[RepCreation]   ✓ Set to layer: {defaultLayer}");
+                // Keep reps on the same layer as the local rig so scene-zone culling treats them like players.
+                int repLayer = LayerMask.NameToLayer("Default");
+                if (PlayerScripts.playerRig != null)
+                    repLayer = PlayerScripts.playerRig.gameObject.layer;
+
+                if (repLayer < 0)
+                    repLayer = 0;
+
+                SetLayerRecursive(repRoot.gameObject, repLayer);
+                SetTagRecursive(repRoot.gameObject, "Untagged");
+                EntangleLogger.Verbose($"[RepCreation]   ✓ Set to layer: {repLayer}");
 
                 EntangleLogger.Verbose("[RepCreation]   Setting up SFX components...");
                 Transform gunSFXTrans = repRoot.Find("GunSFX");
@@ -210,6 +239,7 @@ namespace Entanglement.Representation
                             // Create a temporary GravGunSFX wrapper or skip it
                             EntangleLogger.Verbose("[RepCreation]   ⚠ Using GunSFX as fallback for PuncherSFX");
                         }
+
                     }
                 }
 
@@ -286,7 +316,7 @@ namespace Entanglement.Representation
                 repCanvasComponent = repCanvas.AddComponent<Canvas>();
                 repCanvasComponent.renderMode = RenderMode.WorldSpace;
                 repCanvasTransform = repCanvas.transform;
-                repCanvasTransform.localScale = Vector3.one / 200.0f;
+                repCanvasTransform.localScale = Vector3.one / 180.0f;
 
                 // Parent canvas to head to keep it with the player representation
                 if (repTransforms[0] != null)
@@ -301,13 +331,26 @@ namespace Entanglement.Representation
                     EntangleLogger.Verbose("[RepCreation]   ⚠ Nametag positioned at root");
                 }
 
-                repNameText = repCanvas.AddComponent<TextMeshProUGUI>();
-                repNameText.alignment = TextAlignmentOptions.Midline;
-                repNameText.enableAutoSizing = true;
-                repNameText.text = playerName;
+                GameObject nameTextObject = new GameObject("RepNameText");
+                nameTextObject.transform.SetParent(repCanvasTransform, false);
+
+                RectTransform nameRect = nameTextObject.AddComponent<RectTransform>();
+                nameTextObject.AddComponent<CanvasRenderer>();
+                TextMeshProUGUI textMesh = nameTextObject.AddComponent<TextMeshProUGUI>();
+
+                nameRect.localPosition = Vector3.zero;
+                nameRect.localRotation = Quaternion.identity;
+                nameRect.sizeDelta = new Vector2(480f, 120f);
+
+                textMesh.alignment = TextAlignmentOptions.Center;
+                textMesh.enableAutoSizing = true;
+                textMesh.fontSizeMin = 10f;
+                textMesh.fontSizeMax = 24f;
+                textMesh.text = playerName;
+                repNameText = textMesh;
 
                 // FIX: Add billboard script to make nametag always face player
-                repCanvas.AddComponent<NametagBillboard>();
+                repCanvas.AddComponent<global::Entanglement.Representation.NametagBillboard>();
 
                 // FIX: Hide nametag for local player so they can't see their own name
                 bool isLocalPlayer = playerId == SteamIntegration.currentUser.m_SteamID;
@@ -326,6 +369,10 @@ namespace Entanglement.Representation
                 foreach (Renderer renderer in repRoot.GetComponentsInChildren<Renderer>(true))
                 {
                     renderer.enabled = true;
+                    renderer.allowOcclusionWhenDynamic = false;
+
+                    if (renderer is SkinnedMeshRenderer skinned)
+                        skinned.updateWhenOffscreen = true;
                 }
 
                 if (isCustomSkinned && currentSkinPath != null)
@@ -333,7 +380,7 @@ namespace Entanglement.Representation
             }
             catch (Exception e)
             {
-                EntangleLogger.Error($"Error caught creating rep from user {playerId}: {e.Message}");
+                EntangleLogger.Error($"Error caught creating rep from user {playerId}: {e.Message}\n{e.StackTrace}");
             }
         }
 
@@ -410,10 +457,42 @@ namespace Entanglement.Representation
             Vector3 targetVel = PhysicsData.GetVelocity(currentPosition, prevRepRootPos, dt);
 
             if (targetVel.sqrMagnitude < 0.01f) targetVel = Vector3.zero;
-            repSavedVel = Vector3.Slerp(repInputVel, targetVel, dt * legJitter);
 
-            if (isGrounded) repInputVel = repSavedVel;
-            else repInputVel = Vector3.zero;
+            // Stabilize stairs/steps without flattening vertical movement.
+            // Keep Y responsive enough so feet follow ramps/stairs on maps like Runoff.
+            if (isGrounded)
+            {
+                groundedGraceTimer = 0.15f;
+
+                // Smooth horizontal strongly, vertical lightly (with clamp) to avoid foot skating.
+                Vector3 horizontalTarget = new Vector3(targetVel.x, 0f, targetVel.z);
+                Vector3 horizontalCurrent = new Vector3(repInputVel.x, 0f, repInputVel.z);
+                horizontalCurrent = Vector3.Lerp(horizontalCurrent, horizontalTarget, dt * 10f);
+
+                float verticalTarget = Mathf.Clamp(targetVel.y, -3.5f, 3.5f);
+                float verticalCurrent = Mathf.Lerp(repInputVel.y, verticalTarget, dt * 4f);
+
+                repInputVel = new Vector3(horizontalCurrent.x, verticalCurrent, horizontalCurrent.z);
+            }
+            else
+            {
+                groundedGraceTimer -= dt;
+                if (groundedGraceTimer > 0f)
+                {
+                    float verticalCurrent = Mathf.Lerp(repInputVel.y, targetVel.y, dt * 3f);
+                    Vector3 horizontalTarget = new Vector3(targetVel.x, 0f, targetVel.z);
+                    Vector3 horizontalCurrent = new Vector3(repInputVel.x, 0f, repInputVel.z);
+                    horizontalCurrent = Vector3.Lerp(horizontalCurrent, horizontalTarget, dt * 6f);
+
+                    repInputVel = new Vector3(horizontalCurrent.x, verticalCurrent, horizontalCurrent.z);
+                }
+                else
+                {
+                    repInputVel = Vector3.Lerp(repInputVel, Vector3.zero, dt * 8f);
+                }
+            }
+
+            repSavedVel = repInputVel;
 
             prevRepRootPos = currentPosition;
         }
@@ -440,8 +519,14 @@ namespace Entanglement.Representation
                 {
                     foreach (Renderer renderer in repGeo.GetComponentsInChildren<Renderer>(true))
                     {
-                        if (renderer != null && !renderer.enabled)
+                        if (renderer == null)
+                            continue;
+
+                        if (!renderer.enabled)
                             renderer.enabled = true;
+
+                        if (renderer is SkinnedMeshRenderer skinned)
+                            skinned.updateWhenOffscreen = true;
                     }
                 }
 
@@ -670,12 +755,14 @@ namespace Entanglement.Representation
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit player syncs to 30 Hz to reduce network traffic
+            // Rate limit player syncs to configured interval
             lastPlayerSyncTime += Time.deltaTime;
             if (lastPlayerSyncTime < PLAYER_SYNC_INTERVAL)
                 return;
 
-            lastPlayerSyncTime = 0f;
+            lastPlayerSyncTime -= PLAYER_SYNC_INTERVAL;
+            if (lastPlayerSyncTime > PLAYER_SYNC_INTERVAL)
+                lastPlayerSyncTime = 0f;
 
             var syncData = GetPlayerSyncData();
 
@@ -700,12 +787,14 @@ namespace Entanglement.Representation
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit animation syncs to 20 Hz to reduce network traffic
+            // Rate limit animation syncs to configured interval
             lastAnimationSyncTime += Time.deltaTime;
             if (lastAnimationSyncTime < ANIMATION_SYNC_INTERVAL)
                 return;
 
-            lastAnimationSyncTime = 0f;
+            lastAnimationSyncTime -= ANIMATION_SYNC_INTERVAL;
+            if (lastAnimationSyncTime > ANIMATION_SYNC_INTERVAL)
+                lastAnimationSyncTime = 0f;
 
             var animData = GetAnimationSyncData();
 
@@ -747,16 +836,26 @@ namespace Entanglement.Representation
                     // Re-enable any renderers that were culled
                     foreach (Renderer renderer in rep._cachedRenderers)
                     {
-                        if (renderer != null && !renderer.enabled)
+                        if (renderer == null)
+                            continue;
+
+                        if (!renderer.enabled)
                             renderer.enabled = true;
+
+                        if (renderer is SkinnedMeshRenderer skinned)
+                            skinned.updateWhenOffscreen = true;
                     }
                 }
 
                 // Update interpolation (smooth movement over 0.1 seconds)
                 if (rep.interpolationAlpha < 1f)
                 {
-                    rep.interpolationAlpha += Time.fixedDeltaTime * 10f; // Complete in ~0.1 seconds
-                    rep.repRoot.position = Vector3.Lerp(rep.lastSyncPosition, rep.targetSyncPosition, rep.interpolationAlpha);
+                    rep.interpolationAlpha += Time.fixedDeltaTime * rep.interpolationSpeed;
+                    float blend = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(rep.interpolationAlpha));
+                    float sinceLastPacket = Time.realtimeSinceStartup - rep.lastSyncReceiveTime;
+                    float extrapolationTime = Mathf.Clamp(sinceLastPacket, 0f, rep.syncPacketInterval * 1.5f);
+                    Vector3 predictedTarget = rep.targetSyncPosition + rep.targetSyncVelocity * extrapolationTime;
+                    rep.repRoot.position = Vector3.LerpUnclamped(rep.lastSyncPosition, predictedTarget, blend);
                 }
 
                 float dist = (centerPos - rep.repRoot.position).sqrMagnitude;
@@ -764,6 +863,39 @@ namespace Entanglement.Representation
                 // FIX: Removed aggressive distance culling - always update IK for smooth animation
                 // This prevents players from disappearing when moving to different rooms
                 rep.UpdateIK();
+                if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
+                    rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
+            }
+        }
+
+        public static void ForceRefreshAllRemoteRepresentations()
+        {
+            foreach (PlayerRepresentation rep in representations.Values)
+            {
+                if (rep == null || rep.repRoot == null)
+                    continue;
+
+                if (rep.playerId == SteamIntegration.currentUser.m_SteamID)
+                    continue;
+
+                if (!rep.repRoot.gameObject.activeSelf)
+                    rep.repRoot.gameObject.SetActive(true);
+
+                Renderer[] renderers = rep._cachedRenderers ?? rep.repRoot.GetComponentsInChildren<Renderer>(true);
+                rep._cachedRenderers = renderers;
+
+                foreach (Renderer renderer in renderers)
+                {
+                    if (renderer == null)
+                        continue;
+
+                    renderer.enabled = true;
+                    renderer.allowOcclusionWhenDynamic = false;
+
+                    if (renderer is SkinnedMeshRenderer skinned)
+                        skinned.updateWhenOffscreen = true;
+                }
+
                 if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
                     rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
             }

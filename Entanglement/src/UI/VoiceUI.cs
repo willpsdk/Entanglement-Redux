@@ -18,11 +18,11 @@ namespace Entanglement.UI
             voiceCategory = category.CreateSubCategory("Voice Menu", Color.white);
 
             // Voice Mode Selection
-            voiceCategory.CreateEnumElement("Voice Mode", Color.yellow, VoiceChatManager.voiceChatMode, (value) =>
+            voiceCategory.CreateEnumElement("Voice Mode", Color.yellow, global::Entanglement.Managers.VoiceChatManager.voiceChatMode, (value) =>
             {
-                if (value is VoiceChatManager.VoiceChatMode mode)
+                if (value is global::Entanglement.Managers.VoiceChatManager.VoiceChatMode mode)
                 {
-                    VoiceChatManager.SetVoiceChatMode(mode);
+                    global::Entanglement.Managers.VoiceChatManager.SetVoiceChatMode(mode);
                 }
             });
 
@@ -30,23 +30,23 @@ namespace Entanglement.UI
             voiceCategory.CreateFunctionElement("Select Microphone", Color.cyan, ShowMicrophoneMenu);
 
             // Microphone Volume Slider
-            voiceCategory.CreateFloatElement("Mic Volume", Color.yellow, VoiceChatManager.microphoneVolume, (value) =>
+            voiceCategory.CreateFloatElement("Mic Volume", Color.yellow, global::Entanglement.Managers.VoiceChatManager.microphoneVolume, (value) =>
             {
-                VoiceChatManager.SetMicrophoneVolume(value);
+                global::Entanglement.Managers.VoiceChatManager.SetMicrophoneVolume(value);
             }, 0.1f, 0f, 1f);
 
             // Output Volume Slider
-            voiceCategory.CreateFloatElement("Output Volume", Color.yellow, VoiceChatManager.outputVolume, (value) =>
+            voiceCategory.CreateFloatElement("Output Volume", Color.yellow, global::Entanglement.Managers.VoiceChatManager.outputVolume, (value) =>
             {
-                VoiceChatManager.SetOutputVolume(value);
+                global::Entanglement.Managers.VoiceChatManager.SetOutputVolume(value);
             }, 0.1f, 0f, 1f);
 
             // Proximity Range (only shown in proximity mode)
-            if (VoiceChatManager.voiceChatMode == VoiceChatManager.VoiceChatMode.Proximity)
+            if (global::Entanglement.Managers.VoiceChatManager.voiceChatMode == global::Entanglement.Managers.VoiceChatManager.VoiceChatMode.Proximity)
             {
-                voiceCategory.CreateFloatElement("Proximity Range (m)", Color.yellow, VoiceChatManager.proximityRange, (value) =>
+                voiceCategory.CreateFloatElement("Proximity Range (m)", Color.yellow, global::Entanglement.Managers.VoiceChatManager.proximityRange, (value) =>
                 {
-                    VoiceChatManager.SetProximityRange(value);
+                    global::Entanglement.Managers.VoiceChatManager.SetProximityRange(value);
                 }, 5f, 10f, 500f);
             }
 
@@ -60,7 +60,7 @@ namespace Entanglement.UI
         {
             try
             {
-                List<string> microphones = VoiceChatManager.GetAvailableMicrophones();
+                List<string> microphones = global::Entanglement.Managers.VoiceChatManager.GetAvailableMicrophones();
 
                 if (microphones.Count == 0)
                 {
@@ -77,7 +77,7 @@ namespace Entanglement.UI
 
                     micCategory.CreateFunctionElement(micName, Color.white, () =>
                     {
-                        VoiceChatManager.SetMicrophone(index);
+                        global::Entanglement.Managers.VoiceChatManager.SetMicrophone(index);
                         EntangleLogger.Log($"Selected microphone: {micName}", ConsoleColor.Green);
                         MenuManager.OpenCategory(voiceCategory);
                     });
@@ -107,7 +107,7 @@ namespace Entanglement.UI
                     playersMuteCategory.RemoveElement(element);
 
                 // Get all players
-                Dictionary<ulong, string> allPlayers = VoiceChatManager.GetAllPlayersForVoiceMenu();
+                Dictionary<ulong, string> allPlayers = global::Entanglement.Managers.VoiceChatManager.GetAllPlayersForVoiceMenu();
 
                 if (allPlayers.Count == 0)
                 {
@@ -120,7 +120,7 @@ namespace Entanglement.UI
                 {
                     ulong playerId = player.Key;
                     string playerName = player.Value;
-                    bool isMuted = VoiceChatManager.IsPlayerMuted(playerId);
+                    bool isMuted = global::Entanglement.Managers.VoiceChatManager.IsPlayerMuted(playerId);
 
                     Color playerColor = isMuted ? Color.red : Color.green;
 
@@ -141,14 +141,14 @@ namespace Entanglement.UI
         {
             try
             {
-                if (VoiceChatManager.IsPlayerMuted(playerId))
+                if (global::Entanglement.Managers.VoiceChatManager.IsPlayerMuted(playerId))
                 {
-                    VoiceChatManager.UnmutePlayer(playerId);
+                    global::Entanglement.Managers.VoiceChatManager.UnmutePlayer(playerId);
                     EntangleLogger.Log($"Unmuted {playerName}", ConsoleColor.Green);
                 }
                 else
                 {
-                    VoiceChatManager.MutePlayer(playerId);
+                    global::Entanglement.Managers.VoiceChatManager.MutePlayer(playerId);
                     EntangleLogger.Log($"Muted {playerName}", ConsoleColor.Red);
                 }
 
@@ -162,3 +162,4 @@ namespace Entanglement.UI
         }
     }
 }
+

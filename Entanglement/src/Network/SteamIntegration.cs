@@ -210,12 +210,13 @@ namespace Entanglement.Network
             // FIX: Use new proximity-based voice chat system
             if (status == VoiceStatus.Enabled)
             {
-                Managers.VoiceChatManager.SetVoiceChatMode(Managers.VoiceChatManager.VoiceChatMode.Proximity);
+                global::Entanglement.Managers.VoiceChatManager.SetVoiceChatMode(global::Entanglement.Managers.VoiceChatManager.VoiceChatMode.Proximity);
             }
             else
             {
-                Managers.VoiceChatManager.SetVoiceChatMode(Managers.VoiceChatManager.VoiceChatMode.Disabled);
+                global::Entanglement.Managers.VoiceChatManager.SetVoiceChatMode(global::Entanglement.Managers.VoiceChatManager.VoiceChatMode.Disabled);
             }
         }
     }
 }
+

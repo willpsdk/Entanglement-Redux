@@ -51,6 +51,11 @@ namespace Entanglement
         private static float _levelChangeTimeout = 0f;
         private const float LEVEL_CHANGE_TIMEOUT = 10f; // 10 second timeout
 
+        // NPC performance maintenance
+        private static float _npcOptimizeTimer = 0f;
+        private const float NPC_OPTIMIZE_INTERVAL = 2f;
+        private static readonly HashSet<int> _optimizedNpcRoots = new HashSet<int>();
+
         public override void OnApplicationStart()
         {
             entanglementAssembly = Assembly.GetExecutingAssembly();
@@ -151,7 +156,7 @@ namespace Entanglement
             }
 
             // FIX: Initialize voice chat manager
-            Managers.VoiceChatManager.Initialize();
+            global::Entanglement.Managers.VoiceChatManager.Initialize();
             EntangleLogger.Log("Entanglement: Redux - Voice chat initialized!");
 
             EntangleLogger.Log("Welcome to Entanglement: Redux!", ConsoleColor.DarkYellow);
@@ -205,7 +210,7 @@ namespace Entanglement
             DataTransaction.Process();
 
             // FIX: Update voice chat proximity detection every frame
-            Managers.VoiceChatManager.Tick();
+            global::Entanglement.Managers.VoiceChatManager.Tick();
         }
 
         public override void OnFixedUpdate()
@@ -329,6 +334,7 @@ namespace Entanglement
                     sceneChange = (byte)buildIndex;
                     SteamIntegration.targetScene = sceneName.ToLower();
                     SteamIntegration.UpdateActivity();
+                    BroadcastLevelChangeImmediate((byte)buildIndex);
                     EntangleLogger.Log($"[LEVEL CHANGE] Set sceneChange flag to {buildIndex}", ConsoleColor.Yellow);
                 }
                 catch (Exception ex)
@@ -395,7 +401,7 @@ namespace Entanglement
                 try
                 {
                     EntangleLogger.Log("[LEVEL CHANGE] Clearing StoryModeSync...", ConsoleColor.Yellow);
-                    StoryModeSync.ClearAll();
+                    global::Entanglement.Managers.StoryModeSync.ClearAll();
                     EntangleLogger.Log("[LEVEL CHANGE] ✓ StoryModeSync cleared", ConsoleColor.Green);
                 }
                 catch (Exception ex)
@@ -421,7 +427,7 @@ namespace Entanglement
                 try
                 {
                     EntangleLogger.Log("[LEVEL CHANGE] Cleaning up voice chat...", ConsoleColor.Yellow);
-                    Managers.VoiceChatManager.CleanupVoiceData();
+                    global::Entanglement.Managers.VoiceChatManager.CleanupVoiceData();
                     EntangleLogger.Log("[LEVEL CHANGE] ✓ Voice chat data cleared", ConsoleColor.Green);
                 }
                 catch (Exception ex)
@@ -443,6 +449,93 @@ namespace Entanglement
             }
         }
 
+        private static void BroadcastLevelChangeImmediate(byte sceneIndex)
+        {
+            if (Server.instance == null)
+                return;
+
+            try
+            {
+                LevelChangeMessageData levelChangeData = new LevelChangeMessageData()
+                {
+                    sceneIndex = sceneIndex,
+                    sceneReload = true,
+                };
+
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.LevelChange, levelChangeData);
+                byte[] msgBytes = message.GetBytes();
+
+                foreach (ulong user in Server.instance.connectedUsers.ToArray())
+                {
+                    Server.instance.SendMessage(user, NetworkChannel.Reliable, msgBytes);
+                }
+
+                sceneChange = null;
+            }
+            catch (Exception ex)
+            {
+                EntangleLogger.Verbose($"[LEVEL CHANGE] Immediate broadcast failed: {ex.Message}");
+            }
+        }
+
+        private static void OptimizeDeadNpcRagdolls()
+        {
+            _npcOptimizeTimer += Time.deltaTime;
+            if (_npcOptimizeTimer < NPC_OPTIMIZE_INTERVAL)
+                return;
+
+            _npcOptimizeTimer = 0f;
+
+            Animator[] animators = UnityEngine.Object.FindObjectsOfType<Animator>();
+            foreach (Animator animator in animators)
+            {
+                if (animator == null)
+                    continue;
+
+                Transform rootTransform = animator.transform != null ? animator.transform.root : null;
+                if (rootTransform == null)
+                    continue;
+
+                GameObject root = rootTransform.gameObject;
+                if (root == null)
+                    continue;
+
+                int rootId = root.GetInstanceID();
+                if (_optimizedNpcRoots.Contains(rootId))
+                    continue;
+
+                string name = root.name.ToLowerInvariant();
+                if (!(name.Contains("null") || name.Contains("omni") || name.Contains("projector")))
+                    continue;
+
+                // Keep active AI untouched.
+                Component navComp = root.GetComponent("BehaviourBaseNav");
+                if (navComp is Behaviour navBehaviour && navBehaviour.enabled)
+                    continue;
+
+                // Only optimize dead/inactive rigs.
+                if (animator.enabled)
+                    continue;
+
+                Rigidbody[] bodies = root.GetComponentsInChildren<Rigidbody>(true);
+                if (bodies == null || bodies.Length == 0)
+                    continue;
+
+                foreach (Rigidbody body in bodies)
+                {
+                    if (body == null)
+                        continue;
+
+                    body.velocity = Vector3.zero;
+                    body.angularVelocity = Vector3.zero;
+                    body.isKinematic = true;
+                    body.detectCollisions = false;
+                }
+
+                _optimizedNpcRoots.Add(rootId);
+            }
+        }
+
         public override void OnApplicationQuit()
         {
             if (SteamIntegration.isInvalid) return;
@@ -450,10 +543,12 @@ namespace Entanglement
             ModuleHandler.OnApplicationQuit();
 
             // FIX: Cleanup voice chat
-            Managers.VoiceChatManager.CleanupAll();
+            global::Entanglement.Managers.VoiceChatManager.CleanupAll();
 
             Node.activeNode.Shutdown();
             SteamIntegration.Shutdown();
         }
     }
+
 }
+

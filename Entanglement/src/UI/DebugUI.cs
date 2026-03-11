@@ -1,4 +1,5 @@
 ﻿#if DEBUG
+using System;
 using UnityEngine;
 
 using ModThatIsNotMod.BoneMenu;
@@ -78,7 +79,7 @@ namespace Entanglement.UI {
                 EntangleLogger.Log("\n[NETWORK INFO]", ConsoleColor.Cyan);
                 EntangleLogger.Log($"  Has Lobby: {SteamIntegration.hasLobby}", ConsoleColor.Yellow);
                 EntangleLogger.Log($"  Is Host: {SteamIntegration.isHost}", ConsoleColor.Yellow);
-                EntangleLogger.Log($"  Lobby ID: {(SteamIntegration.hasLobby ? SteamIntegration.lobbyId.m_SteamID : "None")}", ConsoleColor.Yellow);
+                EntangleLogger.Log($"  Lobby ID: {(SteamIntegration.hasLobby ? SteamIntegration.lobbyId.m_SteamID.ToString() : "None")}", ConsoleColor.Yellow);
 
                 // Node Info
                 EntangleLogger.Log("\n[NODE INFO]", ConsoleColor.Green);

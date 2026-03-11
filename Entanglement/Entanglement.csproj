@@ -8,7 +8,7 @@
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Entanglement</RootNamespace>
-    <AssemblyName>Entanglement</AssemblyName>
+    <AssemblyName>EntanglementRedux</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -386,6 +386,8 @@
     <Compile Include="src\Extensions\XElement.cs" />
     <Compile Include="src\Managers\PlayerDeathManager.cs" />
     <Compile Include="src\Managers\RagdollBehaviour.cs" />
+    <Compile Include="src\Managers\VoiceChatManager.cs" />
+    <Compile Include="src\Managers\StoryModeSync.cs" />
     <Compile Include="src\Modularity\DllTools.cs" />
     <Compile Include="src\Modularity\Module.cs" />
     <Compile Include="src\Modularity\ModuleHandler.cs" />
@@ -429,6 +431,11 @@
     <Compile Include="src\Network\Messages\Server\SpawnObjectMessage.cs" />
     <Compile Include="src\Data\Containers\DataCorruptionException.cs" />
     <Compile Include="src\Network\Messages\Server\ZoneTriggerMessage.cs" />
+    <Compile Include="src\Network\Messages\StoryMode\StoryNPCSyncMessage.cs" />
+    <Compile Include="src\Network\Messages\StoryMode\StoryDoorSyncMessage.cs" />
+    <Compile Include="src\Network\Messages\StoryMode\StoryDestructibleSyncMessage.cs" />
+    <Compile Include="src\Network\Messages\Voice\TalkingSyncMessage.cs" />
+    <Compile Include="src\Network\Messages\Voice\VoiceDataMessage.cs" />
     <Compile Include="src\Network\Net.cs" />
     <Compile Include="src\Network\NetworkMessageTypes.cs" />
     <Compile Include="src\Network\Nodes\Client.cs" />
@@ -460,6 +467,7 @@
     <Compile Include="src\Patching\Patches\ZombieArenaPatches.cs" />
     <Compile Include="src\Patching\Patches\ZonePatches.cs" />
     <Compile Include="src\Representation\PlayerRep.cs" />
+    <Compile Include="src\Representation\NametagBillboard.cs" />
     <Compile Include="src\Network\SteamIntegration.cs" />
     <Compile Include="src\Network\Messages\Server\ConnectionMessage.cs" />
     <Compile Include="src\Network\NetworkMessage.cs" />
@@ -496,3 +504,4 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
+

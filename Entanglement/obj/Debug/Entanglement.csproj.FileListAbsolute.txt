@@ -1,2 +1,7 @@
 C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\Entanglement\obj\Debug\Entanglement.csproj.AssemblyReference.cache
 C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\Entanglement\obj\Debug\Entanglement.csproj.CoreCompileInputs.cache
+C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\bin\Debug\EntanglementRedux.dll
+C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\bin\Debug\EntanglementRedux.pdb
+C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\Entanglement\obj\Debug\Entangle.DFA37320.Up2Date
+C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\Entanglement\obj\Debug\EntanglementRedux.dll
+C:\Users\w0nk3\Documents\GitHub\Entanglement-Redux\Entanglement\obj\Debug\EntanglementRedux.pdb

@@ -58,7 +58,7 @@ namespace Entanglement.Patching
                 };
 
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.SpawnRequest, data);
-                Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
 
                 // We need to make sure this object is disabled
                 lastSpawn.gameObject.SetActive(false);
