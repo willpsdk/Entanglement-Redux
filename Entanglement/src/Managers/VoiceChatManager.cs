@@ -42,7 +42,7 @@ namespace Entanglement.Managers
         private static Dictionary<ulong, bool> mutedPlayers = new Dictionary<ulong, bool>(); // Track muted players
         private static float voiceRecordingTimer = 0f;
         private const float VOICE_UPDATE_INTERVAL = 0.1f; // Update voice every 100ms
-        private const uint VOICE_SAMPLE_RATE = 11025;
+        private const uint VOICE_SAMPLE_RATE = 24000;
 
         // FIX: Track talking state for animations
         private static bool wasLocalPlayerTalking = false;
@@ -121,7 +121,10 @@ namespace Entanglement.Managers
             foreach (var audioSource in playerAudioSources.Values)
             {
                 if (audioSource != null)
+                {
                     audioSource.volume = outputVolume;
+                    ConfigureAudioSource(audioSource);
+                }
             }
         }
 
@@ -226,6 +229,8 @@ namespace Entanglement.Managers
 
             voiceRecordingTimer = 0f;
 
+            long tickStart = HostPerformanceProfiler.BeginSample();
+
             // FIX: Check if local player is talking and broadcast it
             DetectAndBroadcastLocalPlayerTalking();
 
@@ -271,8 +276,30 @@ namespace Entanglement.Managers
                     {
                         audioSource.enabled = shouldHear;
                         audioSource.volume = outputVolume;
+                        ConfigureAudioSource(audioSource);
                     }
                 }
+
+            HostPerformanceProfiler.EndSample("VoiceChat.Tick.Total", tickStart);
+            }
+        }
+
+        private static void ConfigureAudioSource(AudioSource audioSource)
+        {
+            if (audioSource == null)
+                return;
+
+            if (voiceChatMode == VoiceChatMode.Global)
+            {
+                audioSource.spatialBlend = 0f;
+                audioSource.rolloffMode = AudioRolloffMode.Linear;
+                audioSource.maxDistance = 10000f;
+            }
+            else
+            {
+                audioSource.spatialBlend = 1f;
+                audioSource.rolloffMode = AudioRolloffMode.Logarithmic;
+                audioSource.maxDistance = Mathf.Max(proximityRange * 2f, 30f);
             }
         }
 
@@ -286,8 +313,7 @@ namespace Entanglement.Managers
 
                 AudioSource audioSource = audioObj.AddComponent<AudioSource>();
                 audioSource.volume = outputVolume;
-                audioSource.spatialBlend = 1f; // 3D audio
-                audioSource.maxDistance = proximityRange * 2f;
+                ConfigureAudioSource(audioSource);
 
                 playerAudioSources[playerId] = audioSource;
                 EntangleLogger.Verbose($"Created voice audio source for player: {playerId}");
@@ -306,10 +332,20 @@ namespace Entanglement.Managers
                 if (Node.activeNode == null)
                     return;
 
+                long methodStart = HostPerformanceProfiler.BeginSample();
+
                 // Check if local player is currently recording voice
+                long sample = HostPerformanceProfiler.BeginSample();
                 uint writeBytes = 0;
-                byte[] voiceData = new byte[4096];
+                byte[] voiceData = new byte[32768];
                 Steamworks.EVoiceResult result = Steamworks.SteamUser.GetVoice(false, voiceData, (uint)voiceData.Length, out writeBytes);
+
+                if (result == Steamworks.EVoiceResult.k_EVoiceResultBufferTooSmall)
+                {
+                    voiceData = new byte[65535];
+                    result = Steamworks.SteamUser.GetVoice(false, voiceData, (uint)voiceData.Length, out writeBytes);
+                }
+                HostPerformanceProfiler.EndSample("VoiceChat.Send.GetVoice", sample);
 
                 // If we have voice data, player is talking
                 bool isCurrentlyTalking = writeBytes > 0 && result == Steamworks.EVoiceResult.k_EVoiceResultOK;
@@ -326,14 +362,17 @@ namespace Entanglement.Managers
 
                     if (Node.activeNode != null)
                     {
+                        sample = HostPerformanceProfiler.BeginSample();
                         NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TalkingSync, talkingData);
                         Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+                        HostPerformanceProfiler.EndSample("VoiceChat.Send.BroadcastTalkingState", sample);
                         EntangleLogger.Verbose($"Broadcast talking state: {isCurrentlyTalking}");
                     }
                 }
 
                 if (writeBytes > 0 && result == Steamworks.EVoiceResult.k_EVoiceResultOK)
                 {
+                    sample = HostPerformanceProfiler.BeginSample();
                     byte[] payload = new byte[writeBytes];
                     Buffer.BlockCopy(voiceData, 0, payload, 0, (int)writeBytes);
 
@@ -345,7 +384,11 @@ namespace Entanglement.Managers
 
                     NetworkMessage voiceMessage = NetworkMessage.CreateMessage(BuiltInMessageType.VoiceData, voiceDataMessage);
                     Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, voiceMessage.GetBytes());
+                    HostPerformanceProfiler.AddVoiceSend(writeBytes);
+                    HostPerformanceProfiler.EndSample("VoiceChat.Send.BroadcastVoiceData", sample);
                 }
+
+                HostPerformanceProfiler.EndSample("VoiceChat.Send.Total", methodStart);
             }
             catch (Exception ex)
             {
@@ -374,7 +417,7 @@ namespace Entanglement.Managers
                         return;
                 }
 
-                byte[] decompressed = new byte[48000];
+                byte[] decompressed = new byte[262144];
                 uint written;
                 EVoiceResult decompressResult = SteamUser.DecompressVoice(compressedData, (uint)compressedData.Length, decompressed, (uint)decompressed.Length, out written, VOICE_SAMPLE_RATE);
 

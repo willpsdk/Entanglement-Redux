@@ -193,16 +193,16 @@ namespace Entanglement.Patching
                     yield break;
             }
 
-            // FIX: Increment immediately to reserve the ID for the next object
-            ushort id = ++ObjectSync.lastId;
-
+            // Reserve a block of sequential IDs for all rigidbodies in this spawned object.
             Rigidbody[] rbs = spawnedObject.GetComponentsInChildren<Rigidbody>();
             byte rbCount = (byte)rbs.Length;
+            ushort id = ObjectSync.GetNextObjectId();
+
             for (ushort i = 0; i < rbs.Length; i++)
             {
                 Rigidbody rb = rbs[i];
                 GameObject go = rb.gameObject;
-                ushort thisId = (ushort)(i + id);
+                ushort thisId = (i == 0) ? id : ObjectSync.GetNextObjectId();
 
                 TransformSyncable existingSync = TransformSyncable.cache.GetOrAdd(go);
                 if (existingSync)
@@ -215,8 +215,6 @@ namespace Entanglement.Patching
                 {
                     TransformSyncable.CreateSync(SteamIntegration.hostUser.m_SteamID, ComponentCacheExtensions.m_RigidbodyCache.GetOrAdd(go), thisId);
                 }
-
-                ObjectSync.lastId = thisId;
             }
 
             SpawnClientMessageData data = new SpawnClientMessageData()

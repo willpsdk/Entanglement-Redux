@@ -58,9 +58,7 @@ namespace Entanglement.Network
 
             if (Server.instance != null)
             {
-                objectId = ObjectSync.lastId;
-                objectId += 1;
-                ObjectSync.lastId = objectId;
+                objectId = ObjectSync.GetNextObjectId();
                 message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(objectId), index);
 
                 index += sizeof(ushort);

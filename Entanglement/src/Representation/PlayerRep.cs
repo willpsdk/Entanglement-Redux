@@ -78,6 +78,7 @@ namespace Entanglement.Representation
         // Interpolation values for smooth movement
         public Vector3 lastSyncPosition = Vector3.zero;
         public Vector3 targetSyncPosition = Vector3.zero;
+        public Vector3 prevTargetSyncPosition = Vector3.zero;
         public Quaternion lastSyncRotation = Quaternion.identity;
         public Quaternion targetSyncRotation = Quaternion.identity;
         public float interpolationAlpha = 1f;
@@ -105,6 +106,7 @@ namespace Entanglement.Representation
 #endif
 
         public static AssetBundle playerRepBundle;
+        public static bool debugShowPhysics = false;
 
         public static void LoadBundle()
         {
@@ -158,6 +160,43 @@ namespace Entanglement.Representation
             }
         }
 
+        private static void StripZoneCullingComponents(GameObject obj)
+        {
+            if (obj == null)
+                return;
+
+            Component[] components = obj.GetComponentsInChildren<Component>(true);
+            foreach (Component component in components)
+            {
+                if (component == null)
+                    continue;
+
+                Type type = component.GetType();
+                string ns = type.Namespace ?? string.Empty;
+                string name = type.Name ?? string.Empty;
+
+                bool isZoneComponent = ns.StartsWith("StressLevelZero.Zones", StringComparison.Ordinal);
+                bool isCullComponent = ns.StartsWith("StressLevelZero", StringComparison.Ordinal) &&
+                                       (name.IndexOf("Cull", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                        name.IndexOf("Occlusion", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                        name.IndexOf("Visibility", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                if (isZoneComponent || isCullComponent)
+                    UnityEngine.Object.Destroy(component);
+            }
+        }
+
+        private static void StripLODGroups(GameObject obj)
+        {
+            if (obj == null) return;
+            LODGroup[] lodGroups = obj.GetComponentsInChildren<LODGroup>(true);
+            foreach (LODGroup lod in lodGroups)
+            {
+                if (lod != null)
+                    UnityEngine.Object.Destroy(lod);
+            }
+        }
+
         public void RecreateRepresentations()
         {
             try
@@ -199,16 +238,17 @@ namespace Entanglement.Representation
                 repRoot = repFord.transform;
                 EntangleLogger.Verbose("[RepCreation]   ✓ Model instantiated");
 
-                // Keep reps on the same layer as the local rig so scene-zone culling treats them like players.
-                int repLayer = LayerMask.NameToLayer("Default");
-                if (PlayerScripts.playerRig != null)
-                    repLayer = PlayerScripts.playerRig.gameObject.layer;
-
-                if (repLayer < 0)
-                    repLayer = 0;
+                // Put reps on a layer that Boneworks zone culling never touches.
+                // Boneworks NPC rigs use layer 12 (EnemyColliders) which survives SceneZone transitions.
+                // We duplicate that approach: same layer so zone logic ignores them, plus strip
+                // any culling components and LODGroups to make them truly non-cullable.
+                int repLayer = LayerMask.NameToLayer("EnemyColliders");
+                if (repLayer < 0) repLayer = 12; // Fallback to raw index if name lookup fails
 
                 SetLayerRecursive(repRoot.gameObject, repLayer);
                 SetTagRecursive(repRoot.gameObject, "Untagged");
+                StripZoneCullingComponents(repRoot.gameObject);
+                StripLODGroups(repRoot.gameObject);
                 EntangleLogger.Verbose($"[RepCreation]   ✓ Set to layer: {repLayer}");
 
                 EntangleLogger.Verbose("[RepCreation]   Setting up SFX components...");
@@ -452,39 +492,41 @@ namespace Entanglement.Representation
 
         public void SaveVelocity()
         {
-            Vector3 currentPosition = repRoot.position;
             float dt = Time.fixedDeltaTime;
-            Vector3 targetVel = PhysicsData.GetVelocity(currentPosition, prevRepRootPos, dt);
 
-            if (targetVel.sqrMagnitude < 0.01f) targetVel = Vector3.zero;
+            // Compute velocity from the NETWORK TARGET positions, not the interpolated
+            // repRoot.position.  The interpolation smooths the visual root which means
+            // verticalDelta becomes artificially small.  The IK solver (FullBodyUpdate)
+            // needs the actual elevation change so it can retarget feet immediately on
+            // stairs, ramps and ledges.
+            Vector3 networkDelta = targetSyncPosition - prevTargetSyncPosition;
+            float packetDt = Mathf.Max(syncPacketInterval, dt);
+            Vector3 targetVel = networkDelta / packetDt;
 
-            // Stabilize stairs/steps without flattening vertical movement.
-            // Keep Y responsive enough so feet follow ramps/stairs on maps like Runoff.
+            if (targetVel.sqrMagnitude < 0.001f) targetVel = Vector3.zero;
+
+            float rawVerticalVel = Mathf.Clamp(networkDelta.y / packetDt, -12f, 12f);
+
             if (isGrounded)
             {
                 groundedGraceTimer = 0.15f;
 
-                // Smooth horizontal strongly, vertical lightly (with clamp) to avoid foot skating.
                 Vector3 horizontalTarget = new Vector3(targetVel.x, 0f, targetVel.z);
                 Vector3 horizontalCurrent = new Vector3(repInputVel.x, 0f, repInputVel.z);
                 horizontalCurrent = Vector3.Lerp(horizontalCurrent, horizontalTarget, dt * 10f);
 
-                float verticalTarget = Mathf.Clamp(targetVel.y, -3.5f, 3.5f);
-                float verticalCurrent = Mathf.Lerp(repInputVel.y, verticalTarget, dt * 4f);
-
-                repInputVel = new Vector3(horizontalCurrent.x, verticalCurrent, horizontalCurrent.z);
+                repInputVel = new Vector3(horizontalCurrent.x, rawVerticalVel, horizontalCurrent.z);
             }
             else
             {
                 groundedGraceTimer -= dt;
                 if (groundedGraceTimer > 0f)
                 {
-                    float verticalCurrent = Mathf.Lerp(repInputVel.y, targetVel.y, dt * 3f);
                     Vector3 horizontalTarget = new Vector3(targetVel.x, 0f, targetVel.z);
                     Vector3 horizontalCurrent = new Vector3(repInputVel.x, 0f, repInputVel.z);
                     horizontalCurrent = Vector3.Lerp(horizontalCurrent, horizontalTarget, dt * 6f);
 
-                    repInputVel = new Vector3(horizontalCurrent.x, verticalCurrent, horizontalCurrent.z);
+                    repInputVel = new Vector3(horizontalCurrent.x, rawVerticalVel, horizontalCurrent.z);
                 }
                 else
                 {
@@ -493,8 +535,7 @@ namespace Entanglement.Representation
             }
 
             repSavedVel = repInputVel;
-
-            prevRepRootPos = currentPosition;
+            prevRepRootPos = repRoot.position;
         }
 
         public void UpdateIK()
@@ -513,26 +554,9 @@ namespace Entanglement.Representation
                 repBody.FullBodyUpdate(repInputVel, Vector3.zero);
                 if (repBody.ArtToBlender != null) repBody.ArtToBlender.UpdateBlender();
 
-                // FIX: Ensure all renderers stay visible (prevents body disappearing in certain level areas)
-                // The level might have culling/visibility systems that disable renderers
-                if (repGeo != null)
-                {
-                    foreach (Renderer renderer in repGeo.GetComponentsInChildren<Renderer>(true))
-                    {
-                        if (renderer == null)
-                            continue;
-
-                        if (!renderer.enabled)
-                            renderer.enabled = true;
-
-                        if (renderer is SkinnedMeshRenderer skinned)
-                            skinned.updateWhenOffscreen = true;
-                    }
-                }
-
-                // Ensure body gameobject is active
-                if (repBody.gameObject != null && !repBody.gameObject.activeSelf)
-                    repBody.gameObject.SetActive(true);
+                // Force the entire rep hierarchy to stay active and visible.
+                // Boneworks zones can SetActive(false) on objects or disable renderers.
+                EnsureRepVisible();
 
                 // FIX: Update talking animation blend smoothly
                 if (isTalking)
@@ -549,10 +573,98 @@ namespace Entanglement.Representation
                 {
                     activeAnimator.SetFloat("Talk", talkingAnimationBlend);
                 }
+
+                if (debugShowPhysics)
+                    DrawPhysicsDebug();
             }
             catch (Exception e)
             {
                 EntangleLogger.Error($"UpdateIK Error for {playerId}: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Forces every GameObject and Renderer in the rep hierarchy to stay active.
+        /// Boneworks zones can SetActive(false) on children or disable renderers;
+        /// this counteracts that every IK tick so the remote player never disappears.
+        /// </summary>
+        private void EnsureRepVisible()
+        {
+            // Re-activate the root
+            if (repRoot != null && !repRoot.gameObject.activeSelf)
+                repRoot.gameObject.SetActive(true);
+
+            // Re-activate the body
+            if (repBody != null && repBody.gameObject != null && !repBody.gameObject.activeSelf)
+                repBody.gameObject.SetActive(true);
+
+            // Walk every child; re-enable any that zones disabled.
+            if (repRoot != null)
+            {
+                foreach (Transform child in repRoot.GetComponentsInChildren<Transform>(true))
+                {
+                    if (child != null && !child.gameObject.activeSelf)
+                        child.gameObject.SetActive(true);
+                }
+            }
+
+            // Renderer pass - cached for perf, refreshed periodically.
+            if (_cachedRenderers == null || _rendererCheckTimer <= 0f)
+            {
+                _cachedRenderers = repRoot != null ? repRoot.GetComponentsInChildren<Renderer>(true) : new Renderer[0];
+                _rendererCheckTimer = rendererCheckInterval;
+            }
+
+            for (int i = 0; i < _cachedRenderers.Length; i++)
+            {
+                Renderer r = _cachedRenderers[i];
+                if (r == null) continue;
+                if (!r.enabled) r.enabled = true;
+                r.allowOcclusionWhenDynamic = false;
+                if (r is SkinnedMeshRenderer smr)
+                    smr.updateWhenOffscreen = true;
+            }
+        }
+
+        private void DrawPhysicsDebug()
+        {
+            if (colliders == null || colliders.Length == 0)
+                return;
+
+            Color c = new Color(0f, 1f, 1f, 0.85f);
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                Collider col = colliders[i];
+                if (col == null || !col.enabled)
+                    continue;
+
+                Bounds b = col.bounds;
+                Vector3 min = b.min;
+                Vector3 max = b.max;
+
+                Vector3 p0 = new Vector3(min.x, min.y, min.z);
+                Vector3 p1 = new Vector3(max.x, min.y, min.z);
+                Vector3 p2 = new Vector3(max.x, min.y, max.z);
+                Vector3 p3 = new Vector3(min.x, min.y, max.z);
+                Vector3 p4 = new Vector3(min.x, max.y, min.z);
+                Vector3 p5 = new Vector3(max.x, max.y, min.z);
+                Vector3 p6 = new Vector3(max.x, max.y, max.z);
+                Vector3 p7 = new Vector3(min.x, max.y, max.z);
+
+                Debug.DrawLine(p0, p1, c, 0f, false);
+                Debug.DrawLine(p1, p2, c, 0f, false);
+                Debug.DrawLine(p2, p3, c, 0f, false);
+                Debug.DrawLine(p3, p0, c, 0f, false);
+
+                Debug.DrawLine(p4, p5, c, 0f, false);
+                Debug.DrawLine(p5, p6, c, 0f, false);
+                Debug.DrawLine(p6, p7, c, 0f, false);
+                Debug.DrawLine(p7, p4, c, 0f, false);
+
+                Debug.DrawLine(p0, p4, c, 0f, false);
+                Debug.DrawLine(p1, p5, c, 0f, false);
+                Debug.DrawLine(p2, p6, c, 0f, false);
+                Debug.DrawLine(p3, p7, c, 0f, false);
             }
         }
 
@@ -824,30 +936,10 @@ namespace Entanglement.Representation
                     rep.repRoot.gameObject.SetActive(true);
                 }
 
-                // FIX: Optimize renderer visibility check - cache renderers and only check periodically
-                rep._rendererCheckTimer += Time.fixedDeltaTime;
-                if (rep._rendererCheckTimer >= rep.rendererCheckInterval)
-                {
-                    rep._rendererCheckTimer = 0f;
+                // EnsureRepVisible is now called inside UpdateIK() every tick.
+                // No separate renderer check needed here.
 
-                    if (rep._cachedRenderers == null)
-                        rep._cachedRenderers = rep.repRoot.GetComponentsInChildren<Renderer>(true);
-
-                    // Re-enable any renderers that were culled
-                    foreach (Renderer renderer in rep._cachedRenderers)
-                    {
-                        if (renderer == null)
-                            continue;
-
-                        if (!renderer.enabled)
-                            renderer.enabled = true;
-
-                        if (renderer is SkinnedMeshRenderer skinned)
-                            skinned.updateWhenOffscreen = true;
-                    }
-                }
-
-                // Update interpolation (smooth movement over 0.1 seconds)
+                // Update interpolation
                 if (rep.interpolationAlpha < 1f)
                 {
                     rep.interpolationAlpha += Time.fixedDeltaTime * rep.interpolationSpeed;
@@ -855,7 +947,17 @@ namespace Entanglement.Representation
                     float sinceLastPacket = Time.realtimeSinceStartup - rep.lastSyncReceiveTime;
                     float extrapolationTime = Mathf.Clamp(sinceLastPacket, 0f, rep.syncPacketInterval * 1.5f);
                     Vector3 predictedTarget = rep.targetSyncPosition + rep.targetSyncVelocity * extrapolationTime;
-                    rep.repRoot.position = Vector3.LerpUnclamped(rep.lastSyncPosition, predictedTarget, blend);
+                    Vector3 nextPos = Vector3.LerpUnclamped(rep.lastSyncPosition, predictedTarget, blend);
+
+                    // When grounded, snap Y directly to the network target.
+                    // Lerping Y causes the IK solver to receive a near-zero vertical
+                    // velocity on stairs/ramps, which makes feet stay at the old floor level.
+                    if (rep.isGrounded)
+                    {
+                        nextPos.y = predictedTarget.y;
+                    }
+
+                    rep.repRoot.position = nextPos;
                 }
 
                 float dist = (centerPos - rep.repRoot.position).sqrMagnitude;

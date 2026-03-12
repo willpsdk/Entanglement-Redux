@@ -27,7 +27,12 @@ namespace Entanglement.UI
         {
             try
             {
-                MenuCategory statsCategory = category.CreateSubCategory("Net Stats", Color.white);
+                MenuCategory statsCategory = category;
+
+                statsCategory.CreateBoolElement("Enable Host Perf Logging", Color.yellow, Entanglement.Managers.HostPerformanceProfiler.isEnabled, (val) =>
+                {
+                    Entanglement.Managers.HostPerformanceProfiler.SetEnabled(val);
+                });
 
                 // Create elements and store references immediately
                 statsCategory.CreateIntElement("Bytes Down", Color.white, 0, null);
@@ -57,33 +62,29 @@ namespace Entanglement.UI
                 if (Node.activeNode == null || downElem == null || upElem == null || playerCountElem == null || objectCountElem == null)
                     return;
 
-            // Update byte counts
-            downElem.SetValue((int)Node.activeNode.recievedByteCount);
-            upElem.SetValue((int)Node.activeNode.sentByteCount);
+                downElem.SetValue((int)Node.activeNode.recievedByteCount);
+                upElem.SetValue((int)Node.activeNode.sentByteCount);
 
-            // Calculate bandwidth
-            bandwidthCheckTimer += Time.deltaTime;
-            if (bandwidthCheckTimer >= BANDWIDTH_CHECK_INTERVAL)
-            {
-                bandwidthCheckTimer = 0f;
-                lastDownloadBps = Node.activeNode.recievedByteCount / BANDWIDTH_CHECK_INTERVAL;
-                lastUploadBps = Node.activeNode.sentByteCount / BANDWIDTH_CHECK_INTERVAL;
-            }
-
-                         // Update counts
-                            int playerCount = PlayerRepresentation.representations.Count;
-                            int objectCount = ObjectSync.syncedObjects.Count;
-                            playerCountElem.SetValue(playerCount);
-                            objectCountElem.SetValue(objectCount);
-
-                            // Reset counters
-                            Node.activeNode.recievedByteCount = 0;
-                            Node.activeNode.sentByteCount = 0;
-                        }
-                        catch (Exception ex)
-                        {
-                            EntangleLogger.Error($"Error updating StatsUI: {ex.Message}");
-                        }
-                    }
+                bandwidthCheckTimer += Time.deltaTime;
+                if (bandwidthCheckTimer >= BANDWIDTH_CHECK_INTERVAL)
+                {
+                    bandwidthCheckTimer = 0f;
+                    lastDownloadBps = Node.activeNode.recievedByteCount / BANDWIDTH_CHECK_INTERVAL;
+                    lastUploadBps = Node.activeNode.sentByteCount / BANDWIDTH_CHECK_INTERVAL;
                 }
+
+                int playerCount = PlayerRepresentation.representations.Count;
+                int objectCount = ObjectSync.syncedObjects.Count;
+                playerCountElem.SetValue(playerCount);
+                objectCountElem.SetValue(objectCount);
+
+                Node.activeNode.recievedByteCount = 0;
+                Node.activeNode.sentByteCount = 0;
             }
+            catch (Exception ex)
+            {
+                EntangleLogger.Error($"Error updating StatsUI: {ex.Message}");
+            }
+        }
+    }
+}

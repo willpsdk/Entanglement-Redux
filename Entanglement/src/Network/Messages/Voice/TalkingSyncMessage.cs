@@ -28,34 +28,8 @@ namespace Entanglement.Network
 
         public override void HandleMessage(NetworkMessage message, ulong sender)
         {
-            if (message.messageData == null || message.messageData.Length < sizeof(ulong) + 1)
-                return;
-
-            try
-            {
-                int index = 0;
-                ulong userId = BitConverter.ToUInt64(message.messageData, index);
-                index += sizeof(ulong);
-
-                bool isTalking = message.messageData[index] != 0;
-
-                // Update the player representation talking state
-                if (Representation.PlayerRepresentation.representations.TryGetValue(userId, out var rep))
-                {
-                    rep.SetTalking(isTalking);
-                }
-
-                // Server relays to other clients
-                if (Server.instance != null)
-                {
-                    byte[] msgBytes = message.GetBytes();
-                    Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, sender);
-                }
-            }
-            catch (Exception ex)
-            {
-                EntangleLogger.Error($"Error handling TalkingSyncMessage: {ex.Message}");
-            }
+            // Voice chat disabled
+            return;
         }
     }
 

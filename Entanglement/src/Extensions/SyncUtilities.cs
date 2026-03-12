@@ -24,8 +24,7 @@ namespace Entanglement.Extensions
 
                 if (Node.isServer)
                 {
-                    objectId = ObjectSync.lastId;
-                    objectId++;
+                    objectId = ObjectSync.GetNextObjectId();
                 }
 
                 Syncable syncable = TransformSyncable.CreateSync(ownerId, rb, objectId);

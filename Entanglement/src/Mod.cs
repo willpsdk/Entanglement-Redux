@@ -155,9 +155,7 @@ namespace Entanglement
                 return;
             }
 
-            // FIX: Initialize voice chat manager
-            global::Entanglement.Managers.VoiceChatManager.Initialize();
-            EntangleLogger.Log("Entanglement: Redux - Voice chat initialized!");
+            EntangleLogger.Log("Entanglement: Redux - Voice chat disabled.");
 
             EntangleLogger.Log("Welcome to Entanglement: Redux!", ConsoleColor.DarkYellow);
         }
@@ -187,7 +185,11 @@ namespace Entanglement
                 return;
             }
 
+            long updateStart = HostPerformanceProfiler.BeginSample();
+
+            long sample = HostPerformanceProfiler.BeginSample();
             ModuleHandler.Update();
+            HostPerformanceProfiler.EndSample("Mod.OnUpdate.ModuleHandler", sample);
 
 #if DEBUG
             if (Input.GetKeyDown(KeyCode.S))
@@ -204,13 +206,29 @@ namespace Entanglement
             }
 #endif
 
+            sample = HostPerformanceProfiler.BeginSample();
             StatsUI.UpdateUI();
-            PlayerRepresentation.SyncPlayerReps();
-            PlayerRepresentation.SyncAnimationState();
-            DataTransaction.Process();
+            HostPerformanceProfiler.EndSample("Mod.OnUpdate.StatsUI", sample);
 
-            // FIX: Update voice chat proximity detection every frame
-            global::Entanglement.Managers.VoiceChatManager.Tick();
+            DebugUI.UpdateUI();
+
+            sample = HostPerformanceProfiler.BeginSample();
+            PlayerRepresentation.SyncPlayerReps();
+            HostPerformanceProfiler.EndSample("Mod.OnUpdate.SyncPlayerReps", sample);
+
+            sample = HostPerformanceProfiler.BeginSample();
+            PlayerRepresentation.SyncAnimationState();
+            HostPerformanceProfiler.EndSample("Mod.OnUpdate.SyncAnimation", sample);
+
+            sample = HostPerformanceProfiler.BeginSample();
+            global::Entanglement.Managers.ZoneSyncManager.Tick();
+            HostPerformanceProfiler.EndSample("Mod.OnUpdate.ZoneSync", sample);
+
+            sample = HostPerformanceProfiler.BeginSample();
+            DataTransaction.Process();
+            HostPerformanceProfiler.EndSample("Mod.OnUpdate.DataTransaction", sample);
+
+            HostPerformanceProfiler.EndSample("Mod.OnUpdate.Total", updateStart);
         }
 
         public override void OnFixedUpdate()
@@ -225,12 +243,31 @@ namespace Entanglement
         {
             if (SteamIntegration.isInvalid) return;
 
+            long lateStart = HostPerformanceProfiler.BeginSample();
+
+            long sample = HostPerformanceProfiler.BeginSample();
             ModuleHandler.LateUpdate();
+            HostPerformanceProfiler.EndSample("Mod.OnLateUpdate.ModuleHandler", sample);
 
+            // Re-assert remote rep visibility after engine/zone late updates.
+            sample = HostPerformanceProfiler.BeginSample();
+            PlayerRepresentation.ForceRefreshAllRemoteRepresentations();
+            HostPerformanceProfiler.EndSample("Mod.OnLateUpdate.ForceRefreshRemoteReps", sample);
+
+            sample = HostPerformanceProfiler.BeginSample();
             Client.instance?.Tick();
-            Server.instance?.Tick();
+            HostPerformanceProfiler.EndSample("Mod.OnLateUpdate.ClientTick", sample);
 
+            sample = HostPerformanceProfiler.BeginSample();
+            Server.instance?.Tick();
+            HostPerformanceProfiler.EndSample("Mod.OnLateUpdate.ServerTick", sample);
+
+            sample = HostPerformanceProfiler.BeginSample();
             SteamIntegration.Tick();
+            HostPerformanceProfiler.EndSample("Mod.OnLateUpdate.SteamIntegrationTick", sample);
+
+            HostPerformanceProfiler.EndSample("Mod.OnLateUpdate.Total", lateStart);
+            HostPerformanceProfiler.Tick();
         }
 
         public override void OnSceneWasInitialized(int buildIndex, string sceneName)
@@ -286,6 +323,17 @@ namespace Entanglement
                 catch (Exception ex)
                 {
                     EntangleLogger.Error($"[LEVEL CHANGE] Error loading PlayerTransforms: {ex.Message}\n{ex.StackTrace}");
+                }
+
+                try
+                {
+                    EntangleLogger.Log("[LEVEL CHANGE] Syncing scene physics objects...", ConsoleColor.Yellow);
+                    ObjectSync.SyncAllScenePhysicsObjects();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ Scene physics sync pass complete", ConsoleColor.Green);
+                }
+                catch (Exception ex)
+                {
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error syncing scene physics objects: {ex.Message}\n{ex.StackTrace}");
                 }
 
                 // FIX: Recreate representations with per-player error handling
@@ -400,13 +448,13 @@ namespace Entanglement
 
                 try
                 {
-                    EntangleLogger.Log("[LEVEL CHANGE] Clearing StoryModeSync...", ConsoleColor.Yellow);
-                    global::Entanglement.Managers.StoryModeSync.ClearAll();
-                    EntangleLogger.Log("[LEVEL CHANGE] ✓ StoryModeSync cleared", ConsoleColor.Green);
+                    EntangleLogger.Log("[LEVEL CHANGE] Clearing ZoneSync...", ConsoleColor.Yellow);
+                    global::Entanglement.Managers.ZoneSyncManager.ClearAll();
+                    EntangleLogger.Log("[LEVEL CHANGE] ✓ ZoneSync cleared", ConsoleColor.Green);
                 }
                 catch (Exception ex)
                 {
-                    EntangleLogger.Error($"[LEVEL CHANGE] Error clearing StoryModeSync: {ex.Message}\n{ex.StackTrace}");
+                    EntangleLogger.Error($"[LEVEL CHANGE] Error clearing ZoneSync: {ex.Message}\n{ex.StackTrace}");
                 }
 
                 try
@@ -422,17 +470,6 @@ namespace Entanglement
                 catch (Exception ex)
                 {
                     EntangleLogger.Error($"[LEVEL CHANGE] Error clearing Poolee caches: {ex.Message}\n{ex.StackTrace}");
-                }
-
-                try
-                {
-                    EntangleLogger.Log("[LEVEL CHANGE] Cleaning up voice chat...", ConsoleColor.Yellow);
-                    global::Entanglement.Managers.VoiceChatManager.CleanupVoiceData();
-                    EntangleLogger.Log("[LEVEL CHANGE] ✓ Voice chat data cleared", ConsoleColor.Green);
-                }
-                catch (Exception ex)
-                {
-                    EntangleLogger.Error($"[LEVEL CHANGE] Error cleaning up voice chat: {ex.Message}\n{ex.StackTrace}");
                 }
 
 #if DEBUG

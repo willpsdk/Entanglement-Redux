@@ -65,8 +65,8 @@ namespace Entanglement.Network
                 position.z = System.BitConverter.ToSingle(message.messageData, index);
                 index += sizeof(float);
 
-                // Find door by instance ID and update state
-                StoryModeSync.ApplyRemoteDoorState(new StoryDoorSyncData
+                // Track door state for replay and zone-managed sync
+                ZoneSyncManager.ApplyRemoteDoorState(new StoryDoorSyncData
                 {
                     doorInstanceId = doorInstanceId,
                     isOpen = isOpen,

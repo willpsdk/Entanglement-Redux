@@ -28,8 +28,32 @@ namespace Entanglement.Patching
     [HarmonyPatch(typeof(ForcePullGrip), "OnFarHandHoverUpdate")]
     public class ForcePullPatch
     {
-        public static void Prefix(ForcePullGrip __instance, ref bool __state, Hand hand) {
+        public static bool Prefix(ForcePullGrip __instance, ref bool __state, Hand hand) {
             __state = __instance.pullCoroutine != null;
+
+            if (!SteamIntegration.hasLobby)
+                return true;
+
+            // Check the full jointed rigidbody chain \u2014 if any body is owned by someone else, block the force grab.
+            Rigidbody[] bodies = __instance.gameObject.transform.GetJointedBodies();
+            ulong localId = SteamIntegration.currentUser.m_SteamID;
+
+            for (int i = 0; i < bodies.Length; i++)
+            {
+                TransformSyncable syncObj = TransformSyncable.cache.Get(bodies[i].gameObject);
+                if (syncObj != null && syncObj.ownerQueue != null && syncObj.ownerQueue.Count > 0)
+                {
+                    ulong activeOwner = syncObj.ownerQueue[0];
+                    if (activeOwner != localId)
+                    {
+                        if (__instance.pullCoroutine != null)
+                            __instance.CancelPull(hand);
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
 
         public static void Postfix(ForcePullGrip __instance, ref bool __state, Hand hand) {

@@ -37,8 +37,28 @@ namespace Entanglement.Patching
     [HarmonyPatch(typeof(Hand), "AttachObject")]
     public static class GripAttachPatch
     {
-        public static void Prefix(Hand __instance, GameObject objectToAttach) {
+        public static bool Prefix(Hand __instance, GameObject objectToAttach) {
+            if (SteamIntegration.hasLobby && objectToAttach != null)
+            {
+                // Check the object itself and every rigidbody in the jointed chain.
+                // If ANY of them are currently owned by another player, block the grab.
+                Rigidbody[] bodies = objectToAttach.transform.GetJointedBodies();
+                ulong localId = SteamIntegration.currentUser.m_SteamID;
+
+                for (int i = 0; i < bodies.Length; i++)
+                {
+                    TransformSyncable syncObj = TransformSyncable.cache.Get(bodies[i].gameObject);
+                    if (syncObj != null && syncObj.ownerQueue != null && syncObj.ownerQueue.Count > 0)
+                    {
+                        ulong activeOwner = syncObj.ownerQueue[0];
+                        if (activeOwner != localId)
+                            return false;
+                    }
+                }
+            }
+
             ObjectSync.OnGripAttached(objectToAttach);
+            return true;
         }
     }
 

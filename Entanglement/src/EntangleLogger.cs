@@ -8,38 +8,51 @@ namespace Entanglement
     {
         // Toggle for printing diagnostic network processes
         public static bool isVerbose = false;
+        public static bool disableMelonLoggers = false;
 
         public static void Log(string txt, ConsoleColor txt_color = ConsoleColor.White)
         {
+            if (disableMelonLoggers)
+                return;
+
             EntanglementMod.Instance.LoggerInstance.Msg(txt_color, txt);
         }
 
         public static void Log(object obj, ConsoleColor txt_color = ConsoleColor.White)
         {
+            if (disableMelonLoggers)
+                return;
+
             EntanglementMod.Instance.LoggerInstance.Msg(txt_color, obj);
         }
 
         // Only prints to the console if Verbose logging is enabled in BoneMenu
         public static void Verbose(string txt, ConsoleColor txt_color = ConsoleColor.Gray)
         {
-            if (isVerbose)
+            if (!disableMelonLoggers && isVerbose)
                 EntanglementMod.Instance.LoggerInstance.Msg(txt_color, "[VERBOSE] " + txt);
         }
 
         // Only prints to the console if Verbose logging is enabled in BoneMenu
         public static void Verbose(object obj, ConsoleColor txt_color = ConsoleColor.Gray)
         {
-            if (isVerbose)
+            if (!disableMelonLoggers && isVerbose)
                 EntanglementMod.Instance.LoggerInstance.Msg(txt_color, "[VERBOSE] " + obj.ToString());
         }
 
         public static void Warn(string txt)
         {
+            if (disableMelonLoggers)
+                return;
+
             EntanglementMod.Instance.LoggerInstance.Warning(txt);
         }
 
         public static void Warn(object obj)
         {
+            if (disableMelonLoggers)
+                return;
+
             EntanglementMod.Instance.LoggerInstance.Warning(obj);
         }
 

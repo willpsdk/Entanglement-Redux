@@ -4,6 +4,7 @@ using System;
 
 using Entanglement.Network;
 using Entanglement.Extensions;
+using Entanglement.Managers;
 
 using StressLevelZero.Zones;
 
@@ -94,7 +95,20 @@ namespace Entanglement.Patching
             if (root == null)
                 return false;
 
-            return root.name.StartsWith("PlayerRep.", StringComparison.Ordinal);
+            if (root.name.StartsWith("PlayerRep.", StringComparison.Ordinal))
+                return true;
+
+            // Fallback: custom skinned reps or reparented render roots can lose the exact naming pattern.
+            foreach (var rep in Entanglement.Representation.PlayerRepresentation.representations.Values)
+            {
+                if (rep == null || rep.repRoot == null)
+                    continue;
+
+                if (root == rep.repRoot || other.transform.IsChildOf(rep.repRoot))
+                    return true;
+            }
+
+            return false;
         }
     }
 
@@ -113,23 +127,18 @@ namespace Entanglement.Patching
             if (ZoneTrackingUtilities.networkReplay)
                 return true;
 
+            // Host authoritative zone progression in multiplayer.
+            // Prevent clients from running local zone logic that can double-spawn NPCs.
+            if (SteamIntegration.hasLobby && !SteamIntegration.isHost && other.CompareTag("Player"))
+                return false;
+
             if (other.CompareTag("Player"))
             {
                 ZoneTrackingUtilities.Increment(__instance);
                 bool canEnter = ZoneTrackingUtilities.CanEnter(__instance);
 
-                if (false && canEnter && SteamIntegration.isHost && SteamIntegration.hasLobby && Node.activeNode != null)
-                {
-                    ZoneTriggerMessageData triggerData = new ZoneTriggerMessageData
-                    {
-                        zonePath = __instance.transform.GetFullPath(),
-                        isPlayerTrigger = false,
-                        isEnter = true,
-                    };
-
-                    NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ZoneTrigger, triggerData);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
-                }
+                if (canEnter)
+                    ZoneSyncManager.RegisterZoneEnter(__instance.transform.GetFullPath(), false);
 #if DEBUG
                 EntangleLogger.Log($"Entering SceneZone {__instance.name} with number {ZoneTrackingUtilities.zoneCount[__instance]} and result {canEnter}");
 #endif
@@ -156,23 +165,16 @@ namespace Entanglement.Patching
             if (ZoneTrackingUtilities.networkReplay)
                 return true;
 
+            if (SteamIntegration.hasLobby && !SteamIntegration.isHost && other.CompareTag("Player"))
+                return false;
+
             if (other.CompareTag("Player"))
             {
                 ZoneTrackingUtilities.Decrement(__instance);
                 bool canExit = ZoneTrackingUtilities.CanExit(__instance);
 
-                if (false && canExit && SteamIntegration.isHost && SteamIntegration.hasLobby && Node.activeNode != null)
-                {
-                    ZoneTriggerMessageData triggerData = new ZoneTriggerMessageData
-                    {
-                        zonePath = __instance.transform.GetFullPath(),
-                        isPlayerTrigger = false,
-                        isEnter = false,
-                    };
-
-                    NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ZoneTrigger, triggerData);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
-                }
+                if (canExit)
+                    ZoneSyncManager.SyncAndCullZone(__instance.transform.GetFullPath(), false);
 
 #if DEBUG
                 EntangleLogger.Log($"Exiting SceneZone {__instance.name} with number {ZoneTrackingUtilities.zoneCount[__instance]} and result {canExit}");
@@ -200,23 +202,16 @@ namespace Entanglement.Patching
             if (ZoneTrackingUtilities.networkReplay)
                 return true;
 
+            if (SteamIntegration.hasLobby && !SteamIntegration.isHost && other.CompareTag("Player"))
+                return false;
+
             if (other.CompareTag("Player"))
             {
                 ZoneTrackingUtilities.Increment(__instance);
                 bool canEnter = ZoneTrackingUtilities.CanEnter(__instance);
 
-                if (false && canEnter && SteamIntegration.isHost && SteamIntegration.hasLobby && Node.activeNode != null)
-                {
-                    ZoneTriggerMessageData triggerData = new ZoneTriggerMessageData
-                    {
-                        zonePath = __instance.transform.GetFullPath(),
-                        isPlayerTrigger = true,
-                        isEnter = true,
-                    };
-
-                    NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ZoneTrigger, triggerData);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
-                }
+                if (canEnter)
+                    ZoneSyncManager.RegisterZoneEnter(__instance.transform.GetFullPath(), true);
 #if DEBUG
                 EntangleLogger.Log($"Entering PlayerTrigger {__instance.name} with number {ZoneTrackingUtilities.triggerCount[__instance]} and result {canEnter}");
 #endif
@@ -243,23 +238,16 @@ namespace Entanglement.Patching
             if (ZoneTrackingUtilities.networkReplay)
                 return true;
 
+            if (SteamIntegration.hasLobby && !SteamIntegration.isHost && other.CompareTag("Player"))
+                return false;
+
             if (other.CompareTag("Player"))
             {
                 ZoneTrackingUtilities.Decrement(__instance);
                 bool canExit = ZoneTrackingUtilities.CanExit(__instance);
 
-                if (false && canExit && SteamIntegration.isHost && SteamIntegration.hasLobby && Node.activeNode != null)
-                {
-                    ZoneTriggerMessageData triggerData = new ZoneTriggerMessageData
-                    {
-                        zonePath = __instance.transform.GetFullPath(),
-                        isPlayerTrigger = true,
-                        isEnter = false,
-                    };
-
-                    NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ZoneTrigger, triggerData);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
-                }
+                if (canExit)
+                    ZoneSyncManager.SyncAndCullZone(__instance.transform.GetFullPath(), true);
 
 #if DEBUG
                 EntangleLogger.Log($"Exiting PlayerTrigger {__instance.name} with number {ZoneTrackingUtilities.triggerCount[__instance]} and result {canExit}");

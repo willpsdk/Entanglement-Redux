@@ -12,6 +12,7 @@ using Entanglement.Compat.Playermodels;
 using Entanglement.Objects;
 using Entanglement.Compat;
 using Entanglement.Data;
+using Entanglement.Managers;
 
 namespace Entanglement.Network
 {
@@ -68,6 +69,9 @@ namespace Entanglement.Network
             // Check for new members
             foreach (ulong memberId in currentMembers)
             {
+                if (memberId == SteamIntegration.currentUser.m_SteamID)
+                    continue;
+
                 if (!lastKnownMembers.Contains(memberId))
                 {
                     EntangleLogger.Verbose($"Detected new member joined: {memberId}");
@@ -78,6 +82,9 @@ namespace Entanglement.Network
             // Check for departed members
             foreach (ulong memberId in lastKnownMembers)
             {
+                if (memberId == SteamIntegration.currentUser.m_SteamID)
+                    continue;
+
                 if (!currentMembers.Contains(memberId))
                 {
                     EntangleLogger.Verbose($"Detected member left: {memberId}");
@@ -90,11 +97,29 @@ namespace Entanglement.Network
 
         public void ConnectToSteamServer()
         {
+            lastKnownMembers.Clear();
+
+            if (SteamIntegration.hasLobby)
+            {
+                int memberCount = SteamMatchmaking.GetNumLobbyMembers(SteamIntegration.lobbyId);
+                for (int i = 0; i < memberCount; i++)
+                {
+                    CSteamID memberId = SteamMatchmaking.GetLobbyMemberByIndex(SteamIntegration.lobbyId, i);
+                    lastKnownMembers.Add(memberId.m_SteamID);
+                }
+            }
+
             SteamIntegration.UpdateVoice(SteamIntegration.voiceStatus);
         }
 
         public void OnSteamUserJoined(ulong lobbyId, ulong userId)
         {
+            if (userId == SteamIntegration.currentUser.m_SteamID)
+                return;
+
+            if (connectedUsers.Contains(userId))
+                return;
+
             CreatePlayerRep(userId);
 
             if (PlayermodelsPatch.lastLoadedPath != null)
@@ -104,7 +129,9 @@ namespace Entanglement.Network
                 msgData.userId = SteamIntegration.currentUser.m_SteamID;
                 msgData.modelPath = Path.GetFileName(path);
                 msgData.requestCallback = true;
-                SendMessage(userId, NetworkChannel.Reliable, NetworkMessage.CreateMessage(CompatMessageType.PlayerModel, msgData).GetBytes());
+                NetworkMessage message = NetworkMessage.CreateMessage(CompatMessageType.PlayerModel, msgData);
+                if (message != null)
+                    SendMessage(userId, NetworkChannel.Reliable, message.GetBytes());
             }
 
             UserConnectedEvent(lobbyId, userId);
@@ -196,6 +223,7 @@ namespace Entanglement.Network
                     message.messageData[b - sizeof(byte)] = data[b];
 
                 recievedByteCount += (uint)data.Length;
+                HostPerformanceProfiler.AddReceivedBytes((uint)data.Length);
                 NetworkMessage.ReadMessage(message, userId);
             }
             catch (Exception ex)
@@ -217,6 +245,7 @@ namespace Entanglement.Network
                 if (success)
                 {
                     sentByteCount += (uint)data.Length;
+                    HostPerformanceProfiler.AddSentBytes((uint)data.Length);
                 }
                 else
                 {
@@ -250,8 +279,15 @@ namespace Entanglement.Network
 
         public virtual void Tick()
         {
+            long totalStart = HostPerformanceProfiler.BeginSample();
+
             // Check for lobby member changes periodically
+            long memberCheckStart = HostPerformanceProfiler.BeginSample();
             CheckLobbyMemberChanges();
+            HostPerformanceProfiler.EndSample("Node.Tick.MemberCheck", memberCheckStart);
+
+            long packetLoopStart = HostPerformanceProfiler.BeginSample();
+            int packetCount = 0;
 
             for (int channel = 0; channel <= 4; channel++)
             {
@@ -264,10 +300,15 @@ namespace Entanglement.Network
 
                     if (SteamNetworking.ReadP2PPacket(data, msgSize, out bytesRead, out remoteId, channel))
                     {
+                        packetCount++;
                         OnSteamMessageRecieved(remoteId.m_SteamID, (byte)channel, data);
                     }
                 }
             }
+
+            HostPerformanceProfiler.EndSample("Node.Tick.PacketLoop", packetLoopStart);
+            HostPerformanceProfiler.AddReceivedPacket(packetCount);
+            HostPerformanceProfiler.EndSample("Node.Tick.Total", totalStart);
         }
 
         public virtual void UserConnectedEvent(ulong lobbyId, ulong userId) { }

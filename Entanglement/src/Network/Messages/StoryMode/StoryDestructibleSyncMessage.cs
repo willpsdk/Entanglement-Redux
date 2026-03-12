@@ -61,8 +61,8 @@ namespace Entanglement.Network
                 damagePos.z = System.BitConverter.ToSingle(message.messageData, index);
                 index += sizeof(float);
 
-                // Find destructible by instance ID and update state
-                StoryModeSync.ApplyRemoteDestructibleState(new StoryDestructibleSyncData
+                // Track destructible state for replay and zone-managed sync
+                ZoneSyncManager.ApplyRemoteDestructibleState(new StoryDestructibleSyncData
                 {
                     destructibleInstanceId = destructibleId,
                     isDestroyed = isDestroyed,

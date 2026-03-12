@@ -113,9 +113,12 @@ namespace Entanglement.Network
 
         public override void Tick()
         {
+            long totalStart = HostPerformanceProfiler.BeginSample();
+
             try
             {
                 // Handle heartbeat sending and timeout detection
+                long sectionStart = HostPerformanceProfiler.BeginSample();
                 heartbeatTimer += Time.deltaTime;
                 if (heartbeatTimer >= HEARTBEAT_INTERVAL)
                 {
@@ -123,8 +126,10 @@ namespace Entanglement.Network
                     NetworkMessage heartbeatMsg = NetworkMessage.CreateMessage((byte)BuiltInMessageType.Heartbeat, new EmptyMessageData());
                     BroadcastMessage(NetworkChannel.Unreliable, heartbeatMsg.GetBytes());
                 }
+                HostPerformanceProfiler.EndSample("Server.Tick.Heartbeat", sectionStart);
 
                 // Check for client timeouts (excluding the host!)
+                sectionStart = HostPerformanceProfiler.BeginSample();
                 foreach (ulong userId in userBeats.Keys.ToArray())
                 {
                     // FIX: Never timeout the host
@@ -138,8 +143,10 @@ namespace Entanglement.Network
                         OnSteamUserLeft(SteamIntegration.lobbyId.m_SteamID, userId);
                     }
                 }
+                HostPerformanceProfiler.EndSample("Server.Tick.Timeouts", sectionStart);
 
                 // FIX: Better level change broadcasting with error handling
+                sectionStart = HostPerformanceProfiler.BeginSample();
                 if (EntanglementMod.sceneChange != null)
                 {
                     try
@@ -186,13 +193,18 @@ namespace Entanglement.Network
                         EntanglementMod.sceneChange = null;
                     }
                 }
+                HostPerformanceProfiler.EndSample("Server.Tick.LevelChangeBroadcast", sectionStart);
 
+                sectionStart = HostPerformanceProfiler.BeginSample();
                 base.Tick();
+                HostPerformanceProfiler.EndSample("Server.Tick.BaseNodeTick", sectionStart);
             }
             catch (Exception ex)
             {
                 EntangleLogger.Error($"[Server] Error in Tick: {ex.Message}\n{ex.StackTrace}");
             }
+
+            HostPerformanceProfiler.EndSample("Server.Tick.Total", totalStart);
         }
 
         public void UpdateLobbyConfig()
@@ -306,13 +318,15 @@ namespace Entanglement.Network
             NetworkMessage idMessage = NetworkMessage.CreateMessage((byte)BuiltInMessageType.ShortId, idMessageData);
             BroadcastMessage(NetworkChannel.Reliable, idMessage.GetBytes());
 
+            // Only replay objects that were already synced through interaction.
+            // Do NOT call SyncAllScenePhysicsObjects here — objects sync on grip/interaction only.
             ReplaySyncedObjectsTo(userId);
-            StoryModeSync.SendFullStateTo(userId);
+            ZoneSyncManager.SendFullStateTo(userId);
 
             // FIX: NEVER track heartbeat for the host (only for connected clients)
             if (userId != SteamIntegration.currentUser.m_SteamID)
             {
-                userBeats.Add(userId, 0f);
+                userBeats[userId] = 0f;
             }
         }
 

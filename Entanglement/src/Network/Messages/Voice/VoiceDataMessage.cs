@@ -29,27 +29,8 @@ namespace Entanglement.Network
 
         public override void HandleMessage(NetworkMessage message, ulong sender)
         {
-            if (message.messageData == null || message.messageData.Length < sizeof(byte) + sizeof(ushort))
-                return;
-
-            int index = 0;
-            ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
-            ushort length = BitConverter.ToUInt16(message.messageData, index);
-            index += sizeof(ushort);
-
-            if (length <= 0 || index + length > message.messageData.Length)
-                return;
-
-            byte[] compressedData = new byte[length];
-            Buffer.BlockCopy(message.messageData, index, compressedData, 0, length);
-
-            VoiceChatManager.ReceiveVoicePacket(userId, compressedData);
-
-            if (Server.instance != null)
-            {
-                byte[] msgBytes = message.GetBytes();
-                Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, sender);
-            }
+            // Voice chat disabled
+            return;
         }
     }
 

@@ -1,6 +1,7 @@
 ﻿using StressLevelZero.Props;
 using Entanglement.Objects;
 using Entanglement.Network;
+using Entanglement.Managers;
 using HarmonyLib;
 using UnityEngine;
 
@@ -32,11 +33,10 @@ namespace Entanglement.Patching
 
         public static void Postfix(Prop_Health __instance)
         {
-            if (!SteamIntegration.hasLobby) return;
-
             TransformSyncable syncTransform = TransformSyncable.DestructCache.Get(__instance.gameObject);
             if (syncTransform)
             {
+                if (!SteamIntegration.hasLobby) return;
                 if (!syncTransform.IsOwner()) return;
 
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData() { objectId = syncTransform.objectId });
@@ -44,10 +44,13 @@ namespace Entanglement.Patching
             }
             else
             {
-                // Map object (lock/plank)
-                if (!SteamIntegration.isHost) return;
+                string objectPath = DestructablePathHelper.GetGameObjectPath(__instance.gameObject);
+                ZoneSyncManager.RecordMapObjectDestroyed(objectPath);
 
-                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.MapObjectDestroy, new MapObjectDestroyMessageData() { objectPath = DestructablePathHelper.GetGameObjectPath(__instance.gameObject) });
+                if (!SteamIntegration.hasLobby || !SteamIntegration.isHost)
+                    return;
+
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.MapObjectDestroy, new MapObjectDestroyMessageData() { objectPath = objectPath });
                 Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
             }
         }
@@ -58,12 +61,12 @@ namespace Entanglement.Patching
     {
         public static void Postfix(ObjectDestructable __instance)
         {
-            if (!SteamIntegration.hasLobby) return;
             if (!__instance._isDead) return;
 
             TransformSyncable syncTransform = TransformSyncable.DestructCache.Get(__instance.gameObject);
             if (syncTransform)
             {
+                if (!SteamIntegration.hasLobby) return;
                 if (!syncTransform.IsOwner()) return;
 
                 NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.ObjectDestroy, new ObjectDestroyMessageData() { objectId = syncTransform.objectId });
@@ -71,9 +74,13 @@ namespace Entanglement.Patching
             }
             else
             {
-                if (!SteamIntegration.isHost) return;
+                string objectPath = DestructablePathHelper.GetGameObjectPath(__instance.gameObject);
+                ZoneSyncManager.RecordMapObjectDestroyed(objectPath);
 
-                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.MapObjectDestroy, new MapObjectDestroyMessageData() { objectPath = DestructablePathHelper.GetGameObjectPath(__instance.gameObject) });
+                if (!SteamIntegration.hasLobby || !SteamIntegration.isHost)
+                    return;
+
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.MapObjectDestroy, new MapObjectDestroyMessageData() { objectPath = objectPath });
                 Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
             }
         }

@@ -12,6 +12,7 @@ namespace Entanglement.UI
     {
         private static MenuCategory voiceCategory;
         private static MenuCategory playersMuteCategory;
+        private static MenuCategory microphoneCategory;
 
         public static void CreateUI(MenuCategory category)
         {
@@ -68,14 +69,24 @@ namespace Entanglement.UI
                     return;
                 }
 
-                MenuCategory micCategory = MenuManager.CreateCategory("Select Microphone", Color.white);
+                if (microphoneCategory == null)
+                {
+                    microphoneCategory = voiceCategory.CreateSubCategory("Select Microphone", Color.white);
+                }
+
+                List<string> existingElements = new List<string>();
+                foreach (MenuElement element in microphoneCategory.elements)
+                    existingElements.Add(element.displayText);
+
+                foreach (string elementName in existingElements)
+                    microphoneCategory.RemoveElement(elementName);
 
                 for (int i = 0; i < microphones.Count; i++)
                 {
                     string micName = microphones[i];
                     int index = i; // Capture for closure
 
-                    micCategory.CreateFunctionElement(micName, Color.white, () =>
+                    microphoneCategory.CreateFunctionElement(micName, Color.white, () =>
                     {
                         global::Entanglement.Managers.VoiceChatManager.SetMicrophone(index);
                         EntangleLogger.Log($"Selected microphone: {micName}", ConsoleColor.Green);
@@ -83,7 +94,7 @@ namespace Entanglement.UI
                     });
                 }
 
-                MenuManager.OpenCategory(micCategory);
+                MenuManager.OpenCategory(microphoneCategory);
             }
             catch (Exception ex)
             {

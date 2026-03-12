@@ -19,6 +19,7 @@ namespace Entanglement.Network
     public class NetworkMessage {
         public byte messageType;
         public byte[] messageData = new byte[0];
+        private static readonly HashSet<byte> _missingHandlerWarningCache = new HashSet<byte>();
 
         public byte[] GetBytes()
         {
@@ -85,7 +86,15 @@ namespace Entanglement.Network
 
         public static NetworkMessage CreateMessage(byte type, NetworkMessageData data) {
             try {
-                return handlers[type].CreateMessage(data);
+                NetworkMessageHandler handler = handlers[type];
+                if (handler == null)
+                {
+                    if (_missingHandlerWarningCache.Add(type))
+                        EntangleLogger.Error($"No network message handler registered for message type {type}.");
+                    return null;
+                }
+
+                return handler.CreateMessage(data);
             }
             catch (Exception e) {
                 EntangleLogger.Error($"Failed creating network message with reason: {e.Message}\nTrace:{e.StackTrace}");
@@ -96,10 +105,21 @@ namespace Entanglement.Network
 
         public static void ReadMessage(NetworkMessage message, ulong sender) {
             try {
-                handlers[message.messageType].ReadMessage(message, sender);
+                if (message == null)
+                    return;
+
+                NetworkMessageHandler handler = handlers[message.messageType];
+                if (handler == null)
+                {
+                    if (_missingHandlerWarningCache.Add(message.messageType))
+                        EntangleLogger.Error($"Dropped incoming network message {message.messageType} from {sender}: no handler registered.");
+                    return;
+                }
+
+                handler.ReadMessage(message, sender);
             }
             catch (Exception e) {
-                EntangleLogger.Error($"Failed handling network message with reason: {e.Message}\nTrace:{e.StackTrace}");
+                EntangleLogger.Error($"Failed handling network message {message?.messageType} from {sender} with reason: {e.Message}\nTrace:{e.StackTrace}");
             }
         }
 

@@ -46,13 +46,23 @@ namespace Entanglement.Network
                     return;
 
                 int index = 0;
-                ulong userId = SteamIntegration.GetLongId(message.messageData[index++]);
+                if (message.messageData.Length < 2)
+                    return;
+
+                byte encodedUserId = message.messageData[index++];
+                ulong mappedUserId = SteamIntegration.GetLongId(encodedUserId);
+                ulong userId = sender;
+
+                if (mappedUserId != 0 && mappedUserId != sender)
+                {
+                    EntangleLogger.Verbose($"[PlayerRepSync] Sender/id mismatch. Sender={sender}, mapped={mappedUserId}, shortId={encodedUserId}. Using sender as authoritative id.");
+                }
 
                 if (PlayerRepresentation.representations.ContainsKey(userId))
                 {
                     PlayerRepresentation rep = PlayerRepresentation.representations[userId];
 
-                    if (rep != null && rep.repFord != null)
+                    if (rep != null && rep.repFord != null && rep.repRoot != null)
                     {
                         bool isGrounded = Convert.ToBoolean(message.messageData[index]);
                         index += sizeof(byte);
@@ -82,6 +92,7 @@ namespace Entanglement.Network
                             // Hard snap on very large corrections to avoid rubberband trails.
                             rep.repRoot.position = rootPosition;
                             rep.lastSyncPosition = rootPosition;
+                            rep.prevTargetSyncPosition = rootPosition;
                             rep.targetSyncPosition = rootPosition;
                             rep.targetSyncVelocity = Vector3.zero;
                             rep.interpolationAlpha = 1f;
@@ -89,6 +100,7 @@ namespace Entanglement.Network
                         else
                         {
                             Vector3 previousTarget = rep.targetSyncPosition;
+                            rep.prevTargetSyncPosition = previousTarget;
                             rep.lastSyncPosition = rep.repRoot.position;
                             rep.targetSyncPosition = rootPosition;
                             rep.interpolationAlpha = 0f; // Start interpolation from beginning
@@ -138,7 +150,7 @@ namespace Entanglement.Network
                 if (Server.instance != null)
                 {
                     byte[] msgBytes = message.GetBytes();
-                    Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, userId);
+                    Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, sender);
                 }
             }
             catch (Exception ex)

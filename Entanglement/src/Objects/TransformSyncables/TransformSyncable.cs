@@ -41,10 +41,10 @@ namespace Entanglement.Objects
         public float startDrag = -1f;
         public float startAngularDrag = -1f;
 
-        public const float positionSpring = 250000f;
-        public const float positionDamper = 15000f;
-        public const float maximumForce = 150000f;
-        public const float linearLimit = 0.005f;
+        public const float positionSpring = 50000f;
+        public const float positionDamper = 5000f;
+        public const float maximumForce = 80000f;
+        public const float linearLimit = 0.02f;
 
         // FIX: Increase to 60Hz for smooth object sync matching player sync (1/60 = 0.0167 seconds between syncs)
         private float lastSyncTime = 0f;
@@ -149,14 +149,23 @@ namespace Entanglement.Objects
         protected void OnEnable()
         {
             DestroyJoint();
+
+            // When an object comes back from a holster/slot, immediately reclaim
+            // ownership if we were the last owner so the remote side doesn't fight.
+            if (isValid && staleOwner == SteamIntegration.currentUser.m_SteamID)
+            {
+                SendEnqueue();
+            }
         }
 
         protected void OnDisable()
         {
             timeOfDisable = Time.realtimeSinceStartup;
-
             DestroyJoint();
-            SendDequeue();
+
+            // Do NOT dequeue here. Holstering disables the object but the player still
+            // owns it. Dequeue only happens on explicit hand detach (GripDetachPatch)
+            // when the other hand isn't also holding the chain.
         }
 
         protected void UpdateStoredPositions()
@@ -168,55 +177,64 @@ namespace Entanglement.Objects
         protected virtual void OnCollisionEnter(Collision collision)
         {
             if (!SteamIntegration.hasLobby) return;
-            if (collision.collider.gameObject.IsBlacklisted()) return;
             if (!collision.rigidbody || !IsOwner()) return;
 
-            if (rb && !_CachedBodies.IsHolding()) return;
+            // Only sync if THIS object is currently held by a player hand.
+            // This prevents cascade: a held gun bumps a box (sync), but that box
+            // bumping a second box does NOT trigger sync because the box isn't held.
+            if (rb == null || _CachedBodies == null || !_CachedBodies.IsHolding()) return;
+
+            if (collision.collider.gameObject.IsBlacklisted()) return;
 
             TransformSyncable existingSync = cache.Get(collision.rigidbody.gameObject);
             if (existingSync) return;
 
-            Transform targetObj = collision.rigidbody.transform;
-            Rigidbody[] rigidbodies = null;
+            // Ignore NPC/AI rigs and non-interactable animated objects
+            if (!ObjectSync.IsScenePhysicsSyncCandidate(collision.rigidbody)) return;
 
+            Transform targetObj = collision.rigidbody.transform;
             ulong ownerId = SteamIntegration.currentUser.m_SteamID;
 
-            ObjectSync.GetPooleeData(targetObj, out rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
+            ObjectSync.GetPooleeData(targetObj, out Rigidbody[] rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
+
+            if (rigidbodies == null || rigidbodies.Length == 0)
+                rigidbodies = targetObj.GetJointedBodies();
+
+            if (rigidbodies == null) return;
 
             for (int i = 0; i < rigidbodies.Length; i++)
             {
                 Rigidbody rBody = rigidbodies[i];
+                if (rBody == null || rBody.isKinematic) continue;
+
                 TransformSyncable syncObj = cache.Get(rBody.gameObject);
-                if (!syncObj && !rBody.isKinematic)
+                if (syncObj) continue;
+
+                ushort? objectId = null;
+                ushort callbackIndex = 0;
+
+                if (Server.instance != null)
+                    objectId = ObjectSync.GetNextObjectId();
+
+                Syncable syncable = CreateSync(ownerId, rBody, objectId);
+                if (syncable == null) continue;
+
+                if (Server.instance == null)
+                    callbackIndex = ObjectSync.QueueSyncable(syncable);
+
+                TransformCreateMessageData createSync = new TransformCreateMessageData()
                 {
-                    ushort? objectId = null;
-                    ushort callbackIndex = 0;
+                    ownerId = ownerId,
+                    objectId = objectId != null ? objectId.Value : (ushort)0,
+                    callbackIndex = callbackIndex,
+                    objectPath = rBody.transform.GetFullPath(overrideRootName),
+                    spawnIndex = spawnIndex,
+                    spawnTime = spawnTime,
+                    enqueueOwner = false
+                };
 
-                    if (Server.instance != null)
-                    {
-                        objectId = ObjectSync.lastId;
-                        objectId++;
-                    }
-
-                    Syncable syncable = CreateSync(ownerId, rBody, objectId);
-
-                    if (Server.instance == null)
-                        callbackIndex = ObjectSync.QueueSyncable(syncable);
-
-                    TransformCreateMessageData createSync = new TransformCreateMessageData()
-                    {
-                        ownerId = ownerId,
-                        objectId = objectId != null ? objectId.Value : (ushort)0,
-                        callbackIndex = callbackIndex,
-                        objectPath = rBody.transform.GetFullPath(overrideRootName),
-                        spawnIndex = spawnIndex,
-                        spawnTime = spawnTime,
-                        enqueueOwner = false
-                    };
-
-                    NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformCreate, createSync);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
-                }
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformCreate, createSync);
+                Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
             }
         }
 
@@ -259,7 +277,6 @@ namespace Entanglement.Objects
                 return existingSync;
             }
 
-            rigidbody.velocity = Vector3.zero;
             TransformSyncable syncObj = go.AddComponent<TransformSyncable>();
             cache.Add(go, syncObj);
 
@@ -323,6 +340,9 @@ namespace Entanglement.Objects
             ulong userId = SteamIntegration.currentUser.m_SteamID;
             if (!ownerQueue.Contains(userId)) return;
 
+            // Send a reliable final state before relinquishing ownership so throw velocity is preserved.
+            SendOwnershipHandoffSnapshot();
+
             DequeueOwner(userId);
 
             TransformQueueMessageData queueData = new TransformQueueMessageData() { userId = userId, objectId = objectId, isAdd = false };
@@ -330,6 +350,22 @@ namespace Entanglement.Objects
             Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
 
             MelonCoroutines.Start(CoOwnershipResyncPulse());
+        }
+
+        private void SendOwnershipHandoffSnapshot()
+        {
+            if (!isValid || Node.activeNode == null || !IsOwner())
+                return;
+
+            TransformSyncMessageData handoffData = new TransformSyncMessageData()
+            {
+                objectId = objectId,
+                simplifiedTransform = new SimplifiedTransform(transform, rb)
+            };
+
+            NetworkMessage handoffMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, handoffData);
+            if (handoffMessage != null)
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, handoffMessage.GetBytes());
         }
 
         private IEnumerator CoOwnershipResyncPulse()

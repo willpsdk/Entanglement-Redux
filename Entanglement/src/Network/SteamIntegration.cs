@@ -204,18 +204,13 @@ namespace Entanglement.Network
 
         public static void UpdateVoice(VoiceStatus status)
         {
-            voiceStatus = status;
-            if (!hasLobby) return;
+            voiceStatus = VoiceStatus.Disabled;
 
-            // FIX: Use new proximity-based voice chat system
-            if (status == VoiceStatus.Enabled)
+            try
             {
-                global::Entanglement.Managers.VoiceChatManager.SetVoiceChatMode(global::Entanglement.Managers.VoiceChatManager.VoiceChatMode.Proximity);
+                SteamUser.StopVoiceRecording();
             }
-            else
-            {
-                global::Entanglement.Managers.VoiceChatManager.SetVoiceChatMode(global::Entanglement.Managers.VoiceChatManager.VoiceChatMode.Disabled);
-            }
+            catch { }
         }
     }
 }

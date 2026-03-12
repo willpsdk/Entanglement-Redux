@@ -28,22 +28,24 @@ namespace Entanglement.UI
                 try { LobbiesUI.CreateUI(category); }
                 catch (Exception ex) { EntangleLogger.Error($"Failed to create LobbiesUI: {ex.Message}"); }
 
-                try { VoiceUI.CreateUI(category); }
-                catch (Exception ex) { EntangleLogger.Error($"Failed to create VoiceUI: {ex.Message}"); }
+                // Voice chat UI removed
 
-                try { StatsUI.CreateUI(category); }
+                MenuCategory debugCategory = category.CreateSubCategory("Debuging", Color.white);
+
+                try { StatsUI.CreateUI(debugCategory); }
                 catch (Exception ex) { EntangleLogger.Error($"Failed to create StatsUI: {ex.Message}"); }
 
-#if DEBUG
-                try { DebugUI.CreateUI(category); }
+                try { DebugUI.CreateUI(debugCategory); }
                 catch (Exception ex) { EntangleLogger.Error($"Failed to create DebugUI: {ex.Message}"); }
-#endif
 
-                // Verbose logging at the bottom
-                category.CreateBoolElement("Verbose Network Logging", Color.yellow, EntangleLogger.isVerbose, (val) => {
+                debugCategory.CreateBoolElement("Verbose Network Logging", Color.yellow, EntangleLogger.isVerbose, (val) => {
                     EntangleLogger.isVerbose = val;
                     if (val) EntangleLogger.Log("Verbose logging ENABLED. The console will now print detailed connection steps.", ConsoleColor.Green);
                     else EntangleLogger.Log("Verbose logging DISABLED.", ConsoleColor.Red);
+                });
+
+                debugCategory.CreateBoolElement("Disable Melon Loggers", Color.yellow, EntangleLogger.disableMelonLoggers, (val) => {
+                    EntangleLogger.disableMelonLoggers = val;
                 });
 
                 EntangleLogger.Log("Entanglement UI initialized successfully!", ConsoleColor.Green);

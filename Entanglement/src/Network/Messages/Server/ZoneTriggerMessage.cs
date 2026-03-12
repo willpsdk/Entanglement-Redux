@@ -17,8 +17,8 @@ namespace Entanglement.Network
         {
             NetworkMessage message = new NetworkMessage();
 
-            // format: isPlayerTrigger|isEnter|fullPath
-            string payload = $"{(data.isPlayerTrigger ? 1 : 0)}|{(data.isEnter ? 1 : 0)}|{data.zonePath}";
+            // format: isPlayerTrigger|isEnter|zoneStateId|fullPath
+            string payload = $"{(data.isPlayerTrigger ? 1 : 0)}|{(data.isEnter ? 1 : 0)}|{data.zoneStateId}|{data.zonePath}";
             message.messageData = Encoding.UTF8.GetBytes(payload);
             return message;
         }
@@ -29,15 +29,25 @@ namespace Entanglement.Network
 
             bool isPlayerTrigger = false;
             bool isEnter = true;
+            byte zoneStateId = (byte)Entanglement.Managers.ZoneSyncManager.ZoneStateId.Active;
             string zonePath = payload;
 
-            string[] split = payload.Split(new[] { '|' }, 3);
-            if (split.Length == 3)
+            string[] split = payload.Split(new[] { '|' }, 4);
+            if (split.Length == 4)
+            {
+                isPlayerTrigger = split[0] == "1";
+                isEnter = split[1] == "1";
+                byte.TryParse(split[2], out zoneStateId);
+                zonePath = split[3];
+            }
+            else if (split.Length == 3)
             {
                 isPlayerTrigger = split[0] == "1";
                 isEnter = split[1] == "1";
                 zonePath = split[2];
             }
+
+            Entanglement.Managers.ZoneSyncManager.ApplyRemoteZoneState(zonePath, isPlayerTrigger, zoneStateId);
 
             Transform targetTransform = zonePath.GetFromFullPath();
             GameObject targetZone = targetTransform != null ? targetTransform.gameObject : GameObject.Find(zonePath);
@@ -102,5 +112,6 @@ namespace Entanglement.Network
         public string zonePath;
         public bool isPlayerTrigger;
         public bool isEnter;
+        public byte zoneStateId = (byte)Entanglement.Managers.ZoneSyncManager.ZoneStateId.Active;
     }
 }

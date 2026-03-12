@@ -25,6 +25,7 @@ namespace Entanglement.Objects
         public static Dictionary<ushort, Syncable> syncedObjects = new Dictionary<ushort, Syncable>();
         public static List<Syncable> queuedSyncs = new List<Syncable>();
         public static ushort lastId = 0;
+        private static bool scenePhysicsSeeded = false;
 
         public static void OnCleanup()
         {
@@ -49,6 +50,7 @@ namespace Entanglement.Objects
 
             // FIX: Force the ID back to zero on scene change so it never hits the 65,535 limit
             lastId = 0;
+            scenePhysicsSeeded = false;
 
             // FIX: Clean out the caches to prevent old level props from holding memory
             TransformSyncable.cache = new CustomComponentCache<TransformSyncable>();
@@ -112,6 +114,25 @@ namespace Entanglement.Objects
 
         public static bool TryGetSyncable(ushort id, out Syncable syncable) => syncedObjects.TryGetValue(id, out syncable);
 
+        public static ushort GetNextObjectId()
+        {
+            ushort start = lastId;
+
+            do
+            {
+                lastId++;
+                if (lastId == 0)
+                    lastId = 1;
+
+                if (!syncedObjects.ContainsKey(lastId))
+                    return lastId;
+            }
+            while (lastId != start);
+
+            lastId = 1;
+            return lastId;
+        }
+
         public static void GetPooleeData(Transform obj, out Rigidbody[] rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime)
         {
             overrideRootName = null;
@@ -170,18 +191,80 @@ namespace Entanglement.Objects
             MelonCoroutines.Start(OnGripValid(grip));
         }
 
+        /// <summary>
+        /// Disabled. Objects sync exclusively through grip interaction (OnGripAttached).
+        /// This method only exists so call sites don't break. It does nothing.
+        /// </summary>
+        public static void SyncAllScenePhysicsObjects(bool force = false)
+        {
+            // Intentionally empty. All physics syncing happens on interaction (grip/grab).
+            // Calling FindObjectsOfType<Rigidbody> here was registering 1500+ objects at once.
+        }
+
+        public static bool IsScenePhysicsSyncCandidate(Rigidbody rb)
+        {
+            if (rb == null)
+                return false;
+
+            Transform root = rb.transform != null ? rb.transform.root : null;
+            if (root == null)
+                return false;
+
+            GameObject rootGo = root.gameObject;
+            if (rootGo == null)
+                return false;
+
+            // Exclude player/NPC/AI style rigs to avoid duplicate NPC spawning and animation conflicts.
+            if (rootGo.GetComponent("RigManager") != null ||
+                rootGo.GetComponent("BehaviourBaseNav") != null ||
+                rootGo.GetComponent("AIBrain") != null ||
+                rootGo.GetComponent("BehaviourOmniwheel") != null)
+                return false;
+
+            // Exclude generic animated character roots that are not interactable props.
+            bool hasAnimator = rootGo.GetComponentInChildren<Animator>(true) != null;
+            bool hasInteractable = rootGo.GetComponentInChildren<Grip>(true) != null ||
+                                   rootGo.GetComponentInChildren<GripEvents>(true) != null ||
+                                   rootGo.GetComponentInChildren<Gun>(true) != null;
+
+            if (hasAnimator && !hasInteractable)
+                return false;
+
+            // Only sync physics objects that are likely shared interactable props.
+            if (Magazine.Cache.Get(rootGo) != null)
+                return true;
+
+            if (Poolee.Cache.Get(rootGo) != null)
+                return true;
+
+            return hasInteractable;
+        }
+
         public static IEnumerator OnGripValid(GameObject grip)
         {
-            yield return null;
+            // Single frame delay so the grip is fully resolved.
             yield return null;
 
-            if (!grip || !grip.activeInHierarchy) yield break;
+            if (!grip) yield break;
             if (grip.IsBlacklisted()) yield break;
 
             Rigidbody[] rigidbodies = null;
             GetPooleeData(grip.transform, out rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
 
-            for (int i = 0; i < rigidbodies.Length; i++) SyncUtilities.UpdateBodyAttached(rigidbodies[i], overrideRootName, spawnIndex, spawnTime);
+            if (rigidbodies == null || rigidbodies.Length == 0)
+            {
+                // Fallback: grip may not be the root poolee. Try the jointed chain directly.
+                rigidbodies = grip.transform.GetJointedBodies();
+            }
+
+            if (rigidbodies == null || rigidbodies.Length == 0)
+                yield break;
+
+            for (int i = 0; i < rigidbodies.Length; i++)
+            {
+                if (rigidbodies[i] != null && !rigidbodies[i].isKinematic)
+                    SyncUtilities.UpdateBodyAttached(rigidbodies[i], overrideRootName, spawnIndex, spawnTime);
+            }
         }
 
         public static void OnGripDetached(Hand __instance)
