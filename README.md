@@ -1,7 +1,3 @@
-https://camo.githubusercontent.com/f45ae5e460e351b05e9c00ea4550e32e09cd42b511e23e576485bffb323e1973/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f5374617475732d576f726b5f496e5f50726f67726573735f28574950292d6f72616e67652e737667
-
-https://camo.githubusercontent.com/23260b645024020a4788575cea8b7059b49a45d4f3533fc1d3b19426a0c5a546/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f47616d652d424f4e45574f524b532d626c7565
-
 Entanglement: Redux is an open-source revival and complete overhaul of the classic BONEWORKS multiplayer mod Entanglement. With the deprecation of the Discord Game SDK, the original Entanglement mod was left without a functioning networking backend. Entanglement: Redux brings the mod back to life by migrating the entire networking architecture to Steamworks.NET, while completely rewriting the physics sync to match modern VR multiplayer standards.
 
 While this has been done before (ReTangled) it has not been a complete overhaul and just a bandaid for it to use Steam Networking! ﻿Entanglement: Redux aims to bring an improved and smoother gameplay!
@@ -32,4 +28,5 @@ PD Controllers: Objects smoothly fly to their destinations using a tuned Proport
 ﻿﻿Data Compression and Struct Simplification: Network payloads have been strictly compressed using custom `SimplifiedTransform’ and `SimplifiedQuaternion’ structs. This ensures that even when transmitting high-fidelity velocity and angular velocity data, the overall packet footprint remains remarkably small.
 
 Status: Work In Progress (WIP)This project is currently in active development. While the core Steamworks migration and physics overhauls are implemented, you will encounter bugs, desyncs, and missing features. It is not yet ready for a full release! If you would like to contribute to this project please do so on the github page! ﻿https://github.com/willpsdk/Entanglement-Redux
+
 
