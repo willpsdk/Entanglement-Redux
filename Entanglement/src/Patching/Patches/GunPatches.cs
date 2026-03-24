@@ -39,17 +39,6 @@ namespace Entanglement.Patching
         }
     }
 
-    [HarmonyPatch(typeof(Gun), "EmptyFire")]
-    public class GunEmptyFirePatch
-    {
-        public static void Prefix(Gun __instance)
-        {
-            if (__instance == null) return;
-            TransformSyncable gunSync = TransformSyncable.cache.Get(__instance.gameObject);
-            if (gunSync == null || !gunSync.IsOwner()) return;
-        }
-    }
-
     [HarmonyPatch(typeof(BalloonGun), "OnFire")]
     public class BalloonShotPatch
     {
