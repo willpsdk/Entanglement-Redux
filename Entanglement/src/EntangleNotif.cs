@@ -13,12 +13,12 @@ namespace Entanglement
 
         public static void PlayerJoin(string username)
         {
-            Notifications.SendNotification($"{username} has joined the server!", 4f);
+            try { Notifications.SendNotification($"{username} has joined the server!", 4f); } catch { }
         }
 
         public static void PlayerLeave(string username)
         {
-            Notifications.SendNotification($"{username} has left the server!", 4f);
+            try { Notifications.SendNotification($"{username} has left the server!", 4f); } catch { }
         }
 
         public static void PlayerDisconnect(DisconnectReason reason)
@@ -28,12 +28,12 @@ namespace Entanglement
                 return;
 
             lastDisconnectNotifTime = UnityEngine.Time.time;
-            Notifications.SendNotification($"You were disconnected for reason {reason}.", 4f);
+            try { Notifications.SendNotification($"You were disconnected for reason {reason}.", 4f); } catch { }
         }
 
         public static void JoinServer(string username)
         {
-            Notifications.SendNotification($"Joined {username}'s server!", 4f);
+            try { Notifications.SendNotification($"Joined {username}'s server!", 4f); } catch { }
         }
 
         public static void LeftServer()
@@ -43,18 +43,18 @@ namespace Entanglement
                 return;
 
             lastDisconnectNotifTime = UnityEngine.Time.time;
-            Notifications.SendNotification("You left the server.", 4f);
+            try { Notifications.SendNotification("You left the server.", 4f); } catch { }
         }
 
         // --- NEW NOTIFICATIONS FOR SERVER HOSTING ---
         public static void ServerStarted()
         {
-            Notifications.SendNotification("Server started!", 4f);
+            try { Notifications.SendNotification("Server started!", 4f); } catch { }
         }
 
         public static void ServerStopped()
         {
-            Notifications.SendNotification("Server stopped!", 4f);
+            try { Notifications.SendNotification("Server stopped!", 4f); } catch { }
         }
     }
 }

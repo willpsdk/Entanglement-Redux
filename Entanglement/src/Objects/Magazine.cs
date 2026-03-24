@@ -2,6 +2,7 @@ using System;
 using UnityEngine;
 using StressLevelZero.Props.Weapons;
 using StressLevelZero.Data;
+using HarmonyLib;
 
 namespace Entanglement.Objects
 {
@@ -48,6 +49,23 @@ namespace Entanglement.Objects
             if (field != null) { field.SetValue(magazine, value); return; }
             var prop = type.GetProperty("cartridgeStates");
             if (prop != null && prop.CanWrite) { prop.SetValue(magazine, value); }
+        }
+    }
+
+    namespace Entanglement.Objects
+    {
+        // This helper uses Harmony to sneakily grab the private bullet count from the game's code!
+        public static class MagazineReflectionHelper
+        {
+            public static object GetCartridgeStates(StressLevelZero.Props.Weapons.Magazine magazine)
+            {
+                return AccessTools.Field(typeof(StressLevelZero.Props.Weapons.Magazine), "cartridgeStates")?.GetValue(magazine);
+            }
+
+            public static void SetCartridgeStates(StressLevelZero.Props.Weapons.Magazine magazine, int ammoCount)
+            {
+                AccessTools.Field(typeof(StressLevelZero.Props.Weapons.Magazine), "cartridgeStates")?.SetValue(magazine, ammoCount);
+            }
         }
     }
 }

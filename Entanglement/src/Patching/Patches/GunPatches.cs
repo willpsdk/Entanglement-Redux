@@ -1,61 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using UnityEngine;
-
-using StressLevelZero.Combat;
-using StressLevelZero.Props.Weapons;
-using StressLevelZero.Pool;
-
-using Entanglement.Data;
-using Entanglement.Network;
-using Entanglement.Objects; // Needed for cache check
-
+﻿using Entanglement.Objects;
 using HarmonyLib;
+using StressLevelZero.Props.Weapons;
 
 namespace Entanglement.Patching
 {
-    [HarmonyPatch(typeof(Gun), "OnFire")]
-    public class GunShotPatch
+    // Make sure we are patching BONEWORKS' "EmptyFire" method, not "OnDryFire"
+    [HarmonyPatch(typeof(Gun), "EmptyFire")]
+    public class GunEmptyFirePatch
     {
-        public static void Prefix(Gun __instance) {
-            BulletObject bulletObject = __instance.chamberedCartridge;
-            Transform firePoint = __instance.firePointTransform;
+        public static void Prefix(Gun __instance)
+        {
+            // CRITICAL IL2CPP/Unity Null Check
+            if (__instance == null || __instance.Pointer == System.IntPtr.Zero) return;
 
-            if (!firePoint || !bulletObject) return;
+            // Ensure we only broadcast if we are holding the gun and own it network-wise
+            TransformSyncable gunSync = TransformSyncable.cache.Get(__instance.gameObject);
+            if (!gunSync || !gunSync.IsOwner()) return;
 
-            GunShotMessageData shotData = new GunShotMessageData()
-            {
-                userId = SteamIntegration.currentUser.m_SteamID,
-                bulletObject = bulletObject,
-                bulletTransform = new SimplifiedTransform(firePoint)
-            };
-
-            NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.GunShot, shotData);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Attack, message.GetBytes());
         }
     }
 
-    [HarmonyPatch(typeof(BalloonGun), "OnFire")]
-    public class BalloonShotPatch
-    {
-        public static void Prefix(BalloonGun __instance) {
-            Transform firePoint = __instance.firePointTransform;
-
-            if (!firePoint) return;
-
-            BalloonShotMessageData balloonData = new BalloonShotMessageData()
-            {
-                userId = SteamIntegration.currentUser.m_SteamID,
-                balloonColor = __instance.currentColor,
-                balloonTransform = new SimplifiedTransform(firePoint),
-            };
-
-            NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.BalloonShot, balloonData);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Attack, message.GetBytes());
-        }
-    }
 }
