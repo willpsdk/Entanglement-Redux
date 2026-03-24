@@ -29,11 +29,11 @@ namespace Entanglement.Representation
         public static Transform[] syncedPoints = new Transform[3];
         public static Transform syncedRoot;
 
-        // FIX: Increase sync rate to 60Hz for buttery smooth movement (1/60 = 0.0167 seconds between syncs)
+        // Increase sync rate to 60Hz for buttery smooth movement (1/60 = 0.0167 seconds between syncs)
         private static float lastPlayerSyncTime = 0f;
         private const float PLAYER_SYNC_INTERVAL = 1f / 60f;
 
-        // FIX: Increase animation sync to 60Hz for smooth animation matching body movement (1/60 = 0.0167 seconds between syncs)
+        // Increase animation sync to 60Hz for smooth animation matching body movement (1/60 = 0.0167 seconds between syncs)
         private static float lastAnimationSyncTime = 0f;
         private const float ANIMATION_SYNC_INTERVAL = 1f / 60f;
 
@@ -86,12 +86,12 @@ namespace Entanglement.Representation
         public ulong playerId;
         public bool isGrounded;
 
-        // FIX: Cache renderers to avoid expensive GetComponentsInChildren every frame
+        // Cache renderers to avoid expensive GetComponentsInChildren every frame
         private Renderer[] _cachedRenderers = null;
         private float _rendererCheckTimer = 0f;
         private float rendererCheckInterval = 0.5f; // Only check every 0.5 seconds
 
-        // FIX: Talking animation state
+        // Talking animation state
         private bool isTalking = false;
         private float talkingAnimationBlend = 0f;
 
@@ -124,7 +124,7 @@ namespace Entanglement.Representation
             if (currentSkinBundle) currentSkinBundle.Unload(false);
         }
 
-        // FIX: Helper to set layer for all child objects (prevents zone culling)
+        // Helper to set layer for all child objects (prevents zone culling)
         private static void SetLayerRecursive(GameObject obj, int layer)
         {
             if (obj == null) return;
@@ -374,11 +374,15 @@ namespace Entanglement.Representation
         public void SaveVelocity()
         {
             Vector3 currentPosition = repRoot.position;
-            float dt = Time.fixedDeltaTime;
+            
+            // STAIRS FIX 1: Use deltaTime instead of fixedDeltaTime
+            float dt = Time.deltaTime; 
             Vector3 targetVel = PhysicsData.GetVelocity(currentPosition, prevRepRootPos, dt);
 
             if (targetVel.sqrMagnitude < 0.01f) targetVel = Vector3.zero;
-            repSavedVel = Vector3.Slerp(repInputVel, targetVel, dt * legJitter);
+            
+            // STAIRS FIX 2: Change Slerp to Lerp. Slerping linear velocity causes arcs that kick legs upwards!
+            repSavedVel = Vector3.Lerp(repInputVel, targetVel, dt * legJitter); 
 
             if (isGrounded) repInputVel = repSavedVel;
             else repInputVel = Vector3.zero;
@@ -386,7 +390,7 @@ namespace Entanglement.Representation
             prevRepRootPos = currentPosition;
         }
 
-        // --- FIX BUG 3: Centralized and proper logic for restoring culled renderers ---
+        // Centralized and proper logic for restoring culled renderers
         public void EnsureRepVisible()
         {
             if (repRoot == null) return;
@@ -424,7 +428,7 @@ namespace Entanglement.Representation
                 if ((!currentSkinBundle || !currentSkinObject) && isCustomSkinned)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
 
-                // --- FIX BUG 2: Called BEFORE the null guard, otherwise it never restores invisible players! ---
+                // Called BEFORE the null guard, otherwise it never restores invisible players!
                 EnsureRepVisible();
 
                 if (!activeAnimator || !repAnimationManager || !repBody)
@@ -436,7 +440,7 @@ namespace Entanglement.Representation
                 repBody.FullBodyUpdate(repInputVel, Vector3.zero);
                 if (repBody.ArtToBlender != null) repBody.ArtToBlender.UpdateBlender();
 
-                // FIX: Update talking animation blend smoothly
+                // Update talking animation blend smoothly
                 if (isTalking)
                 {
                     talkingAnimationBlend = Mathf.Lerp(talkingAnimationBlend, 1f, Time.deltaTime * 5f);
@@ -704,11 +708,10 @@ namespace Entanglement.Representation
                     rep.repRoot.gameObject.SetActive(true);
                 }
 
-                if (rep.interpolationAlpha < 1f)
-                {
-                    rep.interpolationAlpha += Time.fixedDeltaTime * 10f; 
-                    rep.repRoot.position = Vector3.Lerp(rep.lastSyncPosition, rep.targetSyncPosition, rep.interpolationAlpha);
-                }
+                // STAIRS FIX 3: Removed the broken interpolationAlpha logic.
+                // At 60Hz, packets arrive every 0.016s, but alpha was taking 0.1s to finish.
+                // This continuous Lerp smoothly tracks 60Hz streams and prevents mid-air floating on stairs.
+                rep.repRoot.position = Vector3.Lerp(rep.repRoot.position, rep.targetSyncPosition, Time.deltaTime * 20f);
 
                 // Call UpdateIK which safely handles all visibility restoration logic unconditionally
                 rep.UpdateIK();
