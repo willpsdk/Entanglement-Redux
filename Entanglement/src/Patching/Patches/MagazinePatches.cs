@@ -67,7 +67,7 @@ namespace Entanglement.Patching {
                 magId = magSync.objectId,
                 gunId = gunSync.objectId,
                 isInsert = false,
-                ammoCount = __instance.magazine.cartridges // FIX: Send exact remaining bullets on eject
+                ammoCount = __instance.magazine.cartridgeStates // FIX: Send exact remaining bullets on eject
             };
             NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.MagazinePlug, plugData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
@@ -97,7 +97,7 @@ namespace Entanglement.Patching {
                 magId = magSync.objectId,
                 gunId = gunSync.objectId,
                 isInsert = true,
-                ammoCount = __instance.magazine.cartridges // FIX: Send exact remaining bullets on insert
+                ammoCount = __instance.magazine.cartridgeStates // FIX: Send exact remaining bullets on insert
             };
 
             NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.MagazinePlug, plugData);

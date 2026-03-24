@@ -122,7 +122,8 @@ namespace Entanglement.Network
                     AIBrain brain = npcCache[npcInstanceId].GetComponent<AIBrain>();
                     if (brain != null && brain.navMeshAgent != null)
                     {
-                        brain.navMeshAgent.enabled = false; // Disable local pathfinding so it strictly follows the Host
+                        UnityEngine.AI.NavMeshAgent agent = brain.GetComponent<UnityEngine.AI.NavMeshAgent>();
+                        if (agent != null) agent.enabled = false;
                     }
                 }
 

@@ -21,7 +21,7 @@ using ModThatIsNotMod;
 
 namespace Entanglement.Representation
 {
-    public class PlayerRepresentation
+    public partial class PlayerRepresentation
     {
         public static float legJitter = 10f;
         public static Dictionary<ulong, PlayerRepresentation> representations = new Dictionary<ulong, PlayerRepresentation>();
@@ -96,6 +96,7 @@ namespace Entanglement.Representation
         private float talkingAnimationBlend = 0f;
 
 #if DEBUG
+        public static bool debugShowPhysics = false;
         public static PlayerRepresentation debugRepresentation;
 #endif
 

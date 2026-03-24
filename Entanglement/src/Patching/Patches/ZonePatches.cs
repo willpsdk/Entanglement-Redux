@@ -13,6 +13,7 @@ namespace Entanglement.Patching
         public static Dictionary<SceneZone, int> zoneCount = new Dictionary<SceneZone, int>();
         public static Dictionary<PlayerTrigger, int> triggerCount = new Dictionary<PlayerTrigger, int>();
         public static bool networkIgnore = false; 
+        public static bool networkReplay = false; // Added for network replay error
 
         public static bool CanEnter(SceneZone zone)
         {
