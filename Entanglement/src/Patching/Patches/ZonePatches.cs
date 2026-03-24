@@ -4,6 +4,7 @@ using StressLevelZero.Zones;
 using UnityEngine;
 using System.Collections.Generic;
 using MelonLoader;
+using Entanglement.Data;
 
 namespace Entanglement.Patching
 {
@@ -11,7 +12,7 @@ namespace Entanglement.Patching
     {
         public static Dictionary<SceneZone, int> zoneCount = new Dictionary<SceneZone, int>();
         public static Dictionary<PlayerTrigger, int> triggerCount = new Dictionary<PlayerTrigger, int>();
-        public static bool networkIgnore = false; // Prevents infinite loops when triggered by network
+        public static bool networkIgnore = false; 
 
         public static bool CanEnter(SceneZone zone)
         {
@@ -26,6 +27,30 @@ namespace Entanglement.Patching
             zoneCount[zone]--;
             return zoneCount[zone] <= 0;
         }
+
+        // FIX: The Network Override. Call this when receiving a ZoneTriggerMessage from the Host!
+        public static void ForceZoneTriggerFromNetwork(string zoneName)
+        {
+            GameObject zoneObj = GameObject.Find(zoneName);
+            if (zoneObj != null)
+            {
+                SceneZone zone = zoneObj.GetComponent<SceneZone>();
+                if (zone != null && PlayerScripts.playerRig != null)
+                {
+                    EntangleLogger.Log($"[ZoneSync] Forcing local Zone Trigger for: {zoneName}", System.ConsoleColor.Yellow);
+                    networkIgnore = true; // Prevent infinite network loops
+                    
+                    // Grab the player's collider to fool the zone into triggering locally
+                    Collider playerCollider = PlayerScripts.playerRig.GetComponentInChildren<Collider>();
+                    if (playerCollider != null)
+                    {
+                        zone.OnTriggerEnter(playerCollider);
+                    }
+                    
+                    networkIgnore = false;
+                }
+            }
+        }
     }
 
     [HarmonyPatch(typeof(SceneZone), "OnTriggerEnter")]
@@ -33,28 +58,22 @@ namespace Entanglement.Patching
     {
         public static bool Prefix(SceneZone __instance, Collider other)
         {
-            // CRITICAL FIX: Return immediately if any critical parameter is null
-            if (__instance == null || other == null)
-                return true;
+            if (__instance == null || other == null) return true;
+            if (ZoneTrackingUtilities.networkIgnore) return true; // Ignore artificial network triggers
 
             try
             {
-                // Quick early returns for non-Player objects
-                if (!other.CompareTag("Player"))
-                    return true;
-
-                if (ZoneTrackingUtilities.networkIgnore)
-                    return true;
+                if (!other.CompareTag("Player")) return true;
 
                 bool canEnter = ZoneTrackingUtilities.CanEnter(__instance);
 
-                // Only broadcast if we're the host with a lobby and have an active node
                 if (canEnter && SteamIntegration.isHost && SteamIntegration.hasLobby && Node.activeNode != null)
                 {
                     try
                     {
                         if (__instance.gameObject != null)
                         {
+                            // Send the exact zone name to the clients so they can spawn the same enemies
                             ZoneTriggerMessageData triggerData = new ZoneTriggerMessageData
                             {
                                 zonePath = __instance.gameObject.name
@@ -69,7 +88,6 @@ namespace Entanglement.Patching
                     }
                     catch (System.Exception ex)
                     {
-                        // Silently fail on broadcast - don't crash the zone
                         EntangleLogger.Verbose($"[ZoneEnterPatch] Broadcast failed: {ex.Message}");
                     }
                 }
@@ -78,7 +96,6 @@ namespace Entanglement.Patching
             }
             catch
             {
-                // If anything goes wrong, just let the original method run
                 return true;
             }
         }
