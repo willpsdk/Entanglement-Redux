@@ -266,15 +266,14 @@ namespace Entanglement.Representation
                 repCanvasTransform = repCanvas.transform;
                 repCanvasTransform.localScale = Vector3.one / 200.0f;
 
+                repCanvasTransform.SetParent(repRoot, true);
+
+                repCanvasTransform.localScale = Vector3.one / 200.0f; 
+
                 if (repTransforms[0] != null)
-                {
-                    repCanvasTransform.SetParent(repTransforms[0], false);
-                    repCanvasTransform.localPosition = Vector3.up * 0.4f;
-                }
+                    repCanvasTransform.position = repTransforms[0].position + Vector3.up * 0.35f;
                 else
-                {
-                    repCanvasTransform.position = repRoot.position + Vector3.up * 0.4f;
-                }
+                    repCanvasTransform.position = repRoot.position + Vector3.up * 0.35f;
 
                 repNameText = repCanvas.AddComponent<TextMeshProUGUI>();
                 repNameText.alignment = TextAlignmentOptions.Midline;
@@ -717,7 +716,13 @@ namespace Entanglement.Representation
                 rep.UpdateIK();
                 
                 if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
+                {
                     rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
+                    if (rep.repTransforms[0] != null)
+                    {
+                        rep.repCanvasTransform.position = rep.repTransforms[0].position + Vector3.up * 0.35f;
+                    }
+                }
             }
         }
     }

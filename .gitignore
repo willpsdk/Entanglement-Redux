@@ -28,3 +28,8 @@ bin/Release/0Harmony.dll
 .vs/Entanglement-Redux/v18/DocumentLayout.backup.json
 .vs/Entanglement-Redux/FileContentIndex/ae27e255-5905-4a20-a968-4c25d8521154.vsidx
 Entanglement/obj/Release/Entanglement.pdb
+Entanglement/src/Network/Messages/.DS_Store
+Entanglement/src/Data/.DS_Store
+Entanglement/src/.DS_Store
+Entanglement/.DS_Store
+.DS_Store

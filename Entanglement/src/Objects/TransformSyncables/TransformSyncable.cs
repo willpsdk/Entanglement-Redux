@@ -35,6 +35,12 @@ namespace Entanglement.Objects
         public GameObject targetGo;
         public ConfigurableJoint syncJoint;
 
+        // --- 60Hz Smooth Interpolation Targets ---
+        public Vector3 targetSyncPosition = Vector3.zero;
+        public Quaternion targetSyncRotation = Quaternion.identity;
+        public Vector3 targetSyncVelocity = Vector3.zero;
+        public Vector3 targetSyncAngularVelocity = Vector3.zero;
+
         public Gun _CachedGun;
         public MagazinePlug _CachedPlug;
 
@@ -46,7 +52,7 @@ namespace Entanglement.Objects
         public const float maximumForce = 150000f;
         public const float linearLimit = 0.005f;
 
-        // FIX: Increase to 60Hz for smooth object sync matching player sync (1/60 = 0.0167 seconds between syncs)
+        // Increase to 60Hz for smooth object sync matching player sync (1/60 = 0.0167 seconds between syncs)
         private float lastSyncTime = 0f;
         private const float OBJECT_SYNC_INTERVAL = 1f / 60f;
 
@@ -68,7 +74,7 @@ namespace Entanglement.Objects
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit object syncs to 20 Hz to reduce network traffic
+            // Rate limit object syncs to 60 Hz
             lastSyncTime += Time.fixedDeltaTime;
             if (lastSyncTime < OBJECT_SYNC_INTERVAL)
                 return;
@@ -225,7 +231,31 @@ namespace Entanglement.Objects
             if (isValid)
             {
                 JointCheck();
-                if (!IsOwner()) SetHealth(float.PositiveInfinity);
+                if (!IsOwner())
+                {
+                    SetHealth(float.PositiveInfinity);
+
+                    // --- SMOOTHING FIX: Continuous 60Hz Interpolation for Objects ---
+                    // Wait until we have valid data so objects don't fly to 0,0,0 initially
+                    if (targetSyncPosition != Vector3.zero) 
+                    {
+                        if (targetBody)
+                        {
+                            // Smoothly move the kinematic target that pulls the joint
+                            targetBody.transform.position = Vector3.Lerp(targetBody.transform.position, targetSyncPosition, Time.fixedDeltaTime * 20f);
+                            targetBody.transform.rotation = Quaternion.Slerp(targetBody.transform.rotation, targetSyncRotation, Time.fixedDeltaTime * 20f);
+                            
+                            targetBody.velocity = Vector3.Lerp(targetBody.velocity, targetSyncVelocity, Time.fixedDeltaTime * 15f);
+                            targetBody.angularVelocity = Vector3.Lerp(targetBody.angularVelocity, targetSyncAngularVelocity, Time.fixedDeltaTime * 15f);
+                        }
+                        else if (!rb)
+                        {
+                            // Fallback smoothing for purely visual objects (No Rigidbody)
+                            transform.position = Vector3.Lerp(transform.position, targetSyncPosition, Time.fixedDeltaTime * 20f);
+                            transform.rotation = Quaternion.Slerp(transform.rotation, targetSyncRotation, Time.fixedDeltaTime * 20f);
+                        }
+                    }
+                }
             }
         }
 
@@ -342,26 +372,25 @@ namespace Entanglement.Objects
                 rb.Sleep();
             }
 
-            if (targetBody)
-            {
-                targetBody.transform.position = simplifiedTransform.position;
-                targetBody.transform.rotation = simplifiedTransform.rotation.ExpandQuat();
+            // --- SMOOTHING FIX: Cache the target data instead of violently teleporting the targetBody instantly ---
+            targetSyncPosition = simplifiedTransform.position;
+            targetSyncRotation = simplifiedTransform.rotation.ExpandQuat();
 
-                if (!simplifiedTransform.isSleeping)
-                {
-                    targetBody.velocity = simplifiedTransform.velocity;
-                    targetBody.angularVelocity = simplifiedTransform.angularVelocity;
-                }
+            if (!simplifiedTransform.isSleeping)
+            {
+                targetSyncVelocity = simplifiedTransform.velocity;
+                targetSyncAngularVelocity = simplifiedTransform.angularVelocity;
+            }
+            else
+            {
+                targetSyncVelocity = Vector3.zero;
+                targetSyncAngularVelocity = Vector3.zero;
             }
 
-            if (!rb)
+            if (rb && !syncJoint && !simplifiedTransform.isSleeping)
             {
-                simplifiedTransform.Apply(transform);
-            }
-            else if (!syncJoint && !simplifiedTransform.isSleeping)
-            {
-                rb.velocity = simplifiedTransform.velocity;
-                rb.angularVelocity = simplifiedTransform.angularVelocity;
+                rb.velocity = targetSyncVelocity;
+                rb.angularVelocity = targetSyncAngularVelocity;
             }
 
             if (!transform.gameObject.activeInHierarchy && Mathf.Abs(Time.realtimeSinceStartup - timeOfDisable) >= 2f)
@@ -380,6 +409,10 @@ namespace Entanglement.Objects
             targetBody.isKinematic = true;
             targetBody.transform.position = transform.position;
             targetBody.transform.rotation = transform.rotation;
+
+            // --- SMOOTHING FIX: Initialize targets to prevent item rocketing to Vector3.zero on spawn ---
+            targetSyncPosition = transform.position;
+            targetSyncRotation = transform.rotation;
 
             DestroyJoint();
 

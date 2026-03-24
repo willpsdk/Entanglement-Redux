@@ -48,26 +48,17 @@ namespace Entanglement.Patching {
         {
             TransformSyncable magSync = TransformSyncable.cache.GetOrAdd(__instance.magazine.gameObject);
             if (!magSync || !magSync.IsOwner()) {
-#if DEBUG
-                EntangleLogger.Log("Not owner of mag or not synced!");
-#endif
                 return;
             }
 
             MagazineSocket magSocket = __instance._lastSocket.Cast<MagazineSocket>();
             Gun gun = magSocket.GetComponentInParent<Gun>();
             if (!gun) {
-#if DEBUG
-                EntangleLogger.Log("No gun found!");
-#endif
                 return;
             }
 
             TransformSyncable gunSync = TransformSyncable.cache.GetOrAdd(gun.gameObject);
             if (!gunSync || !gunSync.IsOwner()) {
-#if DEBUG
-                EntangleLogger.Log("Not owner of gun or not synced!");
-#endif
                 return;
             }
 
@@ -76,13 +67,10 @@ namespace Entanglement.Patching {
                 magId = magSync.objectId,
                 gunId = gunSync.objectId,
                 isInsert = false,
+                ammoCount = __instance.magazine.cartridges // FIX: Send exact remaining bullets on eject
             };
             NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.MagazinePlug, plugData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
-
-#if DEBUG
-            EntangleLogger.Log($"Magazine exited from {__instance.name}! Magazine id is {plugData.magId} and gun id is {plugData.gunId}.");
-#endif
         }
     }
 
@@ -91,41 +79,29 @@ namespace Entanglement.Patching {
         public static void Postfix(MagazinePlug __instance) {
             TransformSyncable magSync = TransformSyncable.cache.GetOrAdd(__instance.magazine.gameObject);
             if (!magSync || !magSync.IsOwner()) {
-#if DEBUG
-                EntangleLogger.Log("Not owner of mag or not synced!");
-#endif
                 return;
             }
 
             MagazineSocket magSocket = __instance._lastSocket.Cast<MagazineSocket>();
             Gun gun = magSocket.GetComponentInParent<Gun>();
             if (!gun) {
-#if DEBUG
-                EntangleLogger.Log("No gun found!");
-#endif
                 return; 
             }
 
             TransformSyncable gunSync = TransformSyncable.cache.GetOrAdd(gun.gameObject);
             if (!gunSync || !gunSync.IsOwner()) {
-#if DEBUG
-                EntangleLogger.Log("Not owner of gun or not synced!");
-#endif
                 return;
             }
 
             MagazinePlugMessageData plugData = new MagazinePlugMessageData() {
                 magId = magSync.objectId,
                 gunId = gunSync.objectId,
-                isInsert = true
+                isInsert = true,
+                ammoCount = __instance.magazine.cartridges // FIX: Send exact remaining bullets on insert
             };
 
             NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.MagazinePlug, plugData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
-
-#if DEBUG
-            EntangleLogger.Log($"Magazine inserted into {__instance.name}! Magazine id is {plugData.magId} and gun id is {plugData.gunId}.");
-#endif
         }
     }
 }

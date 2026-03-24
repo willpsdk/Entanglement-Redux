@@ -25,7 +25,8 @@ namespace Entanglement.Network
         {
             NetworkMessage message = new NetworkMessage();
 
-            message.messageData = new byte[sizeof(ushort) * 2 + sizeof(bool)];
+            // FIX: Expand the byte array to hold an integer for the ammo count (4 bytes)
+            message.messageData = new byte[sizeof(ushort) * 2 + sizeof(bool) + sizeof(int)];
 
             int index = 0;
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.magId), ref index);
@@ -33,6 +34,9 @@ namespace Entanglement.Network
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.gunId), ref index);
 
             message.messageData[index++] = Convert.ToByte(data.isInsert);
+
+            // FIX: Serialize the exact ammo count
+            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.ammoCount), ref index);
 
             return message;
         }
@@ -46,10 +50,6 @@ namespace Entanglement.Network
             if (message.messageData.Length <= 0)
                 throw new IndexOutOfRangeException();
 
-#if DEBUG
-            EntangleLogger.Log("Got past load and length!");
-#endif
-
             int index = 0;
             ushort magId = BitConverter.ToUInt16(message.messageData, index);
             index += sizeof(ushort);
@@ -58,10 +58,6 @@ namespace Entanglement.Network
             index += sizeof(ushort);
 
             if (ObjectSync.TryGetSyncable(magId, out Syncable magazine) && ObjectSync.TryGetSyncable(gunId, out Syncable gun)) {
-#if DEBUG
-                EntangleLogger.Log("Got syncables!");
-#endif
-
                 TransformSyncable syncMag = magazine.TryCast<TransformSyncable>();
                 TransformSyncable syncGun = gun.TryCast<TransformSyncable>();
 
@@ -70,14 +66,21 @@ namespace Entanglement.Network
                     if (syncMag._CachedPlug && syncGun._CachedGun) {
 
                         bool isInsert = Convert.ToBoolean(message.messageData[index++]);
+                        
+                        // FIX: Deserialize the exact ammo count
+                        int ammoCount = BitConverter.ToInt32(message.messageData, index);
+                        index += sizeof(int);
 
                         MagazineSocket magSocket = syncGun._CachedGun.magazineSocket;
 
                         if (isInsert) {
+                            // FIX: Force overwrite the physical bullet count before inserting!
+                            // This ensures late-joiners or dropped guns don't generate ghost bullets.
+                            syncMag._CachedPlug.magazine.cartridges = ammoCount;
                             syncMag._CachedPlug.InsertPlug(magSocket);
 
 #if DEBUG
-                            EntangleLogger.Log("Trying to insert a magazine!");
+                            EntangleLogger.Log($"Inserting a magazine with exactly {ammoCount} bullets!");
 #endif
                         }
                         else {
@@ -88,16 +91,7 @@ namespace Entanglement.Network
 #endif
                         }
                     }
-#if DEBUG
-                    else
-                        EntangleLogger.Log($"No cached plug or gun? Object names are mag {syncMag.name} and gun {syncGun.name}.");
-#endif
                 }
-#if DEBUG
-                else {
-                    EntangleLogger.Log("Failed to cast syncables to TransformSyncable!");
-                }
-#endif
             }
 
             if (Server.instance != null) {
@@ -112,5 +106,7 @@ namespace Entanglement.Network
         public ushort magId;
         public ushort gunId;
         public bool isInsert = true;
+        // FIX: Add ammo count variable to message data
+        public int ammoCount = 0; 
     }
 }

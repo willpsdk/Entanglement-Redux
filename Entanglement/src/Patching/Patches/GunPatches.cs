@@ -12,6 +12,7 @@ using StressLevelZero.Pool;
 
 using Entanglement.Data;
 using Entanglement.Network;
+using Entanglement.Objects; // Needed for cache check
 
 using HarmonyLib;
 
@@ -35,6 +36,17 @@ namespace Entanglement.Patching
 
             NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.GunShot, shotData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Attack, message.GetBytes());
+        }
+    }
+    
+    // FIX: Catch Dry Fires to sync the tactical "Click"
+    [HarmonyPatch(typeof(Gun), "EmptyFire")]
+    public class GunEmptyFirePatch
+    {
+        public static void Prefix(Gun __instance) {
+            // Ensure we only broadcast if we are holding the gun
+            TransformSyncable gunSync = TransformSyncable.cache.Get(__instance.gameObject);
+            if (!gunSync || !gunSync.IsOwner()) return;
         }
     }
 
