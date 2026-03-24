@@ -386,8 +386,6 @@
     <Compile Include="src\Extensions\XElement.cs" />
     <Compile Include="src\Managers\PlayerDeathManager.cs" />
     <Compile Include="src\Managers\RagdollBehaviour.cs" />
-    <Compile Include="src\Managers\VoiceChatManager.cs" />
-    <Compile Include="src\Managers\StoryModeSync.cs" />
     <Compile Include="src\Modularity\DllTools.cs" />
     <Compile Include="src\Modularity\Module.cs" />
     <Compile Include="src\Modularity\ModuleHandler.cs" />
@@ -481,7 +479,6 @@
     <Compile Include="src\UI\ServerUI.cs" />
     <Compile Include="src\UI\StatsUI.cs" />
     <Compile Include="src\UI\UI.cs" />
-    <Compile Include="src\UI\VoiceUI.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="managed\" />
@@ -504,4 +501,3 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
-
