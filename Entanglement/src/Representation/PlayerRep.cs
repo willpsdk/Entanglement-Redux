@@ -158,7 +158,7 @@ namespace Entanglement.Representation
                 }
 
                 EntangleLogger.Verbose("[RepCreation]   Loading holographic material...");
-                Material holographicMat = playerRepBundle.LoadAsset<Material>("PlayerHolographic");
+                Material holographicMat = playerRepBundle.LoadAsset("PlayerHolographic").Cast<Material>();
                 if (holographicMat == null)
                 {
                     EntangleLogger.Warn("▌[RepCreation]   ⚠ PlayerHolographic material not found in bundle");
@@ -170,14 +170,14 @@ namespace Entanglement.Representation
                 }
 
                 EntangleLogger.Verbose("[RepCreation]   Instantiating player representation model...");
-                GameObject playerRepPrefab = playerRepBundle.LoadAsset<GameObject>("PlayerRep");
+                GameObject playerRepPrefab = playerRepBundle.LoadAsset("PlayerRep").Cast<GameObject>();
                 if (playerRepPrefab == null)
                 {
                     EntangleLogger.Error("[RepCreation] PlayerRep prefab not found in bundle!");
                     return;
                 }
 
-                repFord = GameObject.Instantiate(playerRepPrefab);
+                repFord = UnityEngine.Object.Instantiate(playerRepPrefab).Cast<GameObject>();
                 repFord.name = $"PlayerRep.{playerId}";
 
                 repRoot = repFord.transform;
@@ -278,7 +278,7 @@ namespace Entanglement.Representation
 
                 repCanvasTransform.SetParent(repRoot, true);
 
-                repCanvasTransform.localScale = Vector3.one / 200.0f; 
+                repCanvasTransform.localScale = Vector3.one / 200.0f;
 
                 if (repTransforms[0] != null)
                     repCanvasTransform.position = repTransforms[0].position + Vector3.up * 0.35f;
@@ -321,7 +321,7 @@ namespace Entanglement.Representation
 
             GameObject ragdollRoot = new GameObject($"Ragdoll {Time.realtimeSinceStartup}");
 
-            GameObject newRagdoll = GameObject.Instantiate(ragdollBody.gameObject);
+            GameObject newRagdoll = UnityEngine.Object.Instantiate(ragdollBody.gameObject).Cast<GameObject>();
             newRagdoll.transform.parent = ragdollRoot.transform;
 
             Collider[] ragdollCols = newRagdoll.GetComponentsInChildren<Collider>(true);
@@ -383,15 +383,15 @@ namespace Entanglement.Representation
         public void SaveVelocity()
         {
             Vector3 currentPosition = repRoot.position;
-            
+
             // STAIRS FIX 1: Use deltaTime instead of fixedDeltaTime
-            float dt = Time.deltaTime; 
+            float dt = Time.deltaTime;
             Vector3 targetVel = PhysicsData.GetVelocity(currentPosition, prevRepRootPos, dt);
 
             if (targetVel.sqrMagnitude < 0.01f) targetVel = Vector3.zero;
-            
+
             // STAIRS FIX 2: Change Slerp to Lerp. Slerping linear velocity causes arcs that kick legs upwards!
-            repSavedVel = Vector3.Lerp(repInputVel, targetVel, dt * legJitter); 
+            repSavedVel = Vector3.Lerp(repInputVel, targetVel, dt * legJitter);
 
             if (isGrounded) repInputVel = repSavedVel;
             else repInputVel = Vector3.zero;
@@ -614,7 +614,7 @@ namespace Entanglement.Representation
             data.userId = (ulong)SteamIntegration.currentUser.m_SteamID;
 
             Vector3 currentPos = syncedRoot.position;
-            Vector3 posChange = currentPos - syncedRoot.position; 
+            Vector3 posChange = currentPos - syncedRoot.position;
 
             if (syncedPoints[0] != null)
             {
@@ -731,7 +731,7 @@ namespace Entanglement.Representation
 
                 // Call UpdateIK which safely handles all visibility restoration logic unconditionally
                 rep.UpdateIK();
-                
+
                 if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
                 {
                     rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
