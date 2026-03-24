@@ -28,17 +28,30 @@ namespace Entanglement.Network
                 SceneZone zone = targetZone.GetComponent<SceneZone>();
                 if (zone != null)
                 {
+                    // Create a throwaway collider for the replay — doesn't belong to the player rig
+                    GameObject phantom = new GameObject("ZoneReplayPhantom");
+                    phantom.tag = "Player";
+                    SphereCollider phantomCol = phantom.AddComponent<SphereCollider>();
+                    phantomCol.radius = 0.01f;
+                    phantomCol.isTrigger = true; // Prevents the dummy collider from pushing physical objects
+
+                    // Move it to where the zone is so physics doesn't complain
+                    phantom.transform.position = targetZone.transform.position;
+
                     // Temporarily bypass the patch tracking so the client actually runs the game's spawn method
                     ZoneTrackingUtilities.networkIgnore = true;
 
-                    // FIX: Changed from StressLevelZero.Player.PlayerScripts to Entanglement.Data.PlayerScripts
-                    if (PlayerScripts.playerRig != null)
+                    try
                     {
-                        Collider playerCol = PlayerScripts.playerRig.physicsRig.m_pelvis.GetComponent<Collider>();
-                        zone.OnTriggerEnter(playerCol);
+                        // Fire the zone trigger using the phantom collider instead of the local player's pelvis
+                        zone.OnTriggerEnter(phantomCol);
                     }
-
-                    ZoneTrackingUtilities.networkIgnore = false;
+                    finally
+                    {
+                        // Ensure networkIgnore is turned off and the phantom is destroyed even if an error occurs
+                        ZoneTrackingUtilities.networkIgnore = false;
+                        GameObject.Destroy(phantom);
+                    }
                 }
             }
         }

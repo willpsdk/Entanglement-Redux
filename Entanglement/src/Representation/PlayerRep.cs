@@ -141,14 +141,12 @@ namespace Entanglement.Representation
             {
                 EntangleLogger.Verbose($"[RepCreation] Starting for player {playerName} (ID: {playerId})");
 
-                // FIX: Null checks for bundle
                 if (playerRepBundle == null)
                 {
                     EntangleLogger.Error("[RepCreation] playerRepBundle is null! Cannot recreate representations.");
                     return;
                 }
 
-                // FIX: Load holographic material with null check
                 EntangleLogger.Verbose("[RepCreation]   Loading holographic material...");
                 Material holographicMat = playerRepBundle.LoadAsset<Material>("PlayerHolographic");
                 if (holographicMat == null)
@@ -161,7 +159,6 @@ namespace Entanglement.Representation
                     repHologram = Material.Instantiate(holographicMat);
                 }
 
-                // FIX: Load player rep model with null check
                 EntangleLogger.Verbose("[RepCreation]   Instantiating player representation model...");
                 GameObject playerRepPrefab = playerRepBundle.LoadAsset<GameObject>("PlayerRep");
                 if (playerRepPrefab == null)
@@ -176,8 +173,6 @@ namespace Entanglement.Representation
                 repRoot = repFord.transform;
                 EntangleLogger.Verbose("[RepCreation]   ✓ Model instantiated");
 
-                // FIX: Set player rep to a layer that won't be culled by zone systems
-                // Use "Default" layer to avoid NPC culling systems
                 int defaultLayer = LayerMask.NameToLayer("Default");
                 SetLayerRecursive(repRoot.gameObject, defaultLayer);
                 EntangleLogger.Verbose($"[RepCreation]   ✓ Set to layer: {defaultLayer}");
@@ -195,7 +190,6 @@ namespace Entanglement.Representation
                 Transform puncherSFXTrans = repRoot.Find("PuncherSFX");
                 if (puncherSFXTrans != null)
                 {
-                    // Try to get GravGunSFX first, fall back to GunSFX if not available
                     GravGunSFX gravGunSFX = puncherSFXTrans.GetComponent<GravGunSFX>();
                     if (gravGunSFX != null)
                     {
@@ -205,11 +199,6 @@ namespace Entanglement.Representation
                     {
                         EntangleLogger.Verbose("[RepCreation]   ⚠ GravGunSFX not found on PuncherSFX, attempting GunSFX fallback");
                         GunSFX gunSFX = puncherSFXTrans.GetComponent<GunSFX>();
-                        if (gunSFX != null)
-                        {
-                            // Create a temporary GravGunSFX wrapper or skip it
-                            EntangleLogger.Verbose("[RepCreation]   ⚠ Using GunSFX as fallback for PuncherSFX");
-                        }
                     }
                 }
 
@@ -231,7 +220,6 @@ namespace Entanglement.Representation
                     repAnimator = repAnimatorBody.GetComponent<Animator>();
                     if (repAnimator != null)
                     {
-                        // FIX: Null check for animator controller
                         if (PlayerScripts.playerAnimatorController != null)
                         {
                             repAnimator.runtimeAnimatorController = PlayerScripts.playerAnimatorController;
@@ -246,7 +234,6 @@ namespace Entanglement.Representation
 
                         repAnimationManager = repAnimatorBody.GetComponent<CharacterAnimationManager>();
 
-                        // Initialize animator state to idle/neutral
                         try
                         {
                             repAnimator.SetFloat("Speed", 0f);
@@ -259,17 +246,9 @@ namespace Entanglement.Representation
                             EntangleLogger.Warn($"[RepCreation]   ⚠ Error initializing animator state: {ex.Message}");
                         }
                     }
-                    else
-                    {
-                        EntangleLogger.Verbose("[RepCreation]   ⚠ Animator component not found on Brett@neutral");
-                    }
 
                     repGeo = repAnimatorBody.Find("geoGrp");
                     repSHJnt = repAnimatorBody.Find("SHJntGrp");
-                }
-                else
-                {
-                    EntangleLogger.Verbose("[RepCreation]   ⚠ Brett@neutral transform not found");
                 }
 
                 EntangleLogger.Verbose("[RepCreation]   Getting transform references...");
@@ -280,7 +259,6 @@ namespace Entanglement.Representation
                 colliders = repRoot.GetComponentsInChildren<Collider>();
                 EntangleLogger.Verbose($"[RepCreation]   Found {colliders.Length} colliders");
 
-                // Create and setup the nametag canvas after getting the head transform
                 EntangleLogger.Verbose("[RepCreation]   Creating nametag canvas...");
                 repCanvas = new GameObject("RepCanvas");
                 repCanvasComponent = repCanvas.AddComponent<Canvas>();
@@ -288,17 +266,14 @@ namespace Entanglement.Representation
                 repCanvasTransform = repCanvas.transform;
                 repCanvasTransform.localScale = Vector3.one / 200.0f;
 
-                // Parent canvas to head to keep it with the player representation
                 if (repTransforms[0] != null)
                 {
                     repCanvasTransform.SetParent(repTransforms[0], false);
                     repCanvasTransform.localPosition = Vector3.up * 0.4f;
-                    EntangleLogger.Verbose("[RepCreation]   ✓ Nametag parented to head");
                 }
                 else
                 {
                     repCanvasTransform.position = repRoot.position + Vector3.up * 0.4f;
-                    EntangleLogger.Verbose("[RepCreation]   ⚠ Nametag positioned at root");
                 }
 
                 repNameText = repCanvas.AddComponent<TextMeshProUGUI>();
@@ -306,27 +281,20 @@ namespace Entanglement.Representation
                 repNameText.enableAutoSizing = true;
                 repNameText.text = playerName;
 
-                // FIX: Add billboard script to make nametag always face player
                 repCanvas.AddComponent<NametagBillboard>();
 
-                // FIX: Hide nametag for local player so they can't see their own name
                 bool isLocalPlayer = playerId == SteamIntegration.currentUser.m_SteamID;
                 if (isLocalPlayer)
                 {
                     repCanvas.SetActive(false);
-                    EntangleLogger.Verbose($"[RepCreation]   ⚠ Nametag DISABLED for local player: {playerName} (ID: {playerId})");
                 }
                 else
                 {
                     repCanvas.SetActive(true);
-                    EntangleLogger.Verbose($"[RepCreation]   ✓ Nametag ENABLED for remote player: {playerName} (ID: {playerId})");
                 }
 
-                // FIX: Ensure all renderers are enabled so player doesn't disappear
-                foreach (Renderer renderer in repRoot.GetComponentsInChildren<Renderer>(true))
-                {
-                    renderer.enabled = true;
-                }
+                // Initial Renderer ensure call
+                EnsureRepVisible();
 
                 if (isCustomSkinned && currentSkinPath != null)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
@@ -418,12 +386,46 @@ namespace Entanglement.Representation
             prevRepRootPos = currentPosition;
         }
 
+        // --- FIX BUG 3: Centralized and proper logic for restoring culled renderers ---
+        public void EnsureRepVisible()
+        {
+            if (repRoot == null) return;
+
+            // Decrement the timer
+            _rendererCheckTimer -= Time.deltaTime;
+
+            // Rebuild the cache if null or if the timer expires (so new custom skins are caught)
+            if (_cachedRenderers == null || _rendererCheckTimer <= 0f)
+            {
+                _cachedRenderers = repRoot.GetComponentsInChildren<Renderer>(true);
+                _rendererCheckTimer = rendererCheckInterval;
+            }
+
+            // Iterate and un-cull anything that was disabled by the zone/boneworks systems
+            foreach (Renderer renderer in _cachedRenderers)
+            {
+                if (renderer != null && !renderer.enabled)
+                {
+                    renderer.enabled = true;
+                }
+            }
+
+            // Also ensure the main body object hasn't been turned off
+            if (repBody != null && repBody.gameObject != null && !repBody.gameObject.activeSelf)
+            {
+                repBody.gameObject.SetActive(true);
+            }
+        }
+
         public void UpdateIK()
         {
             try
             {
                 if ((!currentSkinBundle || !currentSkinObject) && isCustomSkinned)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
+
+                // --- FIX BUG 2: Called BEFORE the null guard, otherwise it never restores invisible players! ---
+                EnsureRepVisible();
 
                 if (!activeAnimator || !repAnimationManager || !repBody)
                     return;
@@ -433,21 +435,6 @@ namespace Entanglement.Representation
                 SaveVelocity();
                 repBody.FullBodyUpdate(repInputVel, Vector3.zero);
                 if (repBody.ArtToBlender != null) repBody.ArtToBlender.UpdateBlender();
-
-                // FIX: Ensure all renderers stay visible (prevents body disappearing in certain level areas)
-                // The level might have culling/visibility systems that disable renderers
-                if (repGeo != null)
-                {
-                    foreach (Renderer renderer in repGeo.GetComponentsInChildren<Renderer>(true))
-                    {
-                        if (renderer != null && !renderer.enabled)
-                            renderer.enabled = true;
-                    }
-                }
-
-                // Ensure body gameobject is active
-                if (repBody.gameObject != null && !repBody.gameObject.activeSelf)
-                    repBody.gameObject.SetActive(true);
 
                 // FIX: Update talking animation blend smoothly
                 if (isTalking)
@@ -488,7 +475,6 @@ namespace Entanglement.Representation
 
         public void UpdateFingers(Handedness hand, SimplifiedHand handData) => UpdateFingers(hand, handData.indexCurl, handData.middleCurl, handData.ringCurl, handData.pinkyCurl, handData.thumbCurl);
 
-        // FIX: Set talking state for mouth animation
         public void SetTalking(bool talking)
         {
             isTalking = talking;
@@ -507,13 +493,9 @@ namespace Entanglement.Representation
         {
             try
             {
-                // FIX: Better null checking and error handling
                 if (PlayerScripts.playerRig != null)
                 {
-                    // Set the root to the RigManager's transform
                     syncedRoot = PlayerScripts.playerRig.transform;
-
-                    // Use the direct references from the PhysicsRig rather than string searching
                     var physRig = PlayerScripts.playerRig.physicsRig;
 
                     if (physRig != null)
@@ -547,7 +529,6 @@ namespace Entanglement.Representation
                 }
                 else
                 {
-                    // Fallback just in case PlayerScripts hasn't initialized it yet
                     EntangleLogger.Verbose("[PlayerTransforms] PlayerScripts.playerRig is null, using fallback");
                     var rigManager = GameObject.FindObjectOfType<StressLevelZero.Rig.RigManager>();
                     if (rigManager != null && rigManager.physicsRig != null)
@@ -603,7 +584,6 @@ namespace Entanglement.Representation
             data.simplifiedLeftHand = new SimplifiedHand(PlayerScripts.playerLeftHand.fingerCurl);
             data.simplifiedRightHand = new SimplifiedHand(PlayerScripts.playerRightHand.fingerCurl);
 
-            // Add animation state
             if (syncedRoot != null)
             {
                 data.isJumping = !data.isGrounded;
@@ -614,18 +594,15 @@ namespace Entanglement.Representation
 
         public static AnimationSyncData GetAnimationSyncData()
         {
-            // Check if all required components are initialized
             if (syncedRoot == null || PlayerScripts.playerRig == null)
                 return null;
 
             AnimationSyncData data = new AnimationSyncData();
             data.userId = (ulong)SteamIntegration.currentUser.m_SteamID;
 
-            // Calculate movement speed based on position change
             Vector3 currentPos = syncedRoot.position;
-            Vector3 posChange = currentPos - syncedRoot.position; // This frame's position change
+            Vector3 posChange = currentPos - syncedRoot.position; 
 
-            // Use head position for more accurate movement calculation
             if (syncedPoints[0] != null)
             {
                 Vector3 headPos = syncedPoints[0].position;
@@ -635,11 +612,9 @@ namespace Entanglement.Representation
 
             data.movementSpeed = Mathf.Clamp(data.movementSpeed, 0f, 10f);
 
-            // Get grounding state
             data.isJumping = !PlayerScripts.playerGrounder.isGrounded;
             data.isFalling = !PlayerScripts.playerGrounder.isGrounded && data.jumpHeight < 0f;
 
-            // Get jump height from head rigidbody if available
             if (PlayerScripts.playerLeftHand != null && PlayerScripts.playerLeftHand.GetComponent<Rigidbody>() != null)
             {
                 Rigidbody headRb = PlayerScripts.playerLeftHand.GetComponent<Rigidbody>();
@@ -650,7 +625,6 @@ namespace Entanglement.Representation
                 }
             }
 
-            // Set animation state based on movement
             if (data.movementSpeed > 2f)
                 data.animState = 2; // Running
             else if (data.movementSpeed > 0.5f)
@@ -666,11 +640,9 @@ namespace Entanglement.Representation
             if (!SteamIntegration.hasLobby)
                 return;
 
-            // Ensure we have a valid node
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit player syncs to 30 Hz to reduce network traffic
             lastPlayerSyncTime += Time.deltaTime;
             if (lastPlayerSyncTime < PLAYER_SYNC_INTERVAL)
                 return;
@@ -696,11 +668,9 @@ namespace Entanglement.Representation
             if (!SteamIntegration.hasLobby)
                 return;
 
-            // Ensure we have a valid node
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit animation syncs to 20 Hz to reduce network traffic
             lastAnimationSyncTime += Time.deltaTime;
             if (lastAnimationSyncTime < ANIMATION_SYNC_INTERVAL)
                 return;
@@ -729,41 +699,20 @@ namespace Entanglement.Representation
             {
                 if (rep == null || rep.repRoot == null) continue;
 
-                // FIX: Ensure player representation stays visible
                 if (!rep.repRoot.gameObject.activeSelf)
                 {
                     rep.repRoot.gameObject.SetActive(true);
                 }
 
-                // FIX: Optimize renderer visibility check - cache renderers and only check periodically
-                rep._rendererCheckTimer += Time.fixedDeltaTime;
-                if (rep._rendererCheckTimer >= rep.rendererCheckInterval)
-                {
-                    rep._rendererCheckTimer = 0f;
-
-                    if (rep._cachedRenderers == null)
-                        rep._cachedRenderers = rep.repRoot.GetComponentsInChildren<Renderer>(true);
-
-                    // Re-enable any renderers that were culled
-                    foreach (Renderer renderer in rep._cachedRenderers)
-                    {
-                        if (renderer != null && !renderer.enabled)
-                            renderer.enabled = true;
-                    }
-                }
-
-                // Update interpolation (smooth movement over 0.1 seconds)
                 if (rep.interpolationAlpha < 1f)
                 {
-                    rep.interpolationAlpha += Time.fixedDeltaTime * 10f; // Complete in ~0.1 seconds
+                    rep.interpolationAlpha += Time.fixedDeltaTime * 10f; 
                     rep.repRoot.position = Vector3.Lerp(rep.lastSyncPosition, rep.targetSyncPosition, rep.interpolationAlpha);
                 }
 
-                float dist = (centerPos - rep.repRoot.position).sqrMagnitude;
-
-                // FIX: Removed aggressive distance culling - always update IK for smooth animation
-                // This prevents players from disappearing when moving to different rooms
+                // Call UpdateIK which safely handles all visibility restoration logic unconditionally
                 rep.UpdateIK();
+                
                 if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
                     rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
             }
