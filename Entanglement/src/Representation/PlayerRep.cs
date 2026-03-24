@@ -136,6 +136,15 @@ namespace Entanglement.Representation
             }
         }
 
+
+        public static void ForceRefreshAllRemoteRepresentations()
+        {
+            foreach (var rep in representations.Values)
+            {
+                // Implementation logic here if needed
+            }
+        }
+
         public void RecreateRepresentations()
         {
             try
@@ -638,6 +647,13 @@ namespace Entanglement.Representation
 
             return data;
         }
+
+        // --- ADDED FIELDS FOR NETWORK SYNC ---
+        public float lastSyncReceiveTime = 0f;
+        public float syncPacketInterval = 0f;
+        public Vector3 prevTargetSyncPosition = Vector3.zero;
+        public Vector3 targetSyncVelocity = Vector3.zero;
+        public float interpolationSpeed = 0f;
 
         public static void SyncPlayerReps()
         {

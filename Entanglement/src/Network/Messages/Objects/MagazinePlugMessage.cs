@@ -76,7 +76,8 @@ namespace Entanglement.Network
                         if (isInsert) {
                             // FIX: Force overwrite the physical bullet count before inserting!
                             // This ensures late-joiners or dropped guns don't generate ghost bullets.
-                            syncMag._CachedPlug.magazine.cartridgeStates = ammoCount;
+                            // Use reflection to set cartridgeStates
+                            Entanglement.Objects.MagazineReflectionHelper.SetCartridgeStates(syncMag._CachedPlug.magazine, ammoCount);
                             syncMag._CachedPlug.InsertPlug(magSocket);
 
 #if DEBUG

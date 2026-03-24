@@ -120,7 +120,10 @@ namespace Entanglement.Network
 
                     // Override local navigation completely
                     AIBrain brain = npcCache[npcInstanceId].GetComponent<AIBrain>();
-                    if (brain != null && brain.navMeshAgent != null)
+                    // Use reflection to get navMeshAgent
+                    var navMeshAgentProp = brain.GetType().GetProperty("navMeshAgent");
+                    var navMeshAgent = navMeshAgentProp != null ? navMeshAgentProp.GetValue(brain) : null;
+                    if (brain != null && navMeshAgent != null)
                     {
                         UnityEngine.AI.NavMeshAgent agent = brain.GetComponent<UnityEngine.AI.NavMeshAgent>();
                         if (agent != null) agent.enabled = false;

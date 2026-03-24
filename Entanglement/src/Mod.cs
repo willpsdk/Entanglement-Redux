@@ -66,7 +66,7 @@ namespace Entanglement
             EntangleLogger.Log($"Current Entanglement: Redux version is {VersionString}");
             EntangleLogger.Log($"Minimum supported Entanglement: Redux version is {EntanglementVersion.minVersionMajorSupported}.{EntanglementVersion.minVersionMinorSupported}.*");
 
-            VersionChecking.CheckModVersion(this, "https://boneworks.thunderstore.io/package/Entanglement/Entanglement/");
+            VersionChecking.CheckModVersion(this, "https://thunderstore.io/c/boneworks/p/willpsdk/Entanglement_Redux/");
 
             PersistentData.Initialize();
 
@@ -578,9 +578,6 @@ namespace Entanglement
             if (SteamIntegration.isInvalid) return;
 
             ModuleHandler.OnApplicationQuit();
-
-            // FIX: Cleanup voice chat
-            global::Entanglement.Managers.VoiceChatManager.CleanupAll();
 
             Node.activeNode.Shutdown();
             SteamIntegration.Shutdown();
