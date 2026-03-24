@@ -1,71 +1,64 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
-using StressLevelZero.Props.Weapons;
-using StressLevelZero.Data;
 using HarmonyLib;
 
 namespace Entanglement.Objects
 {
-    // Extended stub for Magazine to fix missing field errors
-    public class Magazine : MonoBehaviour
+    public static class MagazineCache
     {
-        // Simulate the Cache property (replace with actual implementation if available)
-        public static MagazineCache Cache = new MagazineCache();
+        // By explicitly stating "StressLevelZero.Props.Weapons.Magazine", C# won't use any local stubs
+        private static Dictionary<GameObject, StressLevelZero.Props.Weapons.Magazine> cache = new Dictionary<GameObject, StressLevelZero.Props.Weapons.Magazine>();
 
-        // Simulate magazineData (replace with actual type if available)
-        public MagazineData magazineData;
-
-        // Simulate cartridgeStates as int for now (replace with actual type if needed)
-        public int cartridgeStates;
-    }
-
-    // Dummy cache class for Magazine
-    public class MagazineCache
-    {
-        public Magazine Get(GameObject go) => go.GetComponent<Magazine>();
-    }
-
-    // Dummy magazine data class
-    public class MagazineData
-    {
-        public SpawnableObject spawnableObject;
-    }
-
-    public static class MagazineReflectionHelper
-    {
-        public static object GetCartridgeStates(object magazine)
+        public static StressLevelZero.Props.Weapons.Magazine Get(GameObject go)
         {
-            var type = magazine.GetType();
-            var field = type.GetField("cartridgeStates");
-            if (field != null) return field.GetValue(magazine);
-            var prop = type.GetProperty("cartridgeStates");
-            if (prop != null) return prop.GetValue(magazine);
+            // 1. IL2CPP Null Check - Very important for multiplayer mods
+            if (go == null || go.Pointer == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            if (cache.TryGetValue(go, out StressLevelZero.Props.Weapons.Magazine cachedMag))
+            {
+                if (cachedMag != null && cachedMag.Pointer != IntPtr.Zero)
+                {
+                    return cachedMag;
+                }
+                else
+                {
+                    cache.Remove(go);
+                }
+            }
+
+            // Force the GetComponent to look for the ACTUAL game's Magazine component
+            StressLevelZero.Props.Weapons.Magazine newMag = go.GetComponent<StressLevelZero.Props.Weapons.Magazine>();
+
+            if (newMag != null && newMag.Pointer != IntPtr.Zero)
+            {
+                cache.Add(go, newMag);
+                return newMag;
+            }
+
             return null;
         }
-        public static void SetCartridgeStates(object magazine, object value)
+
+        public static void ClearCache()
         {
-            var type = magazine.GetType();
-            var field = type.GetField("cartridgeStates");
-            if (field != null) { field.SetValue(magazine, value); return; }
-            var prop = type.GetProperty("cartridgeStates");
-            if (prop != null && prop.CanWrite) { prop.SetValue(magazine, value); }
+            cache.Clear();
         }
     }
 
-    namespace Entanglement.Objects
+    // This helper uses Harmony to sneakily grab the private bullet count from the game's code!
+    public static class MagazineReflectionHelper
     {
-        // This helper uses Harmony to sneakily grab the private bullet count from the game's code!
-        public static class MagazineReflectionHelper
+        public static object GetCartridgeStates(StressLevelZero.Props.Weapons.Magazine magazine)
         {
-            public static object GetCartridgeStates(StressLevelZero.Props.Weapons.Magazine magazine)
-            {
-                return AccessTools.Field(typeof(StressLevelZero.Props.Weapons.Magazine), "cartridgeStates")?.GetValue(magazine);
-            }
+            return AccessTools.Field(typeof(StressLevelZero.Props.Weapons.Magazine), "cartridgeStates")?.GetValue(magazine);
+        }
 
-            public static void SetCartridgeStates(StressLevelZero.Props.Weapons.Magazine magazine, int ammoCount)
-            {
-                AccessTools.Field(typeof(StressLevelZero.Props.Weapons.Magazine), "cartridgeStates")?.SetValue(magazine, ammoCount);
-            }
+        public static void SetCartridgeStates(StressLevelZero.Props.Weapons.Magazine magazine, int ammoCount)
+        {
+            AccessTools.Field(typeof(StressLevelZero.Props.Weapons.Magazine), "cartridgeStates")?.SetValue(magazine, ammoCount);
         }
     }
 }
