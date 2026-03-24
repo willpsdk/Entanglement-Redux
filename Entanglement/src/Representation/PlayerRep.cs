@@ -29,11 +29,11 @@ namespace Entanglement.Representation
         public static Transform[] syncedPoints = new Transform[3];
         public static Transform syncedRoot;
 
-        // FIX: Increase sync rate to 60Hz for buttery smooth movement (1/60 = 0.0167 seconds between syncs)
+        // Increase sync rate to 60Hz for buttery smooth movement (1/60 = 0.0167 seconds between syncs)
         private static float lastPlayerSyncTime = 0f;
         private const float PLAYER_SYNC_INTERVAL = 1f / 60f;
 
-        // FIX: Increase animation sync to 60Hz for smooth animation matching body movement (1/60 = 0.0167 seconds between syncs)
+        // Increase animation sync to 60Hz for smooth animation matching body movement (1/60 = 0.0167 seconds between syncs)
         private static float lastAnimationSyncTime = 0f;
         private const float ANIMATION_SYNC_INTERVAL = 1f / 60f;
 
@@ -45,7 +45,7 @@ namespace Entanglement.Representation
         public GameObject repCanvas;
         public Canvas repCanvasComponent;
         public Transform repCanvasTransform;
-        public TMP_Text repNameText;
+        public TextMeshProUGUI repNameText;
 
         public Transform repGeo;
         public Transform repSHJnt;
@@ -78,35 +78,28 @@ namespace Entanglement.Representation
         // Interpolation values for smooth movement
         public Vector3 lastSyncPosition = Vector3.zero;
         public Vector3 targetSyncPosition = Vector3.zero;
-        public Vector3 prevTargetSyncPosition = Vector3.zero;
         public Quaternion lastSyncRotation = Quaternion.identity;
         public Quaternion targetSyncRotation = Quaternion.identity;
         public float interpolationAlpha = 1f;
-        public float interpolationSpeed = 10f;
-        public float lastSyncReceiveTime = 0f;
-        public float syncPacketInterval = 1f / 60f;
-        public Vector3 targetSyncVelocity = Vector3.zero;
 
         public string playerName;
         public ulong playerId;
         public bool isGrounded;
 
-        // FIX: Cache renderers to avoid expensive GetComponentsInChildren every frame
+        // Cache renderers to avoid expensive GetComponentsInChildren every frame
         private Renderer[] _cachedRenderers = null;
         private float _rendererCheckTimer = 0f;
-        private float rendererCheckInterval = 0.1f; // Check frequently to counter aggressive zone culling
+        private float rendererCheckInterval = 0.5f; // Only check every 0.5 seconds
 
-        // FIX: Talking animation state
+        // Talking animation state
         private bool isTalking = false;
         private float talkingAnimationBlend = 0f;
-        private float groundedGraceTimer = 0f;
 
 #if DEBUG
         public static PlayerRepresentation debugRepresentation;
 #endif
 
         public static AssetBundle playerRepBundle;
-        public static bool debugShowPhysics = false;
 
         public static void LoadBundle()
         {
@@ -131,69 +124,14 @@ namespace Entanglement.Representation
             if (currentSkinBundle) currentSkinBundle.Unload(false);
         }
 
-        // FIX: Helper to set layer for all child objects (prevents zone culling)
+        // Helper to set layer for all child objects (prevents zone culling)
         private static void SetLayerRecursive(GameObject obj, int layer)
         {
             if (obj == null) return;
             obj.layer = layer;
-            Transform root = obj.transform;
-            int childCount = root.childCount;
-            for (int i = 0; i < childCount; i++)
+            foreach (Transform child in obj.transform)
             {
-                Transform child = root.GetChild(i);
-                if (child != null)
-                    SetLayerRecursive(child.gameObject, layer);
-            }
-        }
-
-        private static void SetTagRecursive(GameObject obj, string tag)
-        {
-            if (obj == null) return;
-            obj.tag = tag;
-            Transform root = obj.transform;
-            int childCount = root.childCount;
-            for (int i = 0; i < childCount; i++)
-            {
-                Transform child = root.GetChild(i);
-                if (child != null)
-                    SetTagRecursive(child.gameObject, tag);
-            }
-        }
-
-        private static void StripZoneCullingComponents(GameObject obj)
-        {
-            if (obj == null)
-                return;
-
-            Component[] components = obj.GetComponentsInChildren<Component>(true);
-            foreach (Component component in components)
-            {
-                if (component == null)
-                    continue;
-
-                Type type = component.GetType();
-                string ns = type.Namespace ?? string.Empty;
-                string name = type.Name ?? string.Empty;
-
-                bool isZoneComponent = ns.StartsWith("StressLevelZero.Zones", StringComparison.Ordinal);
-                bool isCullComponent = ns.StartsWith("StressLevelZero", StringComparison.Ordinal) &&
-                                       (name.IndexOf("Cull", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                        name.IndexOf("Occlusion", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                        name.IndexOf("Visibility", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                if (isZoneComponent || isCullComponent)
-                    UnityEngine.Object.Destroy(component);
-            }
-        }
-
-        private static void StripLODGroups(GameObject obj)
-        {
-            if (obj == null) return;
-            LODGroup[] lodGroups = obj.GetComponentsInChildren<LODGroup>(true);
-            foreach (LODGroup lod in lodGroups)
-            {
-                if (lod != null)
-                    UnityEngine.Object.Destroy(lod);
+                SetLayerRecursive(child.gameObject, layer);
             }
         }
 
@@ -203,14 +141,12 @@ namespace Entanglement.Representation
             {
                 EntangleLogger.Verbose($"[RepCreation] Starting for player {playerName} (ID: {playerId})");
 
-                // FIX: Null checks for bundle
                 if (playerRepBundle == null)
                 {
                     EntangleLogger.Error("[RepCreation] playerRepBundle is null! Cannot recreate representations.");
                     return;
                 }
 
-                // FIX: Load holographic material with null check
                 EntangleLogger.Verbose("[RepCreation]   Loading holographic material...");
                 Material holographicMat = playerRepBundle.LoadAsset<Material>("PlayerHolographic");
                 if (holographicMat == null)
@@ -223,7 +159,6 @@ namespace Entanglement.Representation
                     repHologram = Material.Instantiate(holographicMat);
                 }
 
-                // FIX: Load player rep model with null check
                 EntangleLogger.Verbose("[RepCreation]   Instantiating player representation model...");
                 GameObject playerRepPrefab = playerRepBundle.LoadAsset<GameObject>("PlayerRep");
                 if (playerRepPrefab == null)
@@ -238,18 +173,9 @@ namespace Entanglement.Representation
                 repRoot = repFord.transform;
                 EntangleLogger.Verbose("[RepCreation]   ✓ Model instantiated");
 
-                // Put reps on a layer that Boneworks zone culling never touches.
-                // Boneworks NPC rigs use layer 12 (EnemyColliders) which survives SceneZone transitions.
-                // We duplicate that approach: same layer so zone logic ignores them, plus strip
-                // any culling components and LODGroups to make them truly non-cullable.
-                int repLayer = LayerMask.NameToLayer("EnemyColliders");
-                if (repLayer < 0) repLayer = 12; // Fallback to raw index if name lookup fails
-
-                SetLayerRecursive(repRoot.gameObject, repLayer);
-                SetTagRecursive(repRoot.gameObject, "Untagged");
-                StripZoneCullingComponents(repRoot.gameObject);
-                StripLODGroups(repRoot.gameObject);
-                EntangleLogger.Verbose($"[RepCreation]   ✓ Set to layer: {repLayer}");
+                int defaultLayer = LayerMask.NameToLayer("Default");
+                SetLayerRecursive(repRoot.gameObject, defaultLayer);
+                EntangleLogger.Verbose($"[RepCreation]   ✓ Set to layer: {defaultLayer}");
 
                 EntangleLogger.Verbose("[RepCreation]   Setting up SFX components...");
                 Transform gunSFXTrans = repRoot.Find("GunSFX");
@@ -264,7 +190,6 @@ namespace Entanglement.Representation
                 Transform puncherSFXTrans = repRoot.Find("PuncherSFX");
                 if (puncherSFXTrans != null)
                 {
-                    // Try to get GravGunSFX first, fall back to GunSFX if not available
                     GravGunSFX gravGunSFX = puncherSFXTrans.GetComponent<GravGunSFX>();
                     if (gravGunSFX != null)
                     {
@@ -274,12 +199,6 @@ namespace Entanglement.Representation
                     {
                         EntangleLogger.Verbose("[RepCreation]   ⚠ GravGunSFX not found on PuncherSFX, attempting GunSFX fallback");
                         GunSFX gunSFX = puncherSFXTrans.GetComponent<GunSFX>();
-                        if (gunSFX != null)
-                        {
-                            // Create a temporary GravGunSFX wrapper or skip it
-                            EntangleLogger.Verbose("[RepCreation]   ⚠ Using GunSFX as fallback for PuncherSFX");
-                        }
-
                     }
                 }
 
@@ -301,7 +220,6 @@ namespace Entanglement.Representation
                     repAnimator = repAnimatorBody.GetComponent<Animator>();
                     if (repAnimator != null)
                     {
-                        // FIX: Null check for animator controller
                         if (PlayerScripts.playerAnimatorController != null)
                         {
                             repAnimator.runtimeAnimatorController = PlayerScripts.playerAnimatorController;
@@ -316,7 +234,6 @@ namespace Entanglement.Representation
 
                         repAnimationManager = repAnimatorBody.GetComponent<CharacterAnimationManager>();
 
-                        // Initialize animator state to idle/neutral
                         try
                         {
                             repAnimator.SetFloat("Speed", 0f);
@@ -329,17 +246,9 @@ namespace Entanglement.Representation
                             EntangleLogger.Warn($"[RepCreation]   ⚠ Error initializing animator state: {ex.Message}");
                         }
                     }
-                    else
-                    {
-                        EntangleLogger.Verbose("[RepCreation]   ⚠ Animator component not found on Brett@neutral");
-                    }
 
                     repGeo = repAnimatorBody.Find("geoGrp");
                     repSHJnt = repAnimatorBody.Find("SHJntGrp");
-                }
-                else
-                {
-                    EntangleLogger.Verbose("[RepCreation]   ⚠ Brett@neutral transform not found");
                 }
 
                 EntangleLogger.Verbose("[RepCreation]   Getting transform references...");
@@ -350,77 +259,48 @@ namespace Entanglement.Representation
                 colliders = repRoot.GetComponentsInChildren<Collider>();
                 EntangleLogger.Verbose($"[RepCreation]   Found {colliders.Length} colliders");
 
-                // Create and setup the nametag canvas after getting the head transform
                 EntangleLogger.Verbose("[RepCreation]   Creating nametag canvas...");
                 repCanvas = new GameObject("RepCanvas");
                 repCanvasComponent = repCanvas.AddComponent<Canvas>();
                 repCanvasComponent.renderMode = RenderMode.WorldSpace;
                 repCanvasTransform = repCanvas.transform;
-                repCanvasTransform.localScale = Vector3.one / 180.0f;
+                repCanvasTransform.localScale = Vector3.one / 200.0f;
 
-                // Parent canvas to head to keep it with the player representation
+                repCanvasTransform.SetParent(repRoot, true);
+
+                repCanvasTransform.localScale = Vector3.one / 200.0f; 
+
                 if (repTransforms[0] != null)
-                {
-                    repCanvasTransform.SetParent(repTransforms[0], false);
-                    repCanvasTransform.localPosition = Vector3.up * 0.4f;
-                    EntangleLogger.Verbose("[RepCreation]   ✓ Nametag parented to head");
-                }
+                    repCanvasTransform.position = repTransforms[0].position + Vector3.up * 0.35f;
                 else
-                {
-                    repCanvasTransform.position = repRoot.position + Vector3.up * 0.4f;
-                    EntangleLogger.Verbose("[RepCreation]   ⚠ Nametag positioned at root");
-                }
+                    repCanvasTransform.position = repRoot.position + Vector3.up * 0.35f;
 
-                GameObject nameTextObject = new GameObject("RepNameText");
-                nameTextObject.transform.SetParent(repCanvasTransform, false);
+                repNameText = repCanvas.AddComponent<TextMeshProUGUI>();
+                repNameText.alignment = TextAlignmentOptions.Midline;
+                repNameText.enableAutoSizing = true;
+                repNameText.text = playerName;
 
-                RectTransform nameRect = nameTextObject.AddComponent<RectTransform>();
-                nameTextObject.AddComponent<CanvasRenderer>();
-                TextMeshProUGUI textMesh = nameTextObject.AddComponent<TextMeshProUGUI>();
+                repCanvas.AddComponent<NametagBillboard>();
 
-                nameRect.localPosition = Vector3.zero;
-                nameRect.localRotation = Quaternion.identity;
-                nameRect.sizeDelta = new Vector2(480f, 120f);
-
-                textMesh.alignment = TextAlignmentOptions.Center;
-                textMesh.enableAutoSizing = true;
-                textMesh.fontSizeMin = 10f;
-                textMesh.fontSizeMax = 24f;
-                textMesh.text = playerName;
-                repNameText = textMesh;
-
-                // FIX: Add billboard script to make nametag always face player
-                repCanvas.AddComponent<global::Entanglement.Representation.NametagBillboard>();
-
-                // FIX: Hide nametag for local player so they can't see their own name
                 bool isLocalPlayer = playerId == SteamIntegration.currentUser.m_SteamID;
                 if (isLocalPlayer)
                 {
                     repCanvas.SetActive(false);
-                    EntangleLogger.Verbose($"[RepCreation]   ⚠ Nametag DISABLED for local player: {playerName} (ID: {playerId})");
                 }
                 else
                 {
                     repCanvas.SetActive(true);
-                    EntangleLogger.Verbose($"[RepCreation]   ✓ Nametag ENABLED for remote player: {playerName} (ID: {playerId})");
                 }
 
-                // FIX: Ensure all renderers are enabled so player doesn't disappear
-                foreach (Renderer renderer in repRoot.GetComponentsInChildren<Renderer>(true))
-                {
-                    renderer.enabled = true;
-                    renderer.allowOcclusionWhenDynamic = false;
-
-                    if (renderer is SkinnedMeshRenderer skinned)
-                        skinned.updateWhenOffscreen = true;
-                }
+                // Initial Renderer ensure call
+                EnsureRepVisible();
 
                 if (isCustomSkinned && currentSkinPath != null)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
             }
             catch (Exception e)
             {
-                EntangleLogger.Error($"Error caught creating rep from user {playerId}: {e.Message}\n{e.StackTrace}");
+                EntangleLogger.Error($"Error caught creating rep from user {playerId}: {e.Message}");
             }
         }
 
@@ -492,50 +372,52 @@ namespace Entanglement.Representation
 
         public void SaveVelocity()
         {
-            float dt = Time.fixedDeltaTime;
+            Vector3 currentPosition = repRoot.position;
+            
+            // STAIRS FIX 1: Use deltaTime instead of fixedDeltaTime
+            float dt = Time.deltaTime; 
+            Vector3 targetVel = PhysicsData.GetVelocity(currentPosition, prevRepRootPos, dt);
 
-            // Compute velocity from the NETWORK TARGET positions, not the interpolated
-            // repRoot.position.  The interpolation smooths the visual root which means
-            // verticalDelta becomes artificially small.  The IK solver (FullBodyUpdate)
-            // needs the actual elevation change so it can retarget feet immediately on
-            // stairs, ramps and ledges.
-            Vector3 networkDelta = targetSyncPosition - prevTargetSyncPosition;
-            float packetDt = Mathf.Max(syncPacketInterval, dt);
-            Vector3 targetVel = networkDelta / packetDt;
+            if (targetVel.sqrMagnitude < 0.01f) targetVel = Vector3.zero;
+            
+            // STAIRS FIX 2: Change Slerp to Lerp. Slerping linear velocity causes arcs that kick legs upwards!
+            repSavedVel = Vector3.Lerp(repInputVel, targetVel, dt * legJitter); 
 
-            if (targetVel.sqrMagnitude < 0.001f) targetVel = Vector3.zero;
+            if (isGrounded) repInputVel = repSavedVel;
+            else repInputVel = Vector3.zero;
 
-            float rawVerticalVel = Mathf.Clamp(networkDelta.y / packetDt, -12f, 12f);
+            prevRepRootPos = currentPosition;
+        }
 
-            if (isGrounded)
+        // Centralized and proper logic for restoring culled renderers
+        public void EnsureRepVisible()
+        {
+            if (repRoot == null) return;
+
+            // Decrement the timer
+            _rendererCheckTimer -= Time.deltaTime;
+
+            // Rebuild the cache if null or if the timer expires (so new custom skins are caught)
+            if (_cachedRenderers == null || _rendererCheckTimer <= 0f)
             {
-                groundedGraceTimer = 0.15f;
-
-                Vector3 horizontalTarget = new Vector3(targetVel.x, 0f, targetVel.z);
-                Vector3 horizontalCurrent = new Vector3(repInputVel.x, 0f, repInputVel.z);
-                horizontalCurrent = Vector3.Lerp(horizontalCurrent, horizontalTarget, dt * 10f);
-
-                repInputVel = new Vector3(horizontalCurrent.x, rawVerticalVel, horizontalCurrent.z);
-            }
-            else
-            {
-                groundedGraceTimer -= dt;
-                if (groundedGraceTimer > 0f)
-                {
-                    Vector3 horizontalTarget = new Vector3(targetVel.x, 0f, targetVel.z);
-                    Vector3 horizontalCurrent = new Vector3(repInputVel.x, 0f, repInputVel.z);
-                    horizontalCurrent = Vector3.Lerp(horizontalCurrent, horizontalTarget, dt * 6f);
-
-                    repInputVel = new Vector3(horizontalCurrent.x, rawVerticalVel, horizontalCurrent.z);
-                }
-                else
-                {
-                    repInputVel = Vector3.Lerp(repInputVel, Vector3.zero, dt * 8f);
-                }
+                _cachedRenderers = repRoot.GetComponentsInChildren<Renderer>(true);
+                _rendererCheckTimer = rendererCheckInterval;
             }
 
-            repSavedVel = repInputVel;
-            prevRepRootPos = repRoot.position;
+            // Iterate and un-cull anything that was disabled by the zone/boneworks systems
+            foreach (Renderer renderer in _cachedRenderers)
+            {
+                if (renderer != null && !renderer.enabled)
+                {
+                    renderer.enabled = true;
+                }
+            }
+
+            // Also ensure the main body object hasn't been turned off
+            if (repBody != null && repBody.gameObject != null && !repBody.gameObject.activeSelf)
+            {
+                repBody.gameObject.SetActive(true);
+            }
         }
 
         public void UpdateIK()
@@ -544,6 +426,9 @@ namespace Entanglement.Representation
             {
                 if ((!currentSkinBundle || !currentSkinObject) && isCustomSkinned)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
+
+                // Called BEFORE the null guard, otherwise it never restores invisible players!
+                EnsureRepVisible();
 
                 if (!activeAnimator || !repAnimationManager || !repBody)
                     return;
@@ -554,11 +439,7 @@ namespace Entanglement.Representation
                 repBody.FullBodyUpdate(repInputVel, Vector3.zero);
                 if (repBody.ArtToBlender != null) repBody.ArtToBlender.UpdateBlender();
 
-                // Force the entire rep hierarchy to stay active and visible.
-                // Boneworks zones can SetActive(false) on objects or disable renderers.
-                EnsureRepVisible();
-
-                // FIX: Update talking animation blend smoothly
+                // Update talking animation blend smoothly
                 if (isTalking)
                 {
                     talkingAnimationBlend = Mathf.Lerp(talkingAnimationBlend, 1f, Time.deltaTime * 5f);
@@ -573,98 +454,10 @@ namespace Entanglement.Representation
                 {
                     activeAnimator.SetFloat("Talk", talkingAnimationBlend);
                 }
-
-                if (debugShowPhysics)
-                    DrawPhysicsDebug();
             }
             catch (Exception e)
             {
                 EntangleLogger.Error($"UpdateIK Error for {playerId}: {e.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Forces every GameObject and Renderer in the rep hierarchy to stay active.
-        /// Boneworks zones can SetActive(false) on children or disable renderers;
-        /// this counteracts that every IK tick so the remote player never disappears.
-        /// </summary>
-        private void EnsureRepVisible()
-        {
-            // Re-activate the root
-            if (repRoot != null && !repRoot.gameObject.activeSelf)
-                repRoot.gameObject.SetActive(true);
-
-            // Re-activate the body
-            if (repBody != null && repBody.gameObject != null && !repBody.gameObject.activeSelf)
-                repBody.gameObject.SetActive(true);
-
-            // Walk every child; re-enable any that zones disabled.
-            if (repRoot != null)
-            {
-                foreach (Transform child in repRoot.GetComponentsInChildren<Transform>(true))
-                {
-                    if (child != null && !child.gameObject.activeSelf)
-                        child.gameObject.SetActive(true);
-                }
-            }
-
-            // Renderer pass - cached for perf, refreshed periodically.
-            if (_cachedRenderers == null || _rendererCheckTimer <= 0f)
-            {
-                _cachedRenderers = repRoot != null ? repRoot.GetComponentsInChildren<Renderer>(true) : new Renderer[0];
-                _rendererCheckTimer = rendererCheckInterval;
-            }
-
-            for (int i = 0; i < _cachedRenderers.Length; i++)
-            {
-                Renderer r = _cachedRenderers[i];
-                if (r == null) continue;
-                if (!r.enabled) r.enabled = true;
-                r.allowOcclusionWhenDynamic = false;
-                if (r is SkinnedMeshRenderer smr)
-                    smr.updateWhenOffscreen = true;
-            }
-        }
-
-        private void DrawPhysicsDebug()
-        {
-            if (colliders == null || colliders.Length == 0)
-                return;
-
-            Color c = new Color(0f, 1f, 1f, 0.85f);
-            for (int i = 0; i < colliders.Length; i++)
-            {
-                Collider col = colliders[i];
-                if (col == null || !col.enabled)
-                    continue;
-
-                Bounds b = col.bounds;
-                Vector3 min = b.min;
-                Vector3 max = b.max;
-
-                Vector3 p0 = new Vector3(min.x, min.y, min.z);
-                Vector3 p1 = new Vector3(max.x, min.y, min.z);
-                Vector3 p2 = new Vector3(max.x, min.y, max.z);
-                Vector3 p3 = new Vector3(min.x, min.y, max.z);
-                Vector3 p4 = new Vector3(min.x, max.y, min.z);
-                Vector3 p5 = new Vector3(max.x, max.y, min.z);
-                Vector3 p6 = new Vector3(max.x, max.y, max.z);
-                Vector3 p7 = new Vector3(min.x, max.y, max.z);
-
-                Debug.DrawLine(p0, p1, c, 0f, false);
-                Debug.DrawLine(p1, p2, c, 0f, false);
-                Debug.DrawLine(p2, p3, c, 0f, false);
-                Debug.DrawLine(p3, p0, c, 0f, false);
-
-                Debug.DrawLine(p4, p5, c, 0f, false);
-                Debug.DrawLine(p5, p6, c, 0f, false);
-                Debug.DrawLine(p6, p7, c, 0f, false);
-                Debug.DrawLine(p7, p4, c, 0f, false);
-
-                Debug.DrawLine(p0, p4, c, 0f, false);
-                Debug.DrawLine(p1, p5, c, 0f, false);
-                Debug.DrawLine(p2, p6, c, 0f, false);
-                Debug.DrawLine(p3, p7, c, 0f, false);
             }
         }
 
@@ -685,7 +478,6 @@ namespace Entanglement.Representation
 
         public void UpdateFingers(Handedness hand, SimplifiedHand handData) => UpdateFingers(hand, handData.indexCurl, handData.middleCurl, handData.ringCurl, handData.pinkyCurl, handData.thumbCurl);
 
-        // FIX: Set talking state for mouth animation
         public void SetTalking(bool talking)
         {
             isTalking = talking;
@@ -704,13 +496,9 @@ namespace Entanglement.Representation
         {
             try
             {
-                // FIX: Better null checking and error handling
                 if (PlayerScripts.playerRig != null)
                 {
-                    // Set the root to the RigManager's transform
                     syncedRoot = PlayerScripts.playerRig.transform;
-
-                    // Use the direct references from the PhysicsRig rather than string searching
                     var physRig = PlayerScripts.playerRig.physicsRig;
 
                     if (physRig != null)
@@ -744,7 +532,6 @@ namespace Entanglement.Representation
                 }
                 else
                 {
-                    // Fallback just in case PlayerScripts hasn't initialized it yet
                     EntangleLogger.Verbose("[PlayerTransforms] PlayerScripts.playerRig is null, using fallback");
                     var rigManager = GameObject.FindObjectOfType<StressLevelZero.Rig.RigManager>();
                     if (rigManager != null && rigManager.physicsRig != null)
@@ -800,7 +587,6 @@ namespace Entanglement.Representation
             data.simplifiedLeftHand = new SimplifiedHand(PlayerScripts.playerLeftHand.fingerCurl);
             data.simplifiedRightHand = new SimplifiedHand(PlayerScripts.playerRightHand.fingerCurl);
 
-            // Add animation state
             if (syncedRoot != null)
             {
                 data.isJumping = !data.isGrounded;
@@ -811,18 +597,15 @@ namespace Entanglement.Representation
 
         public static AnimationSyncData GetAnimationSyncData()
         {
-            // Check if all required components are initialized
             if (syncedRoot == null || PlayerScripts.playerRig == null)
                 return null;
 
             AnimationSyncData data = new AnimationSyncData();
             data.userId = (ulong)SteamIntegration.currentUser.m_SteamID;
 
-            // Calculate movement speed based on position change
             Vector3 currentPos = syncedRoot.position;
-            Vector3 posChange = currentPos - syncedRoot.position; // This frame's position change
+            Vector3 posChange = currentPos - syncedRoot.position; 
 
-            // Use head position for more accurate movement calculation
             if (syncedPoints[0] != null)
             {
                 Vector3 headPos = syncedPoints[0].position;
@@ -832,11 +615,9 @@ namespace Entanglement.Representation
 
             data.movementSpeed = Mathf.Clamp(data.movementSpeed, 0f, 10f);
 
-            // Get grounding state
             data.isJumping = !PlayerScripts.playerGrounder.isGrounded;
             data.isFalling = !PlayerScripts.playerGrounder.isGrounded && data.jumpHeight < 0f;
 
-            // Get jump height from head rigidbody if available
             if (PlayerScripts.playerLeftHand != null && PlayerScripts.playerLeftHand.GetComponent<Rigidbody>() != null)
             {
                 Rigidbody headRb = PlayerScripts.playerLeftHand.GetComponent<Rigidbody>();
@@ -847,7 +628,6 @@ namespace Entanglement.Representation
                 }
             }
 
-            // Set animation state based on movement
             if (data.movementSpeed > 2f)
                 data.animState = 2; // Running
             else if (data.movementSpeed > 0.5f)
@@ -863,18 +643,14 @@ namespace Entanglement.Representation
             if (!SteamIntegration.hasLobby)
                 return;
 
-            // Ensure we have a valid node
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit player syncs to configured interval
             lastPlayerSyncTime += Time.deltaTime;
             if (lastPlayerSyncTime < PLAYER_SYNC_INTERVAL)
                 return;
 
-            lastPlayerSyncTime -= PLAYER_SYNC_INTERVAL;
-            if (lastPlayerSyncTime > PLAYER_SYNC_INTERVAL)
-                lastPlayerSyncTime = 0f;
+            lastPlayerSyncTime = 0f;
 
             var syncData = GetPlayerSyncData();
 
@@ -895,18 +671,14 @@ namespace Entanglement.Representation
             if (!SteamIntegration.hasLobby)
                 return;
 
-            // Ensure we have a valid node
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit animation syncs to configured interval
             lastAnimationSyncTime += Time.deltaTime;
             if (lastAnimationSyncTime < ANIMATION_SYNC_INTERVAL)
                 return;
 
-            lastAnimationSyncTime -= ANIMATION_SYNC_INTERVAL;
-            if (lastAnimationSyncTime > ANIMATION_SYNC_INTERVAL)
-                lastAnimationSyncTime = 0f;
+            lastAnimationSyncTime = 0f;
 
             var animData = GetAnimationSyncData();
 
@@ -930,76 +702,27 @@ namespace Entanglement.Representation
             {
                 if (rep == null || rep.repRoot == null) continue;
 
-                // FIX: Ensure player representation stays visible
                 if (!rep.repRoot.gameObject.activeSelf)
                 {
                     rep.repRoot.gameObject.SetActive(true);
                 }
 
-                // EnsureRepVisible is now called inside UpdateIK() every tick.
-                // No separate renderer check needed here.
+                // STAIRS FIX 3: Removed the broken interpolationAlpha logic.
+                // At 60Hz, packets arrive every 0.016s, but alpha was taking 0.1s to finish.
+                // This continuous Lerp smoothly tracks 60Hz streams and prevents mid-air floating on stairs.
+                rep.repRoot.position = Vector3.Lerp(rep.repRoot.position, rep.targetSyncPosition, Time.deltaTime * 20f);
 
-                // Update interpolation
-                if (rep.interpolationAlpha < 1f)
-                {
-                    rep.interpolationAlpha += Time.fixedDeltaTime * rep.interpolationSpeed;
-                    float blend = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(rep.interpolationAlpha));
-                    float sinceLastPacket = Time.realtimeSinceStartup - rep.lastSyncReceiveTime;
-                    float extrapolationTime = Mathf.Clamp(sinceLastPacket, 0f, rep.syncPacketInterval * 1.5f);
-                    Vector3 predictedTarget = rep.targetSyncPosition + rep.targetSyncVelocity * extrapolationTime;
-                    Vector3 nextPos = Vector3.LerpUnclamped(rep.lastSyncPosition, predictedTarget, blend);
-
-                    // When grounded, snap Y directly to the network target.
-                    // Lerping Y causes the IK solver to receive a near-zero vertical
-                    // velocity on stairs/ramps, which makes feet stay at the old floor level.
-                    if (rep.isGrounded)
-                    {
-                        nextPos.y = predictedTarget.y;
-                    }
-
-                    rep.repRoot.position = nextPos;
-                }
-
-                float dist = (centerPos - rep.repRoot.position).sqrMagnitude;
-
-                // FIX: Removed aggressive distance culling - always update IK for smooth animation
-                // This prevents players from disappearing when moving to different rooms
+                // Call UpdateIK which safely handles all visibility restoration logic unconditionally
                 rep.UpdateIK();
+                
                 if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
-                    rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
-            }
-        }
-
-        public static void ForceRefreshAllRemoteRepresentations()
-        {
-            foreach (PlayerRepresentation rep in representations.Values)
-            {
-                if (rep == null || rep.repRoot == null)
-                    continue;
-
-                if (rep.playerId == SteamIntegration.currentUser.m_SteamID)
-                    continue;
-
-                if (!rep.repRoot.gameObject.activeSelf)
-                    rep.repRoot.gameObject.SetActive(true);
-
-                Renderer[] renderers = rep._cachedRenderers ?? rep.repRoot.GetComponentsInChildren<Renderer>(true);
-                rep._cachedRenderers = renderers;
-
-                foreach (Renderer renderer in renderers)
                 {
-                    if (renderer == null)
-                        continue;
-
-                    renderer.enabled = true;
-                    renderer.allowOcclusionWhenDynamic = false;
-
-                    if (renderer is SkinnedMeshRenderer skinned)
-                        skinned.updateWhenOffscreen = true;
-                }
-
-                if (rep.repCanvasTransform != null && rep.repCanvasTransform.gameObject != null)
                     rep.repCanvasTransform.gameObject.SetActive(Client.nameTagsVisible);
+                    if (rep.repTransforms[0] != null)
+                    {
+                        rep.repCanvasTransform.position = rep.repTransforms[0].position + Vector3.up * 0.35f;
+                    }
+                }
             }
         }
     }

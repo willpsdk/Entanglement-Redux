@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Reflection;
 using System.IO;
+using System.Collections; // Needed for Coroutines
+using UnityEngine; // Needed for GameObject and Transform
+using MelonLoader; // Needed for MelonCoroutines
 
 using Entanglement.Patching;
 using Entanglement.Network;
@@ -59,10 +62,46 @@ namespace Entanglement.Compat.CustomMaps {
             NetworkMessage.RegisterHandler<LoadCustomMapMessageHandler>();
         }
 
+        // FIX: The Client Spawn Coroutine
+        // This waits for the map to fully render and drop, then forces the client to the spawn point
+        private static IEnumerator EnsureClientSpawn()
+        {
+            // Give Custom Maps 1.5 seconds to fully instantiate the environment colliders
+            yield return new WaitForSeconds(1.5f);
+
+            // Locate the standard Custom Maps spawn point
+            GameObject spawnObj = GameObject.Find("_SpawnPoint");
+            if (spawnObj == null) spawnObj = GameObject.Find("SpawnPoint");
+
+            if (spawnObj != null && PlayerScripts.playerRig != null)
+            {
+                EntangleLogger.Log("[CustomMaps] Snapping player to correct Custom Map spawn point...", ConsoleColor.Green);
+                
+                // Snap the RigManager to the spawn point
+                PlayerScripts.playerRig.transform.position = spawnObj.transform.position;
+
+                // Neutralize gravity/falling momentum so they don't clip through the new floor
+                Rigidbody[] rigBodies = PlayerScripts.playerRig.GetComponentsInChildren<Rigidbody>();
+                foreach (Rigidbody rb in rigBodies)
+                {
+                    rb.velocity = Vector3.zero;
+                }
+            }
+            else
+            {
+                EntangleLogger.Warn("[CustomMaps] Could not find a spawn point to teleport the client to!");
+            }
+        }
+
         #region CM 1.8.0
 
-        // Update our list of spawnables
-        public static void LoadMap_Postfix(string path) => SpawnableData.GetData();
+        // Update our list of spawnables and force client spawn
+        public static void LoadMap_Postfix(string path) 
+        {
+            SpawnableData.GetData();
+            // FIX: Trigger the spawn catch if we are a client joining a custom map
+            if (Node.activeNode is Client) MelonCoroutines.Start(EnsureClientSpawn());
+        }
 
         // Only works if we're the host
         public static void QueueMap_Prefix(string mapToLoad) {
@@ -79,8 +118,13 @@ namespace Entanglement.Compat.CustomMaps {
 
         #region CM 2.0.0+
 
-        // Update our list of spawnables
-        public static void PostScenePass_Postfix() => SpawnableData.GetData();
+        // Update our list of spawnables and force client spawn
+        public static void PostScenePass_Postfix() 
+        {
+            SpawnableData.GetData();
+            // FIX: Trigger the spawn catch if we are a client joining a custom map
+            if (Node.activeNode is Client) MelonCoroutines.Start(EnsureClientSpawn());
+        }
 
         // Only works if we're the host
         public static void LoadMapBundle_Prefix(string path)

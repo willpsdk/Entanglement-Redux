@@ -27,6 +27,9 @@ namespace Entanglement.Objects
         public static ushort lastId = 0;
         private static bool scenePhysicsSeeded = false;
 
+        // FIX: The global network lock flag. When true, all physics updates and spawns are dropped.
+        public static bool isTransitioning = false;
+
         public static void OnCleanup()
         {
             try
@@ -40,7 +43,6 @@ namespace Entanglement.Objects
 
             try
             {
-                // Clean up poolPairs to prevent memory leaks
                 poolPairs.Clear();
             }
             catch (Exception e)
@@ -48,11 +50,9 @@ namespace Entanglement.Objects
                 EntangleLogger.Error($"Error clearing poolPairs: {e.Message}");
             }
 
-            // FIX: Force the ID back to zero on scene change so it never hits the 65,535 limit
             lastId = 0;
             scenePhysicsSeeded = false;
 
-            // FIX: Clean out the caches to prevent old level props from holding memory
             TransformSyncable.cache = new CustomComponentCache<TransformSyncable>();
             TransformSyncable.DestructCache = new CustomComponentCache<TransformSyncable>();
 
@@ -61,12 +61,10 @@ namespace Entanglement.Objects
 
         public static void RemoveObjects()
         {
-            // FIX: Check if objects are valid before cleanup (prevents IL2CPP garbage collection errors)
             foreach (Syncable syncable in syncedObjects.Values.ToList())
             {
                 try
                 {
-                    // FIX: Check if the syncable and its gameObject still exist before cleanup
                     if (syncable != null && syncable.gameObject != null)
                     {
                         syncable.Cleanup();
@@ -74,7 +72,6 @@ namespace Entanglement.Objects
                 }
                 catch (Exception e)
                 {
-                    // Silently ignore cleanup errors - object may have already been destroyed
                     EntangleLogger.Verbose($"Syncable {syncable?.objectId} cleanup skipped: {e.Message}");
                 }
             }
@@ -84,6 +81,8 @@ namespace Entanglement.Objects
 
         public static void MoveSyncable(Syncable syncable, ushort newId)
         {
+            if (isTransitioning) return; // Drop if network is locked
+            
             syncedObjects.Remove(syncable.objectId);
             syncedObjects.Remove(newId);
             syncedObjects.Add(newId, syncable);
@@ -92,6 +91,8 @@ namespace Entanglement.Objects
 
         public static void RegisterSyncable(Syncable syncable, ushort objectId)
         {
+            if (isTransitioning) return; // Drop if network is locked
+            
             if (syncedObjects.ContainsKey(objectId))
             {
                 if (syncedObjects[objectId] != syncable) syncedObjects[objectId].Cleanup();
@@ -103,6 +104,8 @@ namespace Entanglement.Objects
 
         public static ushort QueueSyncable(Syncable syncable)
         {
+            if (isTransitioning) return 0; // Drop if network is locked
+            
             int index = queuedSyncs.IndexOf(syncable);
             if (index >= 0)
             {
@@ -112,7 +115,17 @@ namespace Entanglement.Objects
             return (ushort)(queuedSyncs.Count - 1);
         }
 
-        public static bool TryGetSyncable(ushort id, out Syncable syncable) => syncedObjects.TryGetValue(id, out syncable);
+        public static bool TryGetSyncable(ushort id, out Syncable syncable)
+        {
+            // FIX: This ensures all incoming TransformSync packets are cleanly ignored while loading!
+            if (isTransitioning) 
+            {
+                syncable = null;
+                return false;
+            }
+            
+            return syncedObjects.TryGetValue(id, out syncable);
+        }
 
         public static ushort GetNextObjectId()
         {

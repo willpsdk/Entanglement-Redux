@@ -35,18 +35,24 @@ namespace Entanglement.Objects
         public GameObject targetGo;
         public ConfigurableJoint syncJoint;
 
+        // --- 60Hz Smooth Interpolation Targets ---
+        public Vector3 targetSyncPosition = Vector3.zero;
+        public Quaternion targetSyncRotation = Quaternion.identity;
+        public Vector3 targetSyncVelocity = Vector3.zero;
+        public Vector3 targetSyncAngularVelocity = Vector3.zero;
+
         public Gun _CachedGun;
         public MagazinePlug _CachedPlug;
 
         public float startDrag = -1f;
         public float startAngularDrag = -1f;
 
-        public const float positionSpring = 50000f;
-        public const float positionDamper = 5000f;
-        public const float maximumForce = 80000f;
-        public const float linearLimit = 0.02f;
+        public const float positionSpring = 250000f;
+        public const float positionDamper = 15000f;
+        public const float maximumForce = 150000f;
+        public const float linearLimit = 0.005f;
 
-        // FIX: Increase to 60Hz for smooth object sync matching player sync (1/60 = 0.0167 seconds between syncs)
+        // Increase to 60Hz for smooth object sync matching player sync (1/60 = 0.0167 seconds between syncs)
         private float lastSyncTime = 0f;
         private const float OBJECT_SYNC_INTERVAL = 1f / 60f;
 
@@ -68,14 +74,12 @@ namespace Entanglement.Objects
             if (Node.activeNode == null)
                 return;
 
-            // Rate limit object syncs to configured interval
+            // Rate limit object syncs to 60 Hz
             lastSyncTime += Time.fixedDeltaTime;
             if (lastSyncTime < OBJECT_SYNC_INTERVAL)
                 return;
 
-            lastSyncTime -= OBJECT_SYNC_INTERVAL;
-            if (lastSyncTime > OBJECT_SYNC_INTERVAL)
-                lastSyncTime = 0f;
+            lastSyncTime = 0f;
 
             if (_cachedSyncData == null) _cachedSyncData = new TransformSyncMessageData();
 
@@ -99,7 +103,7 @@ namespace Entanglement.Objects
 
         public override bool ShouldSync()
         {
-            if (rb && rb.IsSleeping() && !HasChangedPositions()) return false;
+            if (rb && rb.IsSleeping()) return false;
             return HasChangedPositions();
         }
 
@@ -149,23 +153,14 @@ namespace Entanglement.Objects
         protected void OnEnable()
         {
             DestroyJoint();
-
-            // When an object comes back from a holster/slot, immediately reclaim
-            // ownership if we were the last owner so the remote side doesn't fight.
-            if (isValid && staleOwner == SteamIntegration.currentUser.m_SteamID)
-            {
-                SendEnqueue();
-            }
         }
 
         protected void OnDisable()
         {
             timeOfDisable = Time.realtimeSinceStartup;
-            DestroyJoint();
 
-            // Do NOT dequeue here. Holstering disables the object but the player still
-            // owns it. Dequeue only happens on explicit hand detach (GripDetachPatch)
-            // when the other hand isn't also holding the chain.
+            DestroyJoint();
+            SendDequeue();
         }
 
         protected void UpdateStoredPositions()
@@ -177,64 +172,55 @@ namespace Entanglement.Objects
         protected virtual void OnCollisionEnter(Collision collision)
         {
             if (!SteamIntegration.hasLobby) return;
+            if (collision.collider.gameObject.IsBlacklisted()) return;
             if (!collision.rigidbody || !IsOwner()) return;
 
-            // Only sync if THIS object is currently held by a player hand.
-            // This prevents cascade: a held gun bumps a box (sync), but that box
-            // bumping a second box does NOT trigger sync because the box isn't held.
-            if (rb == null || _CachedBodies == null || !_CachedBodies.IsHolding()) return;
-
-            if (collision.collider.gameObject.IsBlacklisted()) return;
+            if (rb && !_CachedBodies.IsHolding()) return;
 
             TransformSyncable existingSync = cache.Get(collision.rigidbody.gameObject);
             if (existingSync) return;
 
-            // Ignore NPC/AI rigs and non-interactable animated objects
-            if (!ObjectSync.IsScenePhysicsSyncCandidate(collision.rigidbody)) return;
-
             Transform targetObj = collision.rigidbody.transform;
+            Rigidbody[] rigidbodies = null;
+
             ulong ownerId = SteamIntegration.currentUser.m_SteamID;
 
-            ObjectSync.GetPooleeData(targetObj, out Rigidbody[] rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
-
-            if (rigidbodies == null || rigidbodies.Length == 0)
-                rigidbodies = targetObj.GetJointedBodies();
-
-            if (rigidbodies == null) return;
+            ObjectSync.GetPooleeData(targetObj, out rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
 
             for (int i = 0; i < rigidbodies.Length; i++)
             {
                 Rigidbody rBody = rigidbodies[i];
-                if (rBody == null || rBody.isKinematic) continue;
-
                 TransformSyncable syncObj = cache.Get(rBody.gameObject);
-                if (syncObj) continue;
-
-                ushort? objectId = null;
-                ushort callbackIndex = 0;
-
-                if (Server.instance != null)
-                    objectId = ObjectSync.GetNextObjectId();
-
-                Syncable syncable = CreateSync(ownerId, rBody, objectId);
-                if (syncable == null) continue;
-
-                if (Server.instance == null)
-                    callbackIndex = ObjectSync.QueueSyncable(syncable);
-
-                TransformCreateMessageData createSync = new TransformCreateMessageData()
+                if (!syncObj && !rBody.isKinematic)
                 {
-                    ownerId = ownerId,
-                    objectId = objectId != null ? objectId.Value : (ushort)0,
-                    callbackIndex = callbackIndex,
-                    objectPath = rBody.transform.GetFullPath(overrideRootName),
-                    spawnIndex = spawnIndex,
-                    spawnTime = spawnTime,
-                    enqueueOwner = false
-                };
+                    ushort? objectId = null;
+                    ushort callbackIndex = 0;
 
-                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformCreate, createSync);
-                Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+                    if (Server.instance != null)
+                    {
+                        objectId = ObjectSync.lastId;
+                        objectId++;
+                    }
+
+                    Syncable syncable = CreateSync(ownerId, rBody, objectId);
+
+                    if (Server.instance == null)
+                        callbackIndex = ObjectSync.QueueSyncable(syncable);
+
+                    TransformCreateMessageData createSync = new TransformCreateMessageData()
+                    {
+                        ownerId = ownerId,
+                        objectId = objectId != null ? objectId.Value : (ushort)0,
+                        callbackIndex = callbackIndex,
+                        objectPath = rBody.transform.GetFullPath(overrideRootName),
+                        spawnIndex = spawnIndex,
+                        spawnTime = spawnTime,
+                        enqueueOwner = false
+                    };
+
+                    NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformCreate, createSync);
+                    Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+                }
             }
         }
 
@@ -245,7 +231,31 @@ namespace Entanglement.Objects
             if (isValid)
             {
                 JointCheck();
-                if (!IsOwner()) SetHealth(float.PositiveInfinity);
+                if (!IsOwner())
+                {
+                    SetHealth(float.PositiveInfinity);
+
+                    // --- SMOOTHING FIX: Continuous 60Hz Interpolation for Objects ---
+                    // Wait until we have valid data so objects don't fly to 0,0,0 initially
+                    if (targetSyncPosition != Vector3.zero) 
+                    {
+                        if (targetBody)
+                        {
+                            // Smoothly move the kinematic target that pulls the joint
+                            targetBody.transform.position = Vector3.Lerp(targetBody.transform.position, targetSyncPosition, Time.fixedDeltaTime * 20f);
+                            targetBody.transform.rotation = Quaternion.Slerp(targetBody.transform.rotation, targetSyncRotation, Time.fixedDeltaTime * 20f);
+                            
+                            targetBody.velocity = Vector3.Lerp(targetBody.velocity, targetSyncVelocity, Time.fixedDeltaTime * 15f);
+                            targetBody.angularVelocity = Vector3.Lerp(targetBody.angularVelocity, targetSyncAngularVelocity, Time.fixedDeltaTime * 15f);
+                        }
+                        else if (!rb)
+                        {
+                            // Fallback smoothing for purely visual objects (No Rigidbody)
+                            transform.position = Vector3.Lerp(transform.position, targetSyncPosition, Time.fixedDeltaTime * 20f);
+                            transform.rotation = Quaternion.Slerp(transform.rotation, targetSyncRotation, Time.fixedDeltaTime * 20f);
+                        }
+                    }
+                }
             }
         }
 
@@ -277,6 +287,7 @@ namespace Entanglement.Objects
                 return existingSync;
             }
 
+            rigidbody.velocity = Vector3.zero;
             TransformSyncable syncObj = go.AddComponent<TransformSyncable>();
             cache.Add(go, syncObj);
 
@@ -325,14 +336,11 @@ namespace Entanglement.Objects
             ulong userId = SteamIntegration.currentUser.m_SteamID;
             if (ownerQueue.Contains(userId)) return;
 
-            // Optimistic local ownership handoff to avoid one-roundtrip freeze when grabbing objects as client.
-            EnqueueOwner(userId);
+            if (Server.instance != null) EnqueueOwner(userId);
 
             TransformQueueMessageData queueData = new TransformQueueMessageData() { userId = userId, objectId = objectId, isAdd = true };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
-
-            MelonCoroutines.Start(CoOwnershipResyncPulse());
+            Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
         }
 
         public void OnValidDequeue()
@@ -340,56 +348,11 @@ namespace Entanglement.Objects
             ulong userId = SteamIntegration.currentUser.m_SteamID;
             if (!ownerQueue.Contains(userId)) return;
 
-            // Send a reliable final state before relinquishing ownership so throw velocity is preserved.
-            SendOwnershipHandoffSnapshot();
-
-            DequeueOwner(userId);
+            if (Server.instance != null) DequeueOwner(userId);
 
             TransformQueueMessageData queueData = new TransformQueueMessageData() { userId = userId, objectId = objectId, isAdd = false };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
-
-            MelonCoroutines.Start(CoOwnershipResyncPulse());
-        }
-
-        private void SendOwnershipHandoffSnapshot()
-        {
-            if (!isValid || Node.activeNode == null || !IsOwner())
-                return;
-
-            TransformSyncMessageData handoffData = new TransformSyncMessageData()
-            {
-                objectId = objectId,
-                simplifiedTransform = new SimplifiedTransform(transform, rb)
-            };
-
-            NetworkMessage handoffMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, handoffData);
-            if (handoffMessage != null)
-                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, handoffMessage.GetBytes());
-        }
-
-        private IEnumerator CoOwnershipResyncPulse()
-        {
-            // Small burst of reliable transform syncs to settle contested grabs/holster movement.
-            for (int i = 0; i < 8; i++)
-            {
-                if (!isValid || Node.activeNode == null)
-                    yield break;
-
-                if (IsOwner())
-                {
-                    TransformSyncMessageData data = new TransformSyncMessageData
-                    {
-                        objectId = objectId,
-                        simplifiedTransform = new SimplifiedTransform(transform, rb)
-                    };
-
-                    NetworkMessage msg = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, data);
-                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, msg.GetBytes());
-                }
-
-                yield return null;
-            }
+            Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
         }
 
         public IEnumerator WaitUntilValid(Action onFinish)
@@ -409,26 +372,25 @@ namespace Entanglement.Objects
                 rb.Sleep();
             }
 
-            if (targetBody)
-            {
-                targetBody.transform.position = simplifiedTransform.position;
-                targetBody.transform.rotation = simplifiedTransform.rotation.ExpandQuat();
+            // --- SMOOTHING FIX: Cache the target data instead of violently teleporting the targetBody instantly ---
+            targetSyncPosition = simplifiedTransform.position;
+            targetSyncRotation = simplifiedTransform.rotation.ExpandQuat();
 
-                if (!simplifiedTransform.isSleeping)
-                {
-                    targetBody.velocity = simplifiedTransform.velocity;
-                    targetBody.angularVelocity = simplifiedTransform.angularVelocity;
-                }
+            if (!simplifiedTransform.isSleeping)
+            {
+                targetSyncVelocity = simplifiedTransform.velocity;
+                targetSyncAngularVelocity = simplifiedTransform.angularVelocity;
+            }
+            else
+            {
+                targetSyncVelocity = Vector3.zero;
+                targetSyncAngularVelocity = Vector3.zero;
             }
 
-            if (!rb)
+            if (rb && !syncJoint && !simplifiedTransform.isSleeping)
             {
-                simplifiedTransform.Apply(transform);
-            }
-            else if (!syncJoint && !simplifiedTransform.isSleeping)
-            {
-                rb.velocity = simplifiedTransform.velocity;
-                rb.angularVelocity = simplifiedTransform.angularVelocity;
+                rb.velocity = targetSyncVelocity;
+                rb.angularVelocity = targetSyncAngularVelocity;
             }
 
             if (!transform.gameObject.activeInHierarchy && Mathf.Abs(Time.realtimeSinceStartup - timeOfDisable) >= 2f)
@@ -447,6 +409,10 @@ namespace Entanglement.Objects
             targetBody.isKinematic = true;
             targetBody.transform.position = transform.position;
             targetBody.transform.rotation = transform.rotation;
+
+            // --- SMOOTHING FIX: Initialize targets to prevent item rocketing to Vector3.zero on spawn ---
+            targetSyncPosition = transform.position;
+            targetSyncRotation = transform.rotation;
 
             DestroyJoint();
 

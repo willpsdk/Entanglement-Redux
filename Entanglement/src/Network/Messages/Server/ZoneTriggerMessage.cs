@@ -4,7 +4,7 @@ using StressLevelZero.Zones;
 using Entanglement.Patching;
 using Entanglement.Network;
 using Entanglement.Representation;
-using Entanglement.Data; // Added the correct namespace for PlayerScripts
+using Entanglement.Data; 
 using Entanglement.Extensions;
 
 namespace Entanglement.Network
@@ -64,43 +64,42 @@ namespace Entanglement.Network
 
                 if (zone != null || trigger != null)
                 {
-                    if (PlayerScripts.playerRig != null && PlayerScripts.playerRig.physicsRig != null)
+                    // === FIX APPLIED HERE: No longer pulling from PlayerScripts.playerRig ===
+                    
+                    // Create a throwaway collider for the replay so Boneworks doesn't cull the local player
+                    GameObject phantom = new GameObject("ZoneReplayPhantom");
+                    phantom.tag = "Player"; // Tagged so PlayerTriggers still accept it
+                    SphereCollider phantomCol = phantom.AddComponent<SphereCollider>();
+                    phantomCol.radius = 0.01f;
+                    phantomCol.isTrigger = true; // Ensure it doesn't bump physical objects
+                    
+                    phantom.transform.position = targetZone.transform.position;
+
+                    ZoneTrackingUtilities.networkReplay = true;
+                    try
                     {
-                        Collider playerCol = null;
-
-                        if (PlayerScripts.playerRig.physicsRig.m_pelvis != null)
-                            playerCol = PlayerScripts.playerRig.physicsRig.m_pelvis.GetComponent<Collider>();
-
-                        if (playerCol == null && PlayerScripts.playerRig.physicsRig.m_head != null)
-                            playerCol = PlayerScripts.playerRig.physicsRig.m_head.GetComponent<Collider>();
-
-                        if (playerCol != null)
+                        if (isPlayerTrigger && trigger != null)
                         {
-                            ZoneTrackingUtilities.networkReplay = true;
-                            try
-                            {
-                                if (isPlayerTrigger)
-                                {
-                                    if (isEnter)
-                                        trigger.OnTriggerEnter(playerCol);
-                                    else
-                                        trigger.OnTriggerExit(playerCol);
-                                }
-                                else if (zone != null)
-                                {
-                                    if (isEnter)
-                                        zone.OnTriggerEnter(playerCol);
-                                    else
-                                        zone.OnTriggerExit(playerCol);
-                                }
-                            }
-                            finally
-                            {
-                                ZoneTrackingUtilities.networkReplay = false;
-                            }
+                            if (isEnter)
+                                trigger.OnTriggerEnter(phantomCol);
+                            else
+                                trigger.OnTriggerExit(phantomCol);
+                        }
+                        else if (zone != null)
+                        {
+                            if (isEnter)
+                                zone.OnTriggerEnter(phantomCol);
+                            else
+                                zone.OnTriggerExit(phantomCol);
                         }
                     }
+                    finally
+                    {
+                        ZoneTrackingUtilities.networkReplay = false;
+                        GameObject.Destroy(phantom); // Clean up the dummy collider
+                    }
 
+                    // Force refresh player reps just in case a zone tried to hide them
                     PlayerRepresentation.ForceRefreshAllRemoteRepresentations();
                 }
             }
