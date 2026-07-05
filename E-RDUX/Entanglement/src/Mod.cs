@@ -109,7 +109,7 @@ namespace Entanglement {
             BanList.PullFromFile();
 
             // TODO: Remove this upon full release
-            EntangleLogger.Log("Welcome to the Entanglement pre-release!", ConsoleColor.DarkYellow);
+            EntangleLogger.Log("Welcome to the Entanglement Redux Beta!", ConsoleColor.DarkYellow);
 
         }
 
