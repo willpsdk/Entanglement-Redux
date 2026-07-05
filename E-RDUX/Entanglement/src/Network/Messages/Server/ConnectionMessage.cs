@@ -7,10 +7,17 @@ using System.IO;
 
 using MelonLoader;
 
+using UnityEngine;
+
 using Entanglement.Data;
 
 namespace Entanglement.Network {
     public class ConnectionMessageHandler : NetworkMessageHandler<ConnectionMessageData> {
+        // Debounces duplicate connection messages from the same user, e.g. a buffered
+        // backlog replayed after the host's app was suspended (headset removed)
+        private static readonly Dictionary<long, float> lastConnectionTimes = new Dictionary<long, float>();
+        private const float CONNECTION_DEBOUNCE_SECONDS = 2f;
+
         public override byte? MessageIndex => BuiltInMessageType.Connection;
 
         public override NetworkMessage CreateMessage(ConnectionMessageData data) {
@@ -33,6 +40,12 @@ namespace Entanglement.Network {
 
             byte clientVersionMajor = message.messageData[0];
             byte clientVersionMinor = message.messageData[1];
+
+            // Ignore rapid repeats from the same user - they're a replayed backlog, not new joins
+            if (lastConnectionTimes.TryGetValue(sender, out float lastTime) && Time.realtimeSinceStartup - lastTime < CONNECTION_DEBOUNCE_SECONDS)
+                return;
+
+            lastConnectionTimes[sender] = Time.realtimeSinceStartup;
 
             bool isSameVersion = clientVersionMajor == EntanglementVersion.versionMajor && clientVersionMinor == EntanglementVersion.versionMinor;
 

@@ -51,6 +51,12 @@ namespace Entanglement {
 
         public static bool hasUnpatched = false;
 
+        // Detects app suspension (headset removed / OS sleep) via the realtime gap between
+        // frames. No frames run while suspended, so the first frame after resume sees the
+        // whole gap - drain the buffered Steam P2P backlog before the node Ticks process it.
+        private static float lastUpdateRealtime = 0f;
+        private const float SUSPEND_GAP_SECONDS = 3f;
+
         // Runs before any of our methods are JIT compiled, so the embedded Steamworks.NET.dll
         // resolves even if type loading pulls it in before OnApplicationStart executes
         static EntanglementMod() {
@@ -124,8 +130,17 @@ namespace Entanglement {
                     HarmonyInstance.UnpatchSelf();
                     hasUnpatched = true;
                 }
-                return; 
+                return;
             }
+
+            // Suspend recovery: OnUpdate runs before the node Ticks in OnLateUpdate, so the
+            // backlog is gone before any of it can be handled
+            float nowRealtime = Time.realtimeSinceStartup;
+            if (lastUpdateRealtime > 0f && nowRealtime - lastUpdateRealtime > SUSPEND_GAP_SECONDS) {
+                EntangleLogger.Log($"App was suspended for {nowRealtime - lastUpdateRealtime:F1}s, draining the stale network backlog...");
+                Node.activeNode?.ClearMessageBuffer();
+            }
+            lastUpdateRealtime = nowRealtime;
 
             ModuleHandler.Update();
 

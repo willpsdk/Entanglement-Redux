@@ -103,7 +103,15 @@ namespace Entanglement.Objects
             UpdateStoredPositions();
         }
 
-        public override bool ShouldSync() => (rb ? !rb.IsSleeping() : HasChangedPositions());
+        // Holstered/slotted items are parented under the local rig and made kinematic - the body
+        // can report sleeping while it rides the player, so gate those on actual movement instead
+        // of the sleep state (otherwise a holstered gun freezes mid-air for everyone else).
+        public override bool ShouldSync() {
+            if (transform.parent && transform.GetComponentInParent<StressLevelZero.Rig.RigManager>())
+                return HasChangedPositions();
+
+            return rb ? !rb.IsSleeping() : HasChangedPositions();
+        }
 
         public bool HasChangedPositions() => (transform.position - lastPosition).sqrMagnitude > 0.001f || Quaternion.Angle(transform.rotation, lastRotation) > 0.05f;
 
@@ -364,7 +372,7 @@ namespace Entanglement.Objects
 
             float angSpeed = netAngularVelocity.magnitude;
             if (angSpeed > 0.001f)
-                predictedRot = Quaternion.AngleAxis(angSpeed * age * Mathf.Rad2Deg, netAngularVelocity / angSpeed) * netRotation;
+                predictedRot = Quaternion.AngleAxis(angSpeed * age * 57.29578f, netAngularVelocity / angSpeed) * netRotation; // 57.29578f = Rad2Deg (constant not exposed by the unhollowed Mathf)
 
             if (isWorldConstrained) {
                 // Jointed bodies (doors, levers, NPC bones, pull handles): steer with velocities so PhysX can still solve their joints afterwards

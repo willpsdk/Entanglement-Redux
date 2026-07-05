@@ -63,20 +63,26 @@ namespace Entanglement.Patching
         {
             Transform root = c.gameObject.transform.root;
             string objName = root.name;
-            if (!objName.Contains("PlayerRep"))
+
+            if (objName.Contains("PlayerRep")) {
+                string[] playerName = objName.Split('.');
+                if (playerName.Length < 2)
+                    throw new IndexOutOfRangeException();
+                long id = long.Parse(playerName[1]);
+                NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PlayerAttack, new PlayerAttackMessageData() {
+                    attackType = AttackType.Blunt,
+                    attackDamage = (ushort)(impulse / 5f),
+                });
+
+                byte[] msgBytes = message.GetBytes();
+
+                Node.activeNode.SendMessage(id, NetworkChannel.Attack, msgBytes);
                 return;
-            string[] playerName = objName.Split('.');
-            if (playerName.Length < 2)
-                throw new IndexOutOfRangeException();
-            long id = long.Parse(playerName[1]);
-            NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PlayerAttack, new PlayerAttackMessageData() { 
-                attackType = AttackType.Blunt,
-                attackDamage = (ushort)(impulse / 5f),
-            });
+            }
 
-            byte[] msgBytes = message.GetBytes();
-
-            Node.activeNode.SendMessage(id, NetworkChannel.Attack, msgBytes);
+            // Punched props were never registered for sync - the box you punched flew for you
+            // and stood still for everyone else
+            ObjectSync.OnBodyPunched(c.gameObject);
         }
     }
 

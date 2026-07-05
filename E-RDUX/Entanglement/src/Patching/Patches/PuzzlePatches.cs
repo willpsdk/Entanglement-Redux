@@ -36,8 +36,8 @@ namespace Entanglement.Objects
 
         public static void OnSceneCleanup() {
             lastEventTimes.Clear();
-            ButtonTogglePatch.pressedStates.Clear();
-            PullDevicePatch.pulledStates.Clear();
+            Patching.ButtonTogglePatch.pressedStates.Clear();
+            Patching.PullDevicePatch.pulledStates.Clear();
         }
 
         // Walks up the hierarchy to the poolee root, pooled objects share a spawn id on every client

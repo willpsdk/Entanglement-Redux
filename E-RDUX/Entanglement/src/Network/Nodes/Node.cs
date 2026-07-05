@@ -36,6 +36,31 @@ namespace Entanglement.Network {
             NetworkChannel.Transaction
         };
 
+        // Drains every queued P2P packet without handling it. Used after an app suspend
+        // (headset removed / OS sleep) so the resume frame doesn't process the entire
+        // buffered backlog at once - connection spam and duplicated spawns.
+        public void ClearMessageBuffer() {
+            try {
+                int drained = 0;
+
+                foreach (NetworkChannel channel in allChannels) {
+                    while (SteamNetworking.IsP2PPacketAvailable(out uint packetSize, (int)channel)) {
+                        byte[] buffer = new byte[packetSize];
+                        if (!SteamNetworking.ReadP2PPacket(buffer, packetSize, out uint bytesRead, out CSteamID remoteId, (int)channel))
+                            break;
+
+                        drained++;
+                    }
+                }
+
+                if (drained > 0)
+                    EntangleLogger.Log($"Drained {drained} stale network packets after suspend.");
+            }
+            catch (Exception e) {
+                EntangleLogger.Warn($"Failed to drain the network backlog: {e.Message}");
+            }
+        }
+
         protected Callback<LobbyChatUpdate_t> lobbyChatUpdateCallback;
 
         // Subscribes to lobby member joins/leaves, the Steam equivalent of Discord's OnMemberConnect/OnMemberDisconnect

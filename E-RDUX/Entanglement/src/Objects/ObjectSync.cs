@@ -158,6 +158,51 @@ namespace Entanglement.Objects
             for (int i = 0; i < rigidbodies.Length; i++) SyncUtilities.UpdateBodyAttached(rigidbodies[i], overrideRootName, spawnIndex, spawnTime);
         }
 
+        // Syncs a body the local player shoved without gripping (punch / palm hit). Objects
+        // that already have a syncable are left alone - their owner keeps simulating them.
+        // New ones go through the normal grip pipeline as a grab-and-instant-release, so the
+        // puncher becomes the authoritative owner (last-holder-keeps) without lingering in
+        // the owner queue and blocking later grabs.
+        public static void OnBodyPunched(GameObject hit) {
+            if (!SteamIntegration.hasLobby)
+                return;
+
+            if (!hit || hit.IsBlacklisted())
+                return;
+
+            MelonCoroutines.Start(OnPunchValid(hit));
+        }
+
+        public static IEnumerator OnPunchValid(GameObject hit) {
+            yield return null;
+
+            if (!hit || !hit.activeInHierarchy)
+                yield break;
+
+            // Punches are indiscriminate where grips are deliberate - never sync NPC skeletons,
+            // their state replicates through the scene event system instead
+            Transform hitRoot = hit.transform.root;
+            if (hitRoot && hitRoot.GetComponentInChildren<StressLevelZero.AI.AIBrain>(true))
+                yield break;
+
+            GetPooleeData(hit.transform, out Rigidbody[] rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
+
+            if (rigidbodies == null)
+                yield break;
+
+            for (int i = 0; i < rigidbodies.Length; i++) {
+                Rigidbody rb = rigidbodies[i];
+                if (!rb || rb.isKinematic)
+                    continue;
+
+                if (TransformSyncable.cache.Get(rb.gameObject))
+                    continue;
+
+                SyncUtilities.UpdateBodyAttached(rb, overrideRootName, spawnIndex, spawnTime);
+                SyncUtilities.UpdateBodyDetached(rb);
+            }
+        }
+
         public static void OnGripDetached(Hand __instance) {
             if (!SteamIntegration.hasLobby)
                 return;
