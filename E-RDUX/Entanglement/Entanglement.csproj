@@ -7,8 +7,11 @@
     <ProjectGuid>{490E160D-251D-4AB4-A3BB-F473961FF8A1}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
+    <!-- RootNamespace MUST stay "Entanglement": embedded resource manifest names derive from it
+         (Entanglement.resources.*), and the Steamworks resolver + player-rep bundle load them by
+         that literal path. Only AssemblyName changes, so the output DLL is EntanglementRedux.dll. -->
     <RootNamespace>Entanglement</RootNamespace>
-    <AssemblyName>Entanglement</AssemblyName>
+    <AssemblyName>EntanglementRedux</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>

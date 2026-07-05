@@ -309,23 +309,21 @@ namespace Entanglement.Patching
         }
     }
 
-    // Keeps corpses from lingering on clients after the host's poolee despawns
-    [HarmonyPatch(typeof(StressLevelZero.AI.AIBrain), "OnDespawn")]
+    // NPC despawn DETECTION is disabled. Harmony-patching AIBrain.OnDespawn(GameObject) is
+    // incompatible with this il2cpp build: the game calls OnDespawn with a null argument during
+    // pool teardown, and Harmony's managed trampoline marshals that null through
+    // Il2CppObjectBaseToPtrNotNull, which throws NullReferenceException inside the patched method
+    // itself - before our Postfix runs (its frame is absent from the crash stack). That fired on
+    // every NPC despawn and took down the debug build.
+    //
+    // The class and isRemoteDespawn flag are kept so the remote-APPLY path in
+    // SceneEventSync.ApplyNpcEvent (rootPoolee.Despawn under the guard) still compiles and works.
+    // Only local despawn detection/broadcast is dropped: a host-despawned pooled NPC may briefly
+    // linger on clients (minor visual) instead of crashing. NPC death sync (OnDeath) is unaffected.
+    // TODO: re-detect despawns via a method without a nullable il2cpp parameter (e.g. Poolee.OnDespawn()).
     public static class AIBrainDespawnPatch
     {
         public static bool isRemoteDespawn = false;
-
-        public static void Postfix(StressLevelZero.AI.AIBrain __instance) {
-            if (!SteamIntegration.hasLobby || isRemoteDespawn)
-                return;
-
-            PooleeSyncable poolee = SceneEventSync.FindPooleeSyncable(__instance.transform);
-            if (!poolee) // Despawning is a pooled concept, nothing to do for scene NPCs
-                return;
-
-            if (SceneEventSync.MarkEvent(SceneEventSync.EventKey(__instance.GetInstanceID(), SceneEventType.NpcDespawn)))
-                SceneEventSync.SendEvent(SceneEventType.NpcDespawn, __instance.transform, poolee.id);
-        }
     }
 
     // MonoMat vending machines: replicate magazine deposits so balance, unlock state and change match everywhere.
