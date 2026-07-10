@@ -92,8 +92,7 @@ namespace Entanglement.Objects
                 angularVelocity = rb ? rb.angularVelocity : Vector3.zero
             };
 
-            NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, syncData);
-            Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+            TransformSyncBatcher.Enqueue(syncData);
 
             if (targetGo) {
                 targetGo.transform.position = transform.position;
@@ -103,9 +102,6 @@ namespace Entanglement.Objects
             UpdateStoredPositions();
         }
 
-        // Holstered/slotted items are parented under the local rig and made kinematic - the body
-        // can report sleeping while it rides the player, so gate those on actual movement instead
-        // of the sleep state (otherwise a holstered gun freezes mid-air for everyone else).
         public override bool ShouldSync() {
             if (transform.parent && transform.GetComponentInParent<StressLevelZero.Rig.RigManager>())
                 return HasChangedPositions();
@@ -154,6 +150,23 @@ namespace Entanglement.Objects
 
         protected void OnEnable() {
             DestroyJoint();
+
+            if (isValid && hasNetTarget && !IsOwner()) {
+                transform.position = netPosition;
+                transform.rotation = netRotation;
+
+                if (TryGetRigidbody(out Rigidbody body) && !body.isKinematic) {
+                    body.position = netPosition;
+                    body.rotation = netRotation;
+                    body.velocity = netVelocity;
+                    body.angularVelocity = netAngularVelocity;
+                }
+
+                if (targetBody) {
+                    targetBody.position = netPosition;
+                    targetBody.rotation = netRotation;
+                }
+            }
         }
 
         protected void OnDisable() {
@@ -357,9 +370,9 @@ namespace Entanglement.Objects
 
             if (!rb) simplifiedTransform.Apply(transform);
 
-            // Re-enable the transform if something de-activated it
-            if (!transform.gameObject.activeInHierarchy && Mathf.Abs(Time.realtimeSinceStartup - timeOfDisable) >= 2f)
-                transform.ForceActivate();
+            // Only revive a directly-deactivated object; leave zone-culled ones (inactive ancestor) culled
+            if (!transform.gameObject.activeSelf && Mathf.Abs(Time.realtimeSinceStartup - timeOfDisable) >= 2f)
+                transform.gameObject.SetActive(true);
         }
 
         protected void InterpolateRemote() {
@@ -372,7 +385,7 @@ namespace Entanglement.Objects
 
             float angSpeed = netAngularVelocity.magnitude;
             if (angSpeed > 0.001f)
-                predictedRot = Quaternion.AngleAxis(angSpeed * age * 57.29578f, netAngularVelocity / angSpeed) * netRotation; // 57.29578f = Rad2Deg (constant not exposed by the unhollowed Mathf)
+                predictedRot = Quaternion.AngleAxis(angSpeed * age * 57.29578f, netAngularVelocity / angSpeed) * netRotation;
 
             if (isWorldConstrained) {
                 // Jointed bodies (doors, levers, NPC bones, pull handles): steer with velocities so PhysX can still solve their joints afterwards
@@ -402,8 +415,10 @@ namespace Entanglement.Objects
                 rb.angularVelocity = netAngularVelocity + correction;
             }
             else if (targetBody) {
-                // Free bodies: glide the kinematic follow target toward the prediction, the drive joint does the rest
-                if ((targetBody.position - predictedPos).sqrMagnitude > snapDistance * snapDistance) {
+                // Held items track the prediction directly; the smoothed glide only runs once released
+                bool remotelyHeld = ownerQueue.Count > 0;
+
+                if (remotelyHeld || (targetBody.position - predictedPos).sqrMagnitude > snapDistance * snapDistance) {
                     targetBody.position = predictedPos;
                     targetBody.rotation = predictedRot;
                     rb.position = predictedPos;
@@ -496,9 +511,7 @@ namespace Entanglement.Objects
             }
         }
 
-        // True when any joint other than our own constrains this body: doors/levers/valves (jointed to the world),
-        // NPC muscles (jointed to their skeleton), pull box handles (jointed to their crate), flails, etc.
-        // Driving those through velocities respects the joint, a rigid follow joint would fight it and vibrate.
+        // True when a joint other than our own constrains this body (doors, NPC muscles, pull handles)
         protected bool ComputeWorldConstrained() {
             Joint[] joints = GetComponents<Joint>();
 

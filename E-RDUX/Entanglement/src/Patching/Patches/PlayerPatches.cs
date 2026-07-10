@@ -80,8 +80,6 @@ namespace Entanglement.Patching
                 return;
             }
 
-            // Punched props were never registered for sync - the box you punched flew for you
-            // and stood still for everyone else
             ObjectSync.OnBodyPunched(c.gameObject);
         }
     }

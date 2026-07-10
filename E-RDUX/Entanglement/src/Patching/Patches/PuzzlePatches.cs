@@ -34,8 +34,34 @@ namespace Entanglement.Objects
             return true;
         }
 
+        // Scene events fired this level, in order, replayed to late joiners (host only)
+        static List<SceneEventMessageData> firedEvents = new List<SceneEventMessageData>();
+
+        public static void RecordForLateJoin(SceneEventType type, ushort arg, string objectPath) {
+            if (!Node.isServer)
+                return;
+
+            firedEvents.Add(new SceneEventMessageData() { eventType = type, arg = arg, objectPath = objectPath });
+        }
+
+        public static int ReplayEventsTo(long userId) {
+            int sent = 0;
+
+            foreach (SceneEventMessageData data in firedEvents) {
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.SceneEvent, data);
+                if (message == null)
+                    continue;
+
+                Node.activeNode.SendMessage(userId, NetworkChannel.Reliable, message.GetBytes());
+                sent++;
+            }
+
+            return sent;
+        }
+
         public static void OnSceneCleanup() {
             lastEventTimes.Clear();
+            firedEvents.Clear();
             Patching.ButtonTogglePatch.pressedStates.Clear();
             Patching.PullDevicePatch.pulledStates.Clear();
         }
@@ -60,6 +86,8 @@ namespace Entanglement.Objects
                 arg = arg,
                 objectPath = transform.GetFullPath()
             };
+
+            RecordForLateJoin(type, arg, data.objectPath);
 
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.SceneEvent, data);
             Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, message.GetBytes());
@@ -309,18 +337,9 @@ namespace Entanglement.Patching
         }
     }
 
-    // NPC despawn DETECTION is disabled. Harmony-patching AIBrain.OnDespawn(GameObject) is
-    // incompatible with this il2cpp build: the game calls OnDespawn with a null argument during
-    // pool teardown, and Harmony's managed trampoline marshals that null through
-    // Il2CppObjectBaseToPtrNotNull, which throws NullReferenceException inside the patched method
-    // itself - before our Postfix runs (its frame is absent from the crash stack). That fired on
-    // every NPC despawn and took down the debug build.
-    //
-    // The class and isRemoteDespawn flag are kept so the remote-APPLY path in
-    // SceneEventSync.ApplyNpcEvent (rootPoolee.Despawn under the guard) still compiles and works.
-    // Only local despawn detection/broadcast is dropped: a host-despawned pooled NPC may briefly
-    // linger on clients (minor visual) instead of crashing. NPC death sync (OnDeath) is unaffected.
-    // TODO: re-detect despawns via a method without a nullable il2cpp parameter (e.g. Poolee.OnDespawn()).
+    // Not patched: AIBrain.OnDespawn is called with a null argument during pool teardown, and
+    // Harmony's il2cpp trampoline throws marshalling that null. The flag is kept for the
+    // remote-apply guard in SceneEventSync.ApplyNpcEvent.
     public static class AIBrainDespawnPatch
     {
         public static bool isRemoteDespawn = false;

@@ -27,8 +27,15 @@ namespace Entanglement.Network {
 
             bool reload = Convert.ToBoolean(message.messageData[1]);
 
-            if (index == Client.instance.currentScene && !reload)
+            if (index == Client.instance.currentScene && !reload) {
+                // Already in this scene, so no load fires; still send the ready handshake
+                if (SteamIntegration.hasLobby && !Node.isServer && Node.activeNode != null) {
+                    NetworkMessage readyMessage = NetworkMessage.CreateMessage(BuiltInMessageType.ClientReady, new EmptyMessageData());
+                    if (readyMessage != null)
+                        Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, readyMessage.GetBytes());
+                }
                 return;
+            }
 
             StressLevelZero.Utilities.BoneworksSceneManager.LoadScene(index); // The scene loader only seems to work with an index, but at least it has less weight on the network
         }

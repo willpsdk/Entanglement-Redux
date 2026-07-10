@@ -9,6 +9,8 @@ using Steamworks;
 
 using Entanglement.Representation;
 using Entanglement.Data;
+using Entanglement.Objects;
+using Entanglement.Extensions;
 
 using StressLevelZero;
 
@@ -210,6 +212,110 @@ namespace Entanglement.Network
             SteamIntegration.UpdateActivity();
 
             userBeats.Remove(userId);
+            replayedUsers.Remove(userId);
+        }
+
+        // Users who already received the world state replay for the current scene, so a duplicate
+        // ClientReady can't replay spawns twice. Cleared on level change and on disconnect.
+        public readonly HashSet<long> replayedUsers = new HashSet<long>();
+
+        // Replays the current world state to a late joiner once their scene is ready
+        public void ReplayWorldStateTo(long userId) {
+            if (!replayedUsers.Add(userId))
+                return;
+
+            int spawnCount = 0, propCount = 0, gripCount = 0;
+
+            // Pooled objects (guns, items), sent at their current transform
+            foreach (PooleeSyncable poolee in PooleeSyncable._PooleeLookup.Values.ToArray()) {
+                if (!poolee || !poolee.gameObject || !poolee.gameObject.activeInHierarchy)
+                    continue;
+
+                if (!poolee.Poolee || !poolee.Poolee.pool)
+                    continue;
+
+                Rigidbody[] rbs = poolee.GetComponentsInChildren<Rigidbody>();
+
+                SpawnClientMessageData spawnData = new SpawnClientMessageData() {
+                    rbCount = (byte)rbs.Length,
+                    spawnId = poolee.id,
+                    title = SpawnManager.GetPoolTitle(poolee.Poolee.pool),
+                    transform = new SimplifiedTransform(poolee.transform),
+                };
+
+                NetworkMessage spawnMessage = NetworkMessage.CreateMessage(BuiltInMessageType.SpawnClient, spawnData);
+                if (spawnMessage != null) {
+                    SendMessage(userId, NetworkChannel.Reliable, spawnMessage.GetBytes());
+                    spawnCount++;
+                }
+            }
+
+            // Interacted-with scene props, resolved by path then placed at their current transform.
+            // Poolee children are skipped; the spawn replay above already recreated their syncables.
+            foreach (Syncable syncable in ObjectSync.syncedObjects.Values.ToArray()) {
+                TransformSyncable sync = syncable as TransformSyncable;
+                if (!sync || !sync.transform)
+                    continue;
+
+                if (SceneEventSync.FindPooleeSyncable(sync.transform))
+                    continue;
+
+                ObjectSync.GetPooleeData(sync.transform, out _, out string overrideRootName, out short spawnIndex, out float spawnTime);
+
+                TransformCreateMessageData createData = new TransformCreateMessageData() {
+                    ownerId = sync.staleOwner != 0 ? sync.staleOwner : SteamIntegration.lobbyOwnerId,
+                    objectId = sync.objectId,
+                    callbackIndex = 0,
+                    spawnIndex = spawnIndex,
+                    spawnTime = spawnTime,
+                    enqueueOwner = false,
+                    objectPath = sync.transform.GetFullPath(overrideRootName),
+                };
+
+                NetworkMessage createMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformCreate, createData);
+                if (createMessage == null)
+                    continue;
+
+                SendMessage(userId, NetworkChannel.Reliable, createMessage.GetBytes());
+
+                TransformSyncMessageData syncData = new TransformSyncMessageData() {
+                    objectId = sync.objectId,
+                    simplifiedTransform = new SimplifiedTransform(sync.transform),
+                    velocity = sync.rb ? sync.rb.velocity : Vector3.zero,
+                    angularVelocity = sync.rb ? sync.rb.angularVelocity : Vector3.zero,
+                };
+
+                NetworkMessage syncMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSync, syncData);
+                if (syncMessage != null)
+                    SendMessage(userId, NetworkChannel.Reliable, syncMessage.GetBytes());
+
+                propCount++;
+            }
+
+            // Active grip ownership, so a currently-held object stays with its holder on the joiner
+            foreach (Syncable syncable in ObjectSync.syncedObjects.Values.ToArray()) {
+                if (syncable == null)
+                    continue;
+
+                foreach (long owner in syncable.ownerQueue) {
+                    TransformQueueMessageData queueData = new TransformQueueMessageData() {
+                        userId = owner,
+                        objectId = syncable.objectId,
+                        isAdd = true,
+                    };
+
+                    NetworkMessage queueMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
+                    if (queueMessage != null) {
+                        SendMessage(userId, NetworkChannel.Reliable, queueMessage.GetBytes());
+                        gripCount++;
+                    }
+                }
+            }
+
+            // Story progress recorded this level
+            int eventCount = SceneEventSync.ReplayEventsTo(userId);
+
+            EntangleLogger.Log($"Replayed world state to {userId}: {spawnCount} spawns, {propCount} props, {gripCount} grips, {eventCount} scene events.");
         }
 
         public override void BroadcastMessage(NetworkChannel channel, byte[] data) => BroadcastMessageP2P(channel, data);

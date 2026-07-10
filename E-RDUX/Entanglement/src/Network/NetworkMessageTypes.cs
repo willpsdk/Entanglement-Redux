@@ -44,6 +44,8 @@
             SpawnTransfer = 37,
             GripEvent = 38,
             PlayerEvent = 39,
-            SceneEvent = 40;
+            SceneEvent = 40,
+            ClientReady = 41,
+            TransformSyncBatch = 42;
     }
 }

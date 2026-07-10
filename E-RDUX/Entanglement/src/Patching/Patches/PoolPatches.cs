@@ -200,6 +200,12 @@ namespace Entanglement.Patching {
                 ObjectSync.lastId = thisId;
             }
 
+            // Debris fragments report zero rigidbodies here (their pieces are still inactive),
+            // which skips the loop - the id must still be consumed or every spawn in the burst
+            // broadcasts the same one and clients hit duplicate key exceptions
+            if (rbCount == 0)
+                ObjectSync.lastId = id;
+
             // Now we sync this object back to the clients
             SpawnClientMessageData data = new SpawnClientMessageData()
             {

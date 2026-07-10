@@ -37,12 +37,17 @@ namespace Entanglement.Objects
         }
 
         public void Start() {
-            _PooleeLookup.Add(id, this);
+            // Indexer instead of Add: a host running an older build can broadcast duplicate
+            // spawn ids for debris bursts, which must not throw inside the il2cpp trampoline
+            _PooleeLookup[id] = this;
         }
 
         public void OnDestroy() {
             _Cache.Remove(gameObject);
-            _PooleeLookup.Remove(id);
+
+            // Only remove the entry if it still points at us, a duplicate id may have overwritten it
+            if (_PooleeLookup.TryGetValue(id, out PooleeSyncable current) && current == this)
+                _PooleeLookup.Remove(id);
         }
 
         public void OnSpawn(long ownerId, SimplifiedTransform simplifiedTransform) {

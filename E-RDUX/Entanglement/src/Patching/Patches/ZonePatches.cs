@@ -78,12 +78,21 @@ namespace Entanglement.Patching
 
             return triggerCount[trigger] <= 0;
         }
+
+        // Remote player reps carry "Player"-tagged colliders; only the local player drives zones
+        public static bool IsRemoteRep(Collider other) {
+            Transform root = other ? other.transform.root : null;
+            return root && root.name.Contains("PlayerRep");
+        }
     }
 
     [HarmonyPatch(typeof(SceneZone), "OnTriggerEnter")]
     public static class ZoneEnterPatch
     {
         public static bool Prefix(SceneZone __instance, Collider other) {
+            if (ZoneTrackingUtilities.IsRemoteRep(other))
+                return false;
+
             if (other.CompareTag("Player"))
             {
                 ZoneTrackingUtilities.Increment(__instance);
@@ -104,6 +113,9 @@ namespace Entanglement.Patching
     {
         public static bool Prefix(SceneZone __instance, Collider other)
         {
+            if (ZoneTrackingUtilities.IsRemoteRep(other))
+                return false;
+
             if (other.CompareTag("Player"))
             {
                 ZoneTrackingUtilities.Decrement(__instance);
@@ -125,6 +137,9 @@ namespace Entanglement.Patching
     {
         public static bool Prefix(PlayerTrigger __instance, Collider other)
         {
+            if (ZoneTrackingUtilities.IsRemoteRep(other))
+                return false;
+
             if (other.CompareTag("Player"))
             {
                 ZoneTrackingUtilities.Increment(__instance);
@@ -145,6 +160,9 @@ namespace Entanglement.Patching
     {
         public static bool Prefix(PlayerTrigger __instance, Collider other)
         {
+            if (ZoneTrackingUtilities.IsRemoteRep(other))
+                return false;
+
             if (other.CompareTag("Player"))
             {
                 ZoneTrackingUtilities.Decrement(__instance);

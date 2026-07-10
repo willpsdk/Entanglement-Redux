@@ -127,6 +127,9 @@ namespace Entanglement.Network
                 }
             }
 
+            if (rbCount == 0)
+                ObjectSync.lastId = id;
+
             GameObject spawnedObject = poolee.gameObject;
             var pooleeSyncable = spawnedObject.AddComponent<PooleeSyncable>();
             pooleeSyncable.id = id;

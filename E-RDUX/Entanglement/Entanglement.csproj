@@ -413,6 +413,7 @@
     <Compile Include="src\Network\Messages\Objects\TransformCollisionMessage.cs" />
     <Compile Include="src\Network\Messages\Objects\TransformCreateMessage.cs" />
     <Compile Include="src\Network\Messages\Objects\TransformQueueMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\TransformSyncBatchMessage.cs" />
     <Compile Include="src\Network\Messages\Objects\TransformSyncMessage.cs" />
     <Compile Include="src\Network\Messages\Objects\SceneEventMessage.cs" />
     <Compile Include="src\Network\Messages\Pools\SpawnClientMessage.cs" />
@@ -464,6 +465,7 @@
     <Compile Include="src\Patching\Patches\ZonePatches.cs" />
     <Compile Include="src\Representation\PlayerRep.cs" />
     <Compile Include="src\Network\SteamIntegration.cs" />
+    <Compile Include="src\Network\Messages\Server\ClientReadyMessage.cs" />
     <Compile Include="src\Network\Messages\Server\ConnectionMessage.cs" />
     <Compile Include="src\Network\NetworkMessage.cs" />
     <Compile Include="src\Network\NetworkMessageHandler.cs" />

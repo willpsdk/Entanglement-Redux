@@ -51,9 +51,7 @@ namespace Entanglement {
 
         public static bool hasUnpatched = false;
 
-        // Detects app suspension (headset removed / OS sleep) via the realtime gap between
-        // frames. No frames run while suspended, so the first frame after resume sees the
-        // whole gap - drain the buffered Steam P2P backlog before the node Ticks process it.
+        // Detects app suspension (headset off / OS sleep) via the realtime gap between frames
         private static float lastUpdateRealtime = 0f;
         private const float SUSPEND_GAP_SECONDS = 3f;
 
@@ -133,14 +131,14 @@ namespace Entanglement {
                 return;
             }
 
-            // Suspend recovery: OnUpdate runs before the node Ticks in OnLateUpdate, so the
-            // backlog is gone before any of it can be handled
             float nowRealtime = Time.realtimeSinceStartup;
             if (lastUpdateRealtime > 0f && nowRealtime - lastUpdateRealtime > SUSPEND_GAP_SECONDS) {
                 EntangleLogger.Log($"App was suspended for {nowRealtime - lastUpdateRealtime:F1}s, draining the stale network backlog...");
                 Node.activeNode?.ClearMessageBuffer();
             }
             lastUpdateRealtime = nowRealtime;
+
+            TransformSyncBatcher.Flush();
 
             ModuleHandler.Update();
 
@@ -211,6 +209,13 @@ namespace Entanglement {
             if (!Patching.LevelChangeAnnouncer.ConsumeAnnounce(buildIndex))
                 sceneChange = (byte)buildIndex;
 
+            // Tell the host our scene is ready so it replays the world state to us
+            if (SteamIntegration.hasLobby && !Node.isServer && Node.activeNode != null) {
+                NetworkMessage readyMessage = NetworkMessage.CreateMessage(BuiltInMessageType.ClientReady, new EmptyMessageData());
+                if (readyMessage != null)
+                    Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, readyMessage.GetBytes());
+            }
+
             SteamIntegration.targetScene = sceneName.ToLower();
             SteamIntegration.UpdateActivity();
         }
@@ -232,6 +237,8 @@ namespace Entanglement {
             ObjectSync.OnCleanup();
             ObjectSync.poolPairs.Clear();
             SceneEventSync.OnSceneCleanup();
+            TransformSyncBatcher.Clear();
+            Server.instance?.replayedUsers.Clear();
 
 #if DEBUG
             PlayerRepresentation.debugRepresentation = null;

@@ -64,6 +64,8 @@ namespace Entanglement.Network
             SceneEventSync.ApplyRemoteEvent(eventType, arg, objectPath);
 
             if (Server.instance != null) {
+                SceneEventSync.RecordForLateJoin(eventType, arg, objectPath);
+
                 byte[] msgBytes = message.GetBytes();
                 Server.instance.BroadcastMessageExcept(NetworkChannel.Reliable, msgBytes, sender);
             }
