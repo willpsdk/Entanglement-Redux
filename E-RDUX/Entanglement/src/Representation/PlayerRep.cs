@@ -96,6 +96,121 @@ namespace Entanglement.Representation
 
 #if DEBUG
         public static PlayerRepresentation debugRepresentation;
+
+        // Loopback test for the held-item sync path. Builds a mesh-only proxy of whatever the
+        // local player is carrying, registers it as a NON-owned TransformSyncable (a fake remote
+        // object), and feeds it the real item's transform through ApplyTransform at a throttled
+        // rate. The proxy then runs the exact receiver-side interpolation/dead-reckoning a remote
+        // client would - so if it tracks the item tightly the carry code works, and if it trails
+        // behind on fast motion it doesn't. Feeds slower than framerate so the interpolation has
+        // real gaps to cover; lower this to exaggerate.
+        public static float debugLoopbackHz = 18f;
+        static readonly long debugLoopbackFakeOwner = 1L;
+
+        static TransformSyncable debugLoopSyncable;
+        static GameObject debugLoopProxy;
+        static GameObject debugLoopSource;
+        static float debugLoopTimer;
+
+        static void UpdateDebugHeldLoopback() {
+            GameObject held = null;
+
+            if (debugRepresentation != null) {
+                if (PlayerScripts.playerRightHand && PlayerScripts.playerRightHand.m_CurrentAttachedObject)
+                    held = PlayerScripts.playerRightHand.m_CurrentAttachedObject.transform.GetJointedRoot().gameObject;
+                else if (PlayerScripts.playerLeftHand && PlayerScripts.playerLeftHand.m_CurrentAttachedObject)
+                    held = PlayerScripts.playerLeftHand.m_CurrentAttachedObject.transform.GetJointedRoot().gameObject;
+            }
+
+            if (held != debugLoopSource || (held != null && debugLoopSyncable == null)) {
+                DestroyDebugLoopback();
+                debugLoopSource = held;
+                if (held) CreateDebugLoopback(held);
+            }
+
+            if (!held || debugLoopSyncable == null)
+                return;
+
+            float interval = debugLoopbackHz > 0f ? 1f / debugLoopbackHz : 0f;
+            debugLoopTimer += Time.deltaTime;
+            if (debugLoopTimer < interval)
+                return;
+            debugLoopTimer = 0f;
+
+            Rigidbody heldRb = held.GetComponent<Rigidbody>();
+            if (!heldRb) heldRb = held.GetComponentInChildren<Rigidbody>();
+
+            Vector3 velocity = heldRb ? heldRb.velocity : Vector3.zero;
+            Vector3 angularVelocity = heldRb ? heldRb.angularVelocity : Vector3.zero;
+
+            // Same forward offset the debug rep's hands use, so the proxy sits beside the dummy
+            SimplifiedTransform state = new SimplifiedTransform(held.transform.position + Vector3.forward, held.transform.rotation);
+
+            try { debugLoopSyncable.ApplyTransform(state, velocity, angularVelocity); }
+            catch { DestroyDebugLoopback(); }
+        }
+
+        static void CreateDebugLoopback(GameObject held) {
+            try {
+                debugLoopProxy = new GameObject($"DebugHeldLoopback {held.name}");
+                debugLoopProxy.transform.position = held.transform.position;
+                debugLoopProxy.transform.rotation = held.transform.rotation;
+
+                // Copy the item's meshes only - no game scripts, colliders or joints of its own
+                foreach (MeshFilter filter in held.GetComponentsInChildren<MeshFilter>(false)) {
+                    MeshRenderer sourceRenderer = filter.GetComponent<MeshRenderer>();
+                    if (filter.sharedMesh == null || sourceRenderer == null)
+                        continue;
+
+                    GameObject part = new GameObject("mesh");
+                    part.transform.SetParent(debugLoopProxy.transform, false);
+                    part.transform.position = filter.transform.position;
+                    part.transform.rotation = filter.transform.rotation;
+                    part.transform.localScale = filter.transform.lossyScale;
+
+                    part.AddComponent<MeshFilter>().sharedMesh = filter.sharedMesh;
+                    part.AddComponent<MeshRenderer>().sharedMaterials = sourceRenderer.sharedMaterials;
+                }
+
+                debugLoopProxy.transform.position += Vector3.forward;
+
+                Rigidbody rb = debugLoopProxy.AddComponent<Rigidbody>();
+                rb.useGravity = false;
+
+                // Register as a fake remote object: not owned locally (so it takes the receiver
+                // path) and isValid set directly, which skips id/dictionary registration entirely
+                debugLoopSyncable = TransformSyncable.CreateSync(debugLoopbackFakeOwner, rb) as TransformSyncable;
+                if (debugLoopSyncable == null) {
+                    DestroyDebugLoopback();
+                    return;
+                }
+
+                debugLoopSyncable.isValid = true;
+                debugLoopSyncable.EnqueueOwner(debugLoopbackFakeOwner); // ownerQueue.Count > 0 => held-item branch
+            }
+            catch {
+                DestroyDebugLoopback();
+            }
+        }
+
+        static void DestroyDebugLoopback() {
+            if (debugLoopSyncable != null) {
+                try {
+                    if (debugLoopProxy) TransformSyncable.cache.Remove(debugLoopProxy);
+                    debugLoopSyncable.Cleanup();
+                }
+                catch { }
+                debugLoopSyncable = null;
+            }
+
+            if (debugLoopProxy) {
+                GameObject.Destroy(debugLoopProxy);
+                debugLoopProxy = null;
+            }
+
+            debugLoopSource = null;
+            debugLoopTimer = 0f;
+        }
 #endif
 
         public static AssetBundle playerRepBundle;
@@ -406,6 +521,8 @@ namespace Entanglement.Representation
                     debugRepresentation.UpdateFingers(Handedness.LEFT, data.simplifiedLeftHand);
                     debugRepresentation.UpdateFingers(Handedness.RIGHT, data.simplifiedRightHand);
                 }
+
+                UpdateDebugHeldLoopback();
             } catch { }
 #endif
 
