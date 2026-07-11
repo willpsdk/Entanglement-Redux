@@ -10,6 +10,7 @@ using Entanglement.Network;
 using Entanglement.Extensions;
 using Entanglement.Compat.Playermodels;
 using Entanglement.Managers;
+using Entanglement.Objects;
 
 using UnityEngine;
 
