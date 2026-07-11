@@ -53,9 +53,9 @@ namespace Entanglement.Objects
 
         // Remote interpolation settings
         public const float extrapolationLimit = 0.25f; // Never predict further than this past the last packet
-        public const float followSharpness = 18f;      // Exponential smoothing rate for the follow target
-        public const float velocityGain = 16f;         // Positional correction gain for joint-constrained bodies
-        public const float angularGain = 12f;          // Rotational correction gain for joint-constrained bodies
+        public const float followSharpness = 24f;      // Exponential smoothing rate for the follow target
+        public const float velocityGain = 24f;         // Positional correction gain for joint-constrained bodies
+        public const float angularGain = 18f;          // Rotational correction gain for joint-constrained bodies
         public const float snapDistance = 2f;          // Teleport instead of chasing when further than this
 
         // Latest received network state, used to smoothly drive the object between packets

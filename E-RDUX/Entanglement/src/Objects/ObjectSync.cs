@@ -158,11 +158,8 @@ namespace Entanglement.Objects
             for (int i = 0; i < rigidbodies.Length; i++) SyncUtilities.UpdateBodyAttached(rigidbodies[i], overrideRootName, spawnIndex, spawnTime);
         }
 
-        // Syncs a body the local player shoved without gripping (punch / palm hit). Objects
-        // that already have a syncable are left alone - their owner keeps simulating them.
-        // New ones go through the normal grip pipeline as a grab-and-instant-release, so the
-        // puncher becomes the authoritative owner (last-holder-keeps) without lingering in
-        // the owner queue and blocking later grabs.
+        // Punched/shoved bodies sync as a grab-and-instant-release, already-synced ones
+        // are left to their owner
         public static void OnBodyPunched(GameObject hit) {
             if (!SteamIntegration.hasLobby)
                 return;

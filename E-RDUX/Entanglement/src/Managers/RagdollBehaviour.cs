@@ -14,19 +14,39 @@ namespace Entanglement.Managers
 
         public Rigidbody[] rbs;
 
-        private float fixedTime;
+        public const float idleDespawnSeconds = 120f;
+        public const float activitySpeed = 0.25f;
+
+        private float lastActivityTime;
+        private float nextActivityCheck;
         private bool isDespawning;
 
         public void Start() {
             rbs = GetComponentsInChildren<Rigidbody>(true);
-            fixedTime = Time.fixedTime;
+            lastActivityTime = Time.time;
         }
 
         public void FixedUpdate() {
             if (isDespawning)
                 return;
 
-            if (Time.fixedTime - fixedTime >= 30f) {
+            // Any body moving (grabbed, dragged, punched, shot) resets the idle timer,
+            // the corpse only despawns after two minutes of lying untouched
+            if (Time.time >= nextActivityCheck) {
+                nextActivityCheck = Time.time + 0.5f;
+
+                foreach (Rigidbody rb in rbs) {
+                    if (!rb)
+                        continue;
+
+                    if (rb.velocity.sqrMagnitude > activitySpeed * activitySpeed || rb.angularVelocity.sqrMagnitude > 1f) {
+                        lastActivityTime = Time.time;
+                        break;
+                    }
+                }
+            }
+
+            if (Time.time - lastActivityTime >= idleDespawnSeconds) {
                 isDespawning = true;
                 MelonCoroutines.Start(Despawn());
             }

@@ -59,6 +59,40 @@ namespace Entanglement.Objects
                 sync.ForceOwner(ownerId, false);
         }
 
+        private PuppetMasta.PuppetMaster puppetMaster;
+        private bool searchedPuppet;
+        private float nextMuscleCheck;
+
+        // Whoever owns the bones simulates the puppet, everyone else keeps muscles off so
+        // their local sim doesn't fight the networked pose. Without this an NPC grabbed and
+        // released by a client went limp everywhere, since the new owner had zeroed muscles.
+        public void FixedUpdate() {
+            if (transforms == null || transforms.Length == 0)
+                return;
+
+            if (Time.time < nextMuscleCheck)
+                return;
+            nextMuscleCheck = Time.time + 0.5f;
+
+            if (!searchedPuppet) {
+                searchedPuppet = true;
+                puppetMaster = GetComponentInChildren<PuppetMasta.PuppetMaster>(true);
+            }
+
+            if (!puppetMaster)
+                return;
+
+            bool owned = false;
+            foreach (TransformSyncable sync in transforms) {
+                if (sync && sync.IsOwner()) {
+                    owned = true;
+                    break;
+                }
+            }
+
+            puppetMaster.muscleWeight = owned ? 1f : 0f;
+        }
+
         public IEnumerator CoOnSpawn(long ownerId, SimplifiedTransform simplifiedTransform) {
             gameObject.SetActive(false);
             yield return null;

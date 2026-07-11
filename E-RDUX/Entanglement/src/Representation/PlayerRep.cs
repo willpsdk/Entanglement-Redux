@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -89,22 +90,20 @@ namespace Entanglement.Representation
         public float netReceiveTime;
         public Vector3[] netPositions = new Vector3[3];
         public Quaternion[] netRotations = new Quaternion[3];
+        public Vector3[] netLimbVelocities = new Vector3[3];
 
-        public const float repFollowSharpness = 20f;   // Exponential smoothing rate
+        public const float repFollowSharpness = 35f;   // Exponential smoothing rate for the root
+        public const float repLimbSharpness = 60f;      // Head/hands track much harder, they are what pushes other players
         public const float repExtrapolationLimit = 0.2f; // Never predict further than this past the last packet
         public const float repSnapDistance = 2f;        // Teleport instead of chasing when further than this
+        public const float repMaxPredictedSpeed = 25f;  // Caps dead reckoning speed so a teleport can't fling the rep
 
 
 #if DEBUG
         public static PlayerRepresentation debugRepresentation;
 
-        // Loopback test for the held-item sync path. Builds a mesh-only proxy of whatever the
-        // local player is carrying, registers it as a NON-owned TransformSyncable (a fake remote
-        // object), and feeds it the real item's transform through ApplyTransform at a throttled
-        // rate. The proxy then runs the exact receiver-side interpolation/dead-reckoning a remote
-        // client would - so if it tracks the item tightly the carry code works, and if it trails
-        // behind on fast motion it doesn't. Feeds slower than framerate so the interpolation has
-        // real gaps to cover; lower this to exaggerate.
+        // Feeds a mesh-only copy of the held item through the receiver-side sync path at a
+        // throttled rate, a solo stand-in for how a remote client sees your carried items
         public static float debugLoopbackHz = 18f;
         static readonly long debugLoopbackFakeOwner = 1L;
 
@@ -297,7 +296,9 @@ namespace Entanglement.Representation
             if (!activeAnimator)
                 return;
 
-            GameObject ragdollRoot = new GameObject($"Ragdoll {Time.realtimeSinceStartup}");
+            // Deterministic name: a timestamped one differs per machine, which broke the
+            // object path resolution whenever someone grabbed or dragged a corpse
+            GameObject ragdollRoot = new GameObject($"Ragdoll {playerId}");
 
             GameObject newRagdoll = GameObject.Instantiate(ragdollBody.gameObject);
             newRagdoll.transform.parent = ragdollRoot.transform;
@@ -329,6 +330,30 @@ namespace Entanglement.Representation
 
             // Add ragdoll script
             newRagdoll.gameObject.AddComponent<RagdollBehaviour>();
+
+            if (Node.isServer && SteamIntegration.hasLobby)
+                MelonCoroutines.Start(SyncRagdollBones(newRagdoll));
+        }
+
+        // The host owns corpse physics from the start, so every machine watches the same fall
+        // instead of simulating its own. Registration waits half a second so slower clients
+        // have spawned their copy before the creates arrive.
+        static IEnumerator SyncRagdollBones(GameObject ragdoll) {
+            yield return new WaitForSeconds(0.5f);
+
+            if (!ragdoll || !SteamIntegration.hasLobby || !Node.isServer)
+                yield break;
+
+            foreach (Rigidbody rb in ragdoll.GetComponentsInChildren<Rigidbody>(true)) {
+                if (!rb || rb.isKinematic)
+                    continue;
+
+                if (TransformSyncable.cache.Get(rb.gameObject))
+                    continue;
+
+                SyncUtilities.UpdateBodyAttached(rb, null, -1, -1f);
+                SyncUtilities.UpdateBodyDetached(rb);
+            }
         }
 
         public void CopyBones(SLZ_Body.References from, SLZ_Body.References to) {
@@ -362,16 +387,22 @@ namespace Entanglement.Representation
             to.rotation = from.rotation;
         }
 
-        // Feeds the rep new network data, velocity is estimated from consecutive packets for dead reckoning
+        // Feeds the rep new network data, velocities are estimated from consecutive packets for dead reckoning
         public void SetNetTargets(Vector3 rootPosition, Vector3[] positions, Quaternion[] rotations) {
             float now = Time.time;
 
             if (hasNetTarget) {
                 float packetDelta = Mathf.Clamp(now - netReceiveTime, 0.008f, 0.5f);
-                netRootVelocity = (rootPosition - netRootPosition) / packetDelta;
+                netRootVelocity = Vector3.ClampMagnitude((rootPosition - netRootPosition) / packetDelta, repMaxPredictedSpeed);
+
+                for (int r = 0; r < netPositions.Length; r++)
+                    netLimbVelocities[r] = Vector3.ClampMagnitude((positions[r] - netPositions[r]) / packetDelta, repMaxPredictedSpeed);
             }
-            else
+            else {
                 netRootVelocity = Vector3.zero;
+                for (int r = 0; r < netLimbVelocities.Length; r++)
+                    netLimbVelocities[r] = Vector3.zero;
+            }
 
             netRootPosition = rootPosition;
             netReceiveTime = now;
@@ -389,20 +420,22 @@ namespace Entanglement.Representation
             if (!hasNetTarget || !repRoot) return;
 
             float age = Mathf.Min(Time.time - netReceiveTime, repExtrapolationLimit);
-            Vector3 drift = netRootVelocity * age;
-            Vector3 predictedRoot = netRootPosition + drift;
+            Vector3 predictedRoot = netRootPosition + netRootVelocity * age;
 
             float t = 1f - Mathf.Exp(-repFollowSharpness * dt);
+            float limbT = 1f - Mathf.Exp(-repLimbSharpness * dt);
             if ((repRoot.position - predictedRoot).sqrMagnitude > repSnapDistance * repSnapDistance)
-                t = 1f;
+                t = limbT = 1f;
 
             repRoot.position = Vector3.Lerp(repRoot.position, predictedRoot, t);
 
+            // Limbs dead reckon with their own velocity, root drift alone left fast hand
+            // motion a packet behind and made player-on-player pushes feel delayed
             for (int r = 0; r < repTransforms.Length; r++) {
                 if (!repTransforms[r]) continue;
 
-                repTransforms[r].position = Vector3.Lerp(repTransforms[r].position, netPositions[r] + drift, t);
-                repTransforms[r].rotation = Quaternion.Slerp(repTransforms[r].rotation, netRotations[r], t);
+                repTransforms[r].position = Vector3.Lerp(repTransforms[r].position, netPositions[r] + netLimbVelocities[r] * age, limbT);
+                repTransforms[r].rotation = Quaternion.Slerp(repTransforms[r].rotation, netRotations[r], limbT);
             }
 
             if (repCanvasTransform && repTransforms[0]) {

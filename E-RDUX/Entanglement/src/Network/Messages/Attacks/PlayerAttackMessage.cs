@@ -23,7 +23,9 @@ namespace Entanglement.Network
             int index = 0;
             message.messageData[index++] = (byte)data.attackType;
 
-            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((ushort)(data.attackDamage * 10000f)), ref index);
+            // Clamped: a hit above 6.5535 damage used to overflow the ushort and wrap to
+            // near zero, making the strongest attacks deal the least damage
+            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((ushort)Math.Min(data.attackDamage * 10000f, ushort.MaxValue)), ref index);
 
             return message;
         }

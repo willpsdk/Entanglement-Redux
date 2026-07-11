@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -36,9 +36,8 @@ namespace Entanglement.Network {
             NetworkChannel.Transaction
         };
 
-        // Drains every queued P2P packet without handling it. Used after an app suspend
-        // (headset removed / OS sleep) so the resume frame doesn't process the entire
-        // buffered backlog at once - connection spam and duplicated spawns.
+        // Drains every queued P2P packet unhandled, so a resume after suspend doesn't
+        // replay the whole backlog (connection spam, duplicated spawns)
         public void ClearMessageBuffer() {
             try {
                 int drained = 0;
