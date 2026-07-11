@@ -515,7 +515,9 @@ namespace Entanglement.Representation
                         debugRepresentation.repTransforms[l].position += Vector3.forward;
                     }
 
-                    debugRepresentation.repRoot.position = syncedRoot.position;
+                    // Root gets the same offset as the head/hand targets, otherwise the body IK
+                    // is fed contradictory goals (feet at the player, head a meter away)
+                    debugRepresentation.repRoot.position = syncedRoot.position + Vector3.forward;
 
                     debugRepresentation.isGrounded = data.isGrounded;
 
@@ -541,6 +543,14 @@ namespace Entanglement.Representation
                 else
                     GetPlayerTransforms();
             }
+#if DEBUG
+            // The debug dummy is usually tested solo - keep feeding it without a lobby.
+            // Also runs while a loopback proxy lingers so removing the dummy tears it down.
+            else if (debugRepresentation != null || debugLoopProxy != null) {
+                if (GetPlayerSyncData() == null)
+                    GetPlayerTransforms();
+            }
+#endif
         }
 
         public static void UpdatePlayerReps() {
