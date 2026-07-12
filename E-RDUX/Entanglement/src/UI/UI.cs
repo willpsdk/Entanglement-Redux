@@ -15,6 +15,7 @@ namespace Entanglement.UI {
             BanlistUI.CreateUI(category);
             LobbiesUI.CreateUI(category);
             StatsUI.CreateUI(category);
+            VoiceUI.CreateUI(category);
 
 #if DEBUG
             DebugUI.CreateUI(category);

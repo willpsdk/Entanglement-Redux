@@ -140,6 +140,8 @@ namespace Entanglement {
 
             TransformSyncBatcher.Flush();
 
+            Entanglement.Voice.VoiceManager.Tick();
+
             ModuleHandler.Update();
 
 #if DEBUG

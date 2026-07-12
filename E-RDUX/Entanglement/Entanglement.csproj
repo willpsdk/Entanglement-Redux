@@ -478,6 +478,9 @@
     <Compile Include="src\UI\ServerUI.cs" />
     <Compile Include="src\UI\StatsUI.cs" />
     <Compile Include="src\UI\UI.cs" />
+    <Compile Include="src\UI\VoiceUI.cs" />
+    <Compile Include="src\Voice\VoiceManager.cs" />
+    <Compile Include="src\Network\Messages\Voice\VoiceDataMessage.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="managed\" />

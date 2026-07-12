@@ -46,6 +46,7 @@
             PlayerEvent = 39,
             SceneEvent = 40,
             ClientReady = 41,
-            TransformSyncBatch = 42;
+            TransformSyncBatch = 42,
+            VoiceData = 43;
     }
 }
