@@ -18,6 +18,12 @@ namespace Entanglement.Network
     public class PlayerRepSyncHandler : NetworkMessageHandler<PlayerRepSyncData> {
         public override byte? MessageIndex => BuiltInMessageType.PlayerRepSync;
 
+        // Scratch space so per-packet parsing doesn't allocate, this runs for every player every frame
+        static readonly byte[] limbScratch = new byte[SimplifiedTransform.size_small];
+        static readonly byte[] handScratch = new byte[SimplifiedHand.size];
+        static readonly Vector3[] positionScratch = new Vector3[3];
+        static readonly Quaternion[] rotationScratch = new Quaternion[3];
+
         public override NetworkMessage CreateMessage(PlayerRepSyncData data) {
             NetworkMessage message = new NetworkMessage();
 
@@ -55,8 +61,6 @@ namespace Entanglement.Network
                     index += sizeof(byte);
                     rep.isGrounded = isGrounded;
 
-                    List<byte> data = message.messageData.ToList();
-
                     Vector3 rootPosition = new Vector3();
 
                     rootPosition.x = BitConverter.ToSingle(message.messageData, index);
@@ -67,23 +71,23 @@ namespace Entanglement.Network
                     index += sizeof(float);
 
                     // Buffer the targets, PlayerRepresentation.ApplyNetSmoothing glides toward them every tick
-                    Vector3[] positions = new Vector3[rep.repTransforms.Length];
-                    Quaternion[] rotations = new Quaternion[rep.repTransforms.Length];
-
                     for (int r = 0; r < rep.repTransforms.Length; r++)
                     {
-                        SimplifiedTransform simpleTransform = SimplifiedTransform.FromSmallBytes(data.GetRange(index, SimplifiedTransform.size_small).ToArray(), rootPosition);
+                        Buffer.BlockCopy(message.messageData, index, limbScratch, 0, SimplifiedTransform.size_small);
+                        SimplifiedTransform simpleTransform = SimplifiedTransform.FromSmallBytes(limbScratch, rootPosition);
                         index += SimplifiedTransform.size_small;
 
-                        positions[r] = simpleTransform.position;
-                        rotations[r] = simpleTransform.rotation.ExpandQuat();
+                        positionScratch[r] = simpleTransform.position;
+                        rotationScratch[r] = simpleTransform.rotation.ExpandQuat();
                     }
 
-                    rep.SetNetTargets(rootPosition, positions, rotations);
+                    rep.SetNetTargets(rootPosition, positionScratch, rotationScratch);
 
-                    SimplifiedHand simplifiedLeftHand = SimplifiedHand.FromBytes(data.GetRange(index, SimplifiedHand.size).ToArray());
+                    Buffer.BlockCopy(message.messageData, index, handScratch, 0, SimplifiedHand.size);
+                    SimplifiedHand simplifiedLeftHand = SimplifiedHand.FromBytes(handScratch);
                     index += SimplifiedHand.size;
-                    SimplifiedHand simplifiedRightHand = SimplifiedHand.FromBytes(data.GetRange(index, SimplifiedHand.size).ToArray());
+                    Buffer.BlockCopy(message.messageData, index, handScratch, 0, SimplifiedHand.size);
+                    SimplifiedHand simplifiedRightHand = SimplifiedHand.FromBytes(handScratch);
 
                     rep.UpdateFingers(Handedness.LEFT, simplifiedLeftHand);
                     rep.UpdateFingers(Handedness.RIGHT, simplifiedRightHand);

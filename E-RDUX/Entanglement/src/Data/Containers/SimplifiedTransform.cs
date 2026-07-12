@@ -66,6 +66,40 @@ namespace Entanglement.Data
             return simplified;
         }
 
+        // Writes straight into the packet buffer, GetBytes allocates a list per call
+        public void WriteTo(byte[] buffer, ref int index) {
+            buffer.WriteFloat(ref index, position.x);
+            buffer.WriteFloat(ref index, position.y);
+            buffer.WriteFloat(ref index, position.z);
+
+            buffer.WriteShort(ref index, rotation.c1);
+            buffer.WriteShort(ref index, rotation.c2);
+            buffer.WriteShort(ref index, rotation.c3);
+            buffer[index++] = rotation.loss;
+        }
+
+        // Parses at an offset so callers don't need a copied slice
+        public static SimplifiedTransform FromBytes(byte[] bytes, int index) {
+            SimplifiedTransform transform = new SimplifiedTransform();
+
+            transform.position.x = BitConverter.ToSingle(bytes, index);
+            index += sizeof(float);
+            transform.position.y = BitConverter.ToSingle(bytes, index);
+            index += sizeof(float);
+            transform.position.z = BitConverter.ToSingle(bytes, index);
+            index += sizeof(float);
+
+            transform.rotation.c1 = BitConverter.ToInt16(bytes, index);
+            index += sizeof(short);
+            transform.rotation.c2 = BitConverter.ToInt16(bytes, index);
+            index += sizeof(short);
+            transform.rotation.c3 = BitConverter.ToInt16(bytes, index);
+            index += sizeof(short);
+            transform.rotation.loss = bytes[index];
+
+            return transform;
+        }
+
         public static SimplifiedTransform FromBytes(byte[] bytes) {
             SimplifiedTransform transform = new SimplifiedTransform();
 

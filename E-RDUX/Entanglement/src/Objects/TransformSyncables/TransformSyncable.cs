@@ -83,16 +83,19 @@ namespace Entanglement.Objects
             base.Cleanup();
         }
 
-        public override void SyncUpdate() {
-            TransformSyncMessageData syncData = new TransformSyncMessageData()
-            {
-                objectId = objectId,
-                simplifiedTransform = new SimplifiedTransform(transform),
-                velocity = rb ? rb.velocity : Vector3.zero,
-                angularVelocity = rb ? rb.angularVelocity : Vector3.zero
-            };
+        private TransformSyncMessageData cachedSyncData;
 
-            TransformSyncBatcher.Enqueue(syncData);
+        public override void SyncUpdate() {
+            // Reused every step, the batcher serializes it before the next overwrite
+            if (cachedSyncData == null)
+                cachedSyncData = new TransformSyncMessageData();
+
+            cachedSyncData.objectId = objectId;
+            cachedSyncData.simplifiedTransform = new SimplifiedTransform(transform);
+            cachedSyncData.velocity = rb ? rb.velocity : Vector3.zero;
+            cachedSyncData.angularVelocity = rb ? rb.angularVelocity : Vector3.zero;
+
+            TransformSyncBatcher.Enqueue(cachedSyncData);
 
             if (targetGo) {
                 targetGo.transform.position = transform.position;
@@ -102,8 +105,18 @@ namespace Entanglement.Objects
             UpdateStoredPositions();
         }
 
+        private Transform cachedParent;
+        private bool cachedRigAttached;
+
         public override bool ShouldSync() {
-            if (transform.parent && transform.GetComponentInParent<StressLevelZero.Rig.RigManager>())
+            // The rig-attachment lookup only reruns when the parent actually changes
+            Transform parent = transform.parent;
+            if (parent != cachedParent) {
+                cachedParent = parent;
+                cachedRigAttached = parent && transform.GetComponentInParent<StressLevelZero.Rig.RigManager>();
+            }
+
+            if (cachedRigAttached)
                 return HasChangedPositions();
 
             return rb ? !rb.IsSleeping() : HasChangedPositions();
@@ -415,10 +428,7 @@ namespace Entanglement.Objects
                 rb.angularVelocity = netAngularVelocity + correction;
             }
             else if (targetBody) {
-                // Held items track the prediction directly; the smoothed glide only runs once released
-                bool remotelyHeld = ownerQueue.Count > 0;
-
-                if (remotelyHeld || (targetBody.position - predictedPos).sqrMagnitude > snapDistance * snapDistance) {
+                if ((targetBody.position - predictedPos).sqrMagnitude > snapDistance * snapDistance) {
                     targetBody.position = predictedPos;
                     targetBody.rotation = predictedRot;
                     rb.position = predictedPos;

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 using Entanglement.Data;
@@ -32,16 +32,16 @@ namespace Entanglement.Network
             for (int i = 0; i < count; i++) {
                 TransformSyncMessageData entry = data.entries[i];
 
-                message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(entry.objectId), ref index);
-                message.messageData = message.messageData.AddBytes(entry.simplifiedTransform.GetBytes(), ref index);
+                message.messageData.WriteUShort(ref index, entry.objectId);
+                entry.simplifiedTransform.WriteTo(message.messageData, ref index);
 
-                message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(entry.velocity.x), ref index);
-                message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(entry.velocity.y), ref index);
-                message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(entry.velocity.z), ref index);
+                message.messageData.WriteFloat(ref index, entry.velocity.x);
+                message.messageData.WriteFloat(ref index, entry.velocity.y);
+                message.messageData.WriteFloat(ref index, entry.velocity.z);
 
-                message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(entry.angularVelocity.x), ref index);
-                message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(entry.angularVelocity.y), ref index);
-                message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(entry.angularVelocity.z), ref index);
+                message.messageData.WriteFloat(ref index, entry.angularVelocity.x);
+                message.messageData.WriteFloat(ref index, entry.angularVelocity.y);
+                message.messageData.WriteFloat(ref index, entry.angularVelocity.z);
             }
 
             return message;
@@ -62,9 +62,7 @@ namespace Entanglement.Network
                 ushort objectId = BitConverter.ToUInt16(message.messageData, index);
                 index += sizeof(ushort);
 
-                byte[] transformBytes = new byte[SimplifiedTransform.size];
-                Array.Copy(message.messageData, index, transformBytes, 0, SimplifiedTransform.size);
-                SimplifiedTransform simpleTransform = SimplifiedTransform.FromBytes(transformBytes);
+                SimplifiedTransform simpleTransform = SimplifiedTransform.FromBytes(message.messageData, index);
                 index += SimplifiedTransform.size;
 
                 Vector3 velocity;
@@ -97,6 +95,7 @@ namespace Entanglement.Network
     public static class TransformSyncBatcher
     {
         static readonly Dictionary<ushort, TransformSyncMessageData> pending = new Dictionary<ushort, TransformSyncMessageData>();
+        static readonly TransformSyncBatchData reusedBatch = new TransformSyncBatchData();
 
         public static void Enqueue(TransformSyncMessageData data) => pending[data.objectId] = data;
 
@@ -110,19 +109,19 @@ namespace Entanglement.Network
                 return;
             }
 
-            TransformSyncBatchData batch = new TransformSyncBatchData();
+            reusedBatch.entries.Clear();
 
             foreach (TransformSyncMessageData entry in pending.Values) {
-                batch.entries.Add(entry);
+                reusedBatch.entries.Add(entry);
 
-                if (batch.entries.Count >= TransformSyncBatchMessageHandler.maxEntriesPerMessage) {
-                    Send(batch);
-                    batch = new TransformSyncBatchData();
+                if (reusedBatch.entries.Count >= TransformSyncBatchMessageHandler.maxEntriesPerMessage) {
+                    Send(reusedBatch);
+                    reusedBatch.entries.Clear();
                 }
             }
 
-            if (batch.entries.Count > 0)
-                Send(batch);
+            if (reusedBatch.entries.Count > 0)
+                Send(reusedBatch);
 
             pending.Clear();
         }
