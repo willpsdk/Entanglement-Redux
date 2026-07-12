@@ -16,7 +16,7 @@ namespace Entanglement.Patching
     public class GadgetPatches
     {
         public static void Prefix(PowerPuncher __instance, Collision collision) {
-            if (!collision.rigidbody)
+            if (!SteamIntegration.hasLobby || !collision.rigidbody)
                 return;
 
             Transform root = collision.gameObject.transform.root;

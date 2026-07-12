@@ -16,6 +16,9 @@ namespace Entanglement.Patching
     public class StabPatch
     {
         public static void Postfix(StabPoint __instance, Transform tran, Collision c, float stabForce, ImpactProperties surfaceProperties) {
+            if (!SteamIntegration.hasLobby)
+                return;
+
             try
             {
                 if (__instance.rb)

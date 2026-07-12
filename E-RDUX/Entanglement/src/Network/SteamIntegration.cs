@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Collections.Generic;
 
@@ -100,8 +100,11 @@ namespace Entanglement.Network {
                 SteamNetworking.AcceptP2PSessionWithUser(request.m_steamIDRemote);
         }
 
-        private static void OnSessionConnectFail(P2PSessionConnectFail_t fail) =>
-            EntangleLogger.Warn($"P2P session with {fail.m_steamIDRemote.m_SteamID} failed with error {(EP2PSessionError)fail.m_eP2PSessionError}!");
+        private static void OnSessionConnectFail(P2PSessionConnectFail_t fail) {
+            // Sessions from a previous lobby time out after leaving, only worth reporting in one
+            if (hasLobby)
+                EntangleLogger.Warn($"P2P session with {fail.m_steamIDRemote.m_SteamID} failed with error {(EP2PSessionError)fail.m_eP2PSessionError}!");
+        }
 
         public static bool IsLobbyMember(CSteamID user) {
             if (!hasLobby) return false;
@@ -249,8 +252,10 @@ namespace Entanglement.Network {
         public static void Tick() {
             SteamAPI.RunCallbacks();
 
-            // Steam has no message callback, incoming packets are polled every frame instead
-            Node.activeNode?.ReceiveMessages();
+            // Steam has no message callback, incoming packets are polled every frame instead.
+            // Outside a lobby nothing legitimate can arrive, so polling is skipped entirely.
+            if (hasLobby)
+                Node.activeNode?.ReceiveMessages();
         }
 
         public static void Shutdown() {

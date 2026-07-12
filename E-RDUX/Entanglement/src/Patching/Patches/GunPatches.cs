@@ -21,6 +21,9 @@ namespace Entanglement.Patching
     public class GunShotPatch
     {
         public static void Prefix(Gun __instance) {
+            if (!SteamIntegration.hasLobby)
+                return;
+
             BulletObject bulletObject = __instance.chamberedCartridge;
             Transform firePoint = __instance.firePointTransform;
 
@@ -42,6 +45,9 @@ namespace Entanglement.Patching
     public class BalloonShotPatch
     {
         public static void Prefix(BalloonGun __instance) {
+            if (!SteamIntegration.hasLobby)
+                return;
+
             Transform firePoint = __instance.firePointTransform;
 
             if (!firePoint) return;

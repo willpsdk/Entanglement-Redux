@@ -90,6 +90,10 @@ namespace Entanglement.Patching
     public static class ZoneEnterPatch
     {
         public static bool Prefix(SceneZone __instance, Collider other) {
+            // Solo play gets untouched vanilla zones, the counting only matters with reps around
+            if (!SteamIntegration.hasLobby)
+                return true;
+
             if (ZoneTrackingUtilities.IsRemoteRep(other))
                 return false;
 
@@ -113,6 +117,10 @@ namespace Entanglement.Patching
     {
         public static bool Prefix(SceneZone __instance, Collider other)
         {
+            // Solo play gets untouched vanilla zones, the counting only matters with reps around
+            if (!SteamIntegration.hasLobby)
+                return true;
+
             if (ZoneTrackingUtilities.IsRemoteRep(other))
                 return false;
 
@@ -137,6 +145,10 @@ namespace Entanglement.Patching
     {
         public static bool Prefix(PlayerTrigger __instance, Collider other)
         {
+            // Solo play gets untouched vanilla zones, the counting only matters with reps around
+            if (!SteamIntegration.hasLobby)
+                return true;
+
             if (ZoneTrackingUtilities.IsRemoteRep(other))
                 return false;
 
@@ -160,6 +172,10 @@ namespace Entanglement.Patching
     {
         public static bool Prefix(PlayerTrigger __instance, Collider other)
         {
+            // Solo play gets untouched vanilla zones, the counting only matters with reps around
+            if (!SteamIntegration.hasLobby)
+                return true;
+
             if (ZoneTrackingUtilities.IsRemoteRep(other))
                 return false;
 

@@ -61,6 +61,9 @@ namespace Entanglement.Patching
     {
         public static void Postfix(HandSFX __instance, Collision c, float impulse, float relVelSqr)
         {
+            if (!SteamIntegration.hasLobby)
+                return;
+
             Transform root = c.gameObject.transform.root;
             string objName = root.name;
 
