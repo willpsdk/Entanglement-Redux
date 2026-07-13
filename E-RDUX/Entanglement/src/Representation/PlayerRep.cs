@@ -444,6 +444,24 @@ namespace Entanglement.Representation
                 if (Camera.current)
                     repCanvasTransform.rotation = Quaternion.LookRotation(Vector3.Normalize(repCanvasTransform.position - Camera.current.transform.position), Vector3.up);
             }
+
+            UpdateTalkingIndicator();
+        }
+
+        bool wasTalking;
+
+        // Tints the nametag green and prefixes a speaker dot while this player is talking
+        void UpdateTalkingIndicator() {
+            if (!repNameText)
+                return;
+
+            bool talking = Entanglement.Voice.VoiceManager.IsSpeaking(playerId);
+            if (talking == wasTalking)
+                return;
+
+            wasTalking = talking;
+            repNameText.text = talking ? $"● {playerName}" : playerName;
+            repNameText.color = talking ? new Color(0.4f, 1f, 0.5f) : Color.white;
         }
 
         // This calculates the velocity on the client side for leg prediction

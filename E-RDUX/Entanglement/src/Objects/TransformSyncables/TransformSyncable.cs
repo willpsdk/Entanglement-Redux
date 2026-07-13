@@ -84,8 +84,91 @@ namespace Entanglement.Objects
         }
 
         private TransformSyncMessageData cachedSyncData;
+        private TransformSyncMessageData cachedRestData;
+        private bool wasSleeping;
+        private float lastRestTime = -10f;
+        private float nextSendTime;
+
+        // Interest management: objects near a player sync at full rate, distant ones throttle
+        // down. Held objects and the final rest pose always send full rate. Returns the minimum
+        // seconds between sends (0 = every step). The rest-state edge covers whatever a throttled
+        // object misses, so a body that stops far away still lands its exact final pose.
+        float InterestInterval() {
+            if (cachedRigAttached)
+                return 0f;
+
+            var reps = PlayerRepresentation.representations;
+            if (reps.Count == 0)
+                return 0f;
+
+            Vector3 pos = transform.position;
+            float nearestSqr = float.MaxValue;
+
+            foreach (PlayerRepresentation rep in reps.Values) {
+                if (rep == null || rep.repRoot == null)
+                    continue;
+
+                float sqr = (rep.repRoot.position - pos).sqrMagnitude;
+                if (sqr < nearestSqr)
+                    nearestSqr = sqr;
+            }
+
+            if (nearestSqr < 100f) return 0f;      // < 10m  full rate
+            if (nearestSqr < 400f) return 1f / 30f; // < 20m  30 Hz
+            if (nearestSqr < 900f) return 1f / 15f; // < 30m  15 Hz
+            return 1f / 8f;                         // beyond 8 Hz
+        }
+
+        void SendRestState() {
+            if (cachedRestData == null)
+                cachedRestData = new TransformSyncMessageData() { resting = true };
+
+            cachedRestData.objectId = objectId;
+            cachedRestData.simplifiedTransform = new SimplifiedTransform(transform);
+            cachedRestData.velocity = Vector3.zero;
+            cachedRestData.angularVelocity = Vector3.zero;
+
+            TransformSyncBatcher.EnqueueRest(cachedRestData);
+        }
+
+        // The definitive final pose: snap to it, stop interpolating and put the body to sleep
+        // locally, so resting objects cost nothing until their owner moves them again
+        public void ApplyRestState(SimplifiedTransform simplifiedTransform) {
+            if (SteamIntegration.currentUserId == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside()))
+                return;
+
+            netPosition = simplifiedTransform.position;
+            netRotation = simplifiedTransform.rotation.ExpandQuat();
+            netVelocity = Vector3.zero;
+            netAngularVelocity = Vector3.zero;
+            hasNetTarget = false;
+            lastRestTime = Time.time;
+
+            transform.position = netPosition;
+            transform.rotation = netRotation;
+
+            if (rb && !rb.isKinematic) {
+                rb.position = netPosition;
+                rb.rotation = netRotation;
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.Sleep();
+            }
+
+            if (targetBody) {
+                targetBody.position = netPosition;
+                targetBody.rotation = netRotation;
+            }
+        }
 
         public override void SyncUpdate() {
+            float interval = InterestInterval();
+            if (interval > 0f) {
+                if (Time.time < nextSendTime)
+                    return;
+                nextSendTime = Time.time + interval;
+            }
+
             // Reused every step, the batcher serializes it before the next overwrite
             if (cachedSyncData == null)
                 cachedSyncData = new TransformSyncMessageData();
@@ -119,10 +202,10 @@ namespace Entanglement.Objects
             if (cachedRigAttached)
                 return HasChangedPositions();
 
-            return rb ? !rb.IsSleeping() : HasChangedPositions();
+            return rb ? !rb.IsSleeping() && HasChangedPositions() : HasChangedPositions();
         }
 
-        public bool HasChangedPositions() => (transform.position - lastPosition).sqrMagnitude > 0.001f || Quaternion.Angle(transform.rotation, lastRotation) > 0.05f;
+        public bool HasChangedPositions() => (transform.position - lastPosition).sqrMagnitude > 0.0001f || Quaternion.Angle(transform.rotation, lastRotation) > 0.05f;
 
         protected override void UpdateOwner(bool checkForMag = true) {
             if (lastOwner == SteamIntegration.currentUserId) objectHealth = GetHealth();
@@ -221,10 +304,8 @@ namespace Entanglement.Objects
                     ushort? objectId = null;
                     ushort callbackIndex = 0;
 
-                    if (Server.instance != null) {
-                        objectId = ObjectSync.lastId;
-                        objectId++;
-                    }
+                    if (Server.instance != null)
+                        objectId = ObjectSync.GetNextObjectId();
 
                     Syncable syncable = CreateSync(ownerId, rb, objectId);
 
@@ -253,6 +334,15 @@ namespace Entanglement.Objects
 
             if (isValid) {
                 JointCheck(); // Check for joint
+
+                if (IsOwner() && rb) {
+                    // One reliable rest state when the body falls asleep, so every machine
+                    // settles it in exactly the same pose and stops simulating it
+                    bool sleeping = rb.IsSleeping();
+                    if (sleeping && !wasSleeping)
+                        SendRestState();
+                    wasSleeping = sleeping;
+                }
 
                 if (!IsOwner()) {
                     SetHealth(float.PositiveInfinity);
@@ -372,6 +462,11 @@ namespace Entanglement.Objects
 
         public void ApplyTransform(SimplifiedTransform simplifiedTransform, Vector3 velocity, Vector3 angularVelocity) {
             if (SteamIntegration.currentUserId == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside())) return;
+
+            // A reliable rest pose is definitive; swallow unreliable stragglers that were
+            // still in flight, or a reordered stale packet would re-wake the object forever
+            if (Time.time - lastRestTime < 0.35f)
+                return;
 
             // Buffer the state instead of snapping to it, InterpolateRemote drives the object smoothly every physics step
             netPosition = simplifiedTransform.position;

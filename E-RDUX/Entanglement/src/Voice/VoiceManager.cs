@@ -34,6 +34,16 @@ namespace Entanglement.Voice
         static float[] sampleBuffer = new float[32768];
         static readonly Dictionary<int, float[]> chunkPool = new Dictionary<int, float[]>();
 
+        // Public so nametags can light up while someone talks
+        public static float localVoiceTime = -10f;
+        const float speakingWindow = 0.3f;
+
+        public static bool IsLocalSpeaking => micEnabled && Time.time - localVoiceTime < speakingWindow;
+
+        public static bool IsSpeaking(long userId) {
+            return players.TryGetValue(userId, out VoicePlayer player) && Time.time - player.lastReceiveTime < speakingWindow;
+        }
+
         class VoicePlayer {
             public AudioSource source;
             public AudioClip clip;
@@ -41,6 +51,7 @@ namespace Entanglement.Voice
             public long written;
             public long played;
             public int lastTimeSamples;
+            public float lastReceiveTime;
         }
 
         static readonly Dictionary<long, VoicePlayer> players = new Dictionary<long, VoicePlayer>();
@@ -93,8 +104,10 @@ namespace Entanglement.Voice
                 if (result == EVoiceResult.k_EVoiceResultOK && available > 0) {
                     result = SteamUser.GetVoice(true, compressedBuffer, (uint)compressedBuffer.Length, out uint written);
 
-                    if (result == EVoiceResult.k_EVoiceResultOK && written > 0)
+                    if (result == EVoiceResult.k_EVoiceResultOK && written > 0) {
                         VoiceDataMessageHandler.SendVoice(compressedBuffer, (int)written);
+                        localVoiceTime = Time.time;
+                    }
                 }
             }
 
@@ -146,6 +159,7 @@ namespace Entanglement.Voice
                 sampleBuffer[i] = sample / 32768f;
             }
 
+            player.lastReceiveTime = Time.time;
             WriteSamples(player, sampleCount);
         }
 

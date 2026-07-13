@@ -88,5 +88,6 @@ namespace Entanglement.Network
         public SimplifiedTransform simplifiedTransform;
         public Vector3 velocity;
         public Vector3 angularVelocity;
+        public bool resting; // Final pose of a body that just fell asleep, sent reliably
     }
 }

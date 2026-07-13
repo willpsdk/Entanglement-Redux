@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using Entanglement.Data;
@@ -9,13 +9,14 @@ using UnityEngine;
 
 namespace Entanglement.Network
 {
-    // Packs many TransformSync updates into one packet, so an NPC (one syncable per bone) costs
-    // one packet per frame instead of flooding the channel with one per bone per physics step
+    // Packs many transform updates into one packet. Continuous motion rides the unreliable
+    // channel; the single rest pose an object sends when it falls asleep rides reliable, so
+    // every machine settles it identically and then goes silent
     [Net.SkipHandleOnLoading]
     public class TransformSyncBatchMessageHandler : NetworkMessageHandler<TransformSyncBatchData>
     {
-        public const int entrySize = sizeof(ushort) + SimplifiedTransform.size + sizeof(float) * 6;
-        public const int maxEntriesPerMessage = 24; // Keeps a full batch under the ~1200 byte P2P payload
+        public const int entrySize = sizeof(ushort) + SimplifiedTransform.size + sizeof(float) * 6 + sizeof(byte);
+        public const int maxEntriesPerMessage = 24;
 
         public override byte? MessageIndex => BuiltInMessageType.TransformSyncBatch;
 
@@ -42,6 +43,8 @@ namespace Entanglement.Network
                 message.messageData.WriteFloat(ref index, entry.angularVelocity.x);
                 message.messageData.WriteFloat(ref index, entry.angularVelocity.y);
                 message.messageData.WriteFloat(ref index, entry.angularVelocity.z);
+
+                message.messageData[index++] = entry.resting ? (byte)1 : (byte)0;
             }
 
             return message;
@@ -75,13 +78,25 @@ namespace Entanglement.Network
                 angularVelocity.y = BitConverter.ToSingle(message.messageData, index); index += sizeof(float);
                 angularVelocity.z = BitConverter.ToSingle(message.messageData, index); index += sizeof(float);
 
-                if (ObjectSync.TryGetSyncable(objectId, out Syncable syncable) && syncable is TransformSyncable)
-                    syncable.Cast<TransformSyncable>().ApplyTransform(simpleTransform, velocity, angularVelocity);
+                bool resting = message.messageData[index++] != 0;
+
+                if (ObjectSync.TryGetSyncable(objectId, out Syncable syncable) && syncable is TransformSyncable) {
+                    TransformSyncable sync = syncable.Cast<TransformSyncable>();
+                    if (resting)
+                        sync.ApplyRestState(simpleTransform);
+                    else
+                        sync.ApplyTransform(simpleTransform, velocity, angularVelocity);
+                }
             }
 
             if (Server.instance != null) {
-                byte[] msgBytes = message.GetBytes();
-                Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, sender);
+                // Rest batches arrive reliable and must be relayed reliable; a whole batch is
+                // one kind, so the first entry's flag decides the relay channel
+                NetworkChannel channel = count > 0 && message.messageData[1 + entrySize - 1] != 0
+                    ? NetworkChannel.Reliable
+                    : NetworkChannel.Unreliable;
+
+                Server.instance.BroadcastMessageExcept(channel, message.GetBytes(), sender);
             }
         }
     }
@@ -90,49 +105,72 @@ namespace Entanglement.Network
         public List<TransformSyncMessageData> entries = new List<TransformSyncMessageData>();
     }
 
-    // Collects per-body sync states across the physics steps and flushes them once per frame,
-    // keyed by object id so only the newest state per body is sent
+    // Coalesces per-body states once a frame. Moving bodies go out unreliable; a body's single
+    // rest pose goes out reliable and supersedes any pending motion for that object
     public static class TransformSyncBatcher
     {
         static readonly Dictionary<ushort, TransformSyncMessageData> pending = new Dictionary<ushort, TransformSyncMessageData>();
+        static readonly Dictionary<ushort, TransformSyncMessageData> pendingRest = new Dictionary<ushort, TransformSyncMessageData>();
         static readonly TransformSyncBatchData reusedBatch = new TransformSyncBatchData();
 
-        public static void Enqueue(TransformSyncMessageData data) => pending[data.objectId] = data;
+        public static void Enqueue(TransformSyncMessageData data) {
+            if (pendingRest.ContainsKey(data.objectId))
+                return; // A rest pose already queued this frame is definitive
+
+            pending[data.objectId] = data;
+        }
+
+        public static void EnqueueRest(TransformSyncMessageData data) {
+            pending.Remove(data.objectId);
+            pendingRest[data.objectId] = data;
+        }
 
         public static void Flush()
         {
-            if (pending.Count == 0)
+            if (pending.Count == 0 && pendingRest.Count == 0)
                 return;
 
             if (Node.activeNode == null || !SteamIntegration.hasLobby) {
                 pending.Clear();
+                pendingRest.Clear();
                 return;
             }
 
+            FlushSet(pending, NetworkChannel.Unreliable);
+            FlushSet(pendingRest, NetworkChannel.Reliable);
+        }
+
+        static void FlushSet(Dictionary<ushort, TransformSyncMessageData> set, NetworkChannel channel) {
+            if (set.Count == 0)
+                return;
+
             reusedBatch.entries.Clear();
 
-            foreach (TransformSyncMessageData entry in pending.Values) {
+            foreach (TransformSyncMessageData entry in set.Values) {
                 reusedBatch.entries.Add(entry);
 
                 if (reusedBatch.entries.Count >= TransformSyncBatchMessageHandler.maxEntriesPerMessage) {
-                    Send(reusedBatch);
+                    Send(reusedBatch, channel);
                     reusedBatch.entries.Clear();
                 }
             }
 
             if (reusedBatch.entries.Count > 0)
-                Send(reusedBatch);
+                Send(reusedBatch, channel);
 
-            pending.Clear();
+            set.Clear();
         }
 
-        static void Send(TransformSyncBatchData batch)
+        static void Send(TransformSyncBatchData batch, NetworkChannel channel)
         {
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSyncBatch, batch);
             if (message != null)
-                Node.activeNode.BroadcastMessage(NetworkChannel.Unreliable, message.GetBytes());
+                Node.activeNode.BroadcastMessage(channel, message.GetBytes());
         }
 
-        public static void Clear() => pending.Clear();
+        public static void Clear() {
+            pending.Clear();
+            pendingRest.Clear();
+        }
     }
 }

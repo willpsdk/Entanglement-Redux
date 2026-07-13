@@ -174,12 +174,11 @@ namespace Entanglement.Patching {
                     yield break;
             }
 
-            // Get the next id for use in sync
-            ushort id = ObjectSync.lastId;
-            id++;
-
             // Create the sync transforms
             Rigidbody[] rbs = spawnedObject.GetComponentsInChildren<Rigidbody>();
+
+            // Reserve a contiguous, collision-free block for all the object's bodies
+            ushort id = ObjectSync.GetNextObjectIdBlock(rbs.Length);
             byte rbCount = (byte)rbs.Length;
             for (ushort i = 0; i < rbs.Length; i++)
             {

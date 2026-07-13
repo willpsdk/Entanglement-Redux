@@ -78,8 +78,7 @@ namespace Entanglement.Network
             yield return null;
 
             byte rbCount = 0;
-            ushort id = ObjectSync.lastId;
-            id++;
+            ushort id = 0;
 
             if (spawnable) {
                 Vector3 position = transform.position;
@@ -100,6 +99,10 @@ namespace Entanglement.Network
                 // Create the sync transforms
                 Rigidbody[] rbs = poolee.GetComponentsInChildren<Rigidbody>();
                 rbCount = (byte)rbs.Length;
+
+                // Reserve a contiguous, collision-free id block for the object's bodies
+                id = ObjectSync.GetNextObjectIdBlock(rbs.Length);
+
                 for (ushort i = 0; i < rbs.Length; i++) {
                     Rigidbody rb = rbs[i];
                     GameObject go = rb.gameObject;

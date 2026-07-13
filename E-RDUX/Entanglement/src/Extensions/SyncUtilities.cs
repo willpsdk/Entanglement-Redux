@@ -22,10 +22,8 @@ namespace Entanglement.Extensions {
                 ushort? objectId = null;
                 ushort callbackIndex = 0;
 
-                if (Node.isServer) {
-                    objectId = ObjectSync.lastId;
-                    objectId++;
-                }
+                if (Node.isServer)
+                    objectId = ObjectSync.GetNextObjectId();
 
                 Syncable syncable = TransformSyncable.CreateSync(ownerId, rb, objectId);
 

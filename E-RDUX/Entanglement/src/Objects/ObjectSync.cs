@@ -67,6 +67,48 @@ namespace Entanglement.Objects
             lastId = objectId;
         }
 
+        // Scans for a free id instead of blindly incrementing. A bare lastId++ eventually
+        // lands on an id a live object still holds, and RegisterSyncable then evicts that
+        // object to reuse the id - which is how a grabbed magazine snapped onto a floor one
+        public static ushort GetNextObjectId() {
+            ushort start = lastId;
+            do {
+                lastId++;
+                if (lastId == 0) lastId = 1; // 0 is reserved (host / unset)
+                if (!syncedObjects.ContainsKey(lastId))
+                    return lastId;
+            } while (lastId != start);
+
+            return lastId; // Table full (65k live objects), extremely unlikely
+        }
+
+        // Contiguous free block for multi-body spawns, whose rigidbodies take sequential ids.
+        // Returns the first id; every id in [first, first + count) is guaranteed free
+        public static ushort GetNextObjectIdBlock(int count) {
+            if (count <= 1)
+                return GetNextObjectId();
+
+            ushort start = lastId;
+            do {
+                lastId++;
+                if (lastId == 0) lastId = 1;
+
+                bool blockFree = true;
+                for (int i = 0; i < count; i++) {
+                    ushort id = (ushort)(lastId + i);
+                    if (id == 0 || syncedObjects.ContainsKey(id)) {
+                        blockFree = false;
+                        break;
+                    }
+                }
+
+                if (blockFree)
+                    return lastId;
+            } while (lastId != start);
+
+            return lastId;
+        }
+
         public static ushort QueueSyncable(Syncable syncable) {
             // IEqualityComparer doesnt work for lists or im dumb but whatever
             if (queuedSyncs.Has(syncable)) {
