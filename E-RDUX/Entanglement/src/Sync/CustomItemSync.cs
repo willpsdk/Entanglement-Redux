@@ -79,7 +79,7 @@ namespace Entanglement.Sync
             string filePath = TryFindMelonPathForItem(title, out bool hasExecutableCode);
 
             if (filePath == null) {
-                EntangleLogger.Verbose($"[ItemSync] {requester} asked for '{title}' but we can't find which melon it came from");
+                EntangleLogger.Log($"[ItemSync] {requester} asked for '{title}' but we can't find which melon it came from");
                 SendUnavailable(requester, title);
                 return;
             }

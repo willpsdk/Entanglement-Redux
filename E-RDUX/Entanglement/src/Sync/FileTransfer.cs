@@ -140,7 +140,7 @@ namespace Entanglement.Sync
             incoming[data.transferId] = transfer;
 
             if (onComplete == null)
-                EntangleLogger.Verbose($"[FileTransfer] Received Begin for {data.fileName} from {sender} with no registered handler for category {data.category}");
+                EntangleLogger.Log($"[FileTransfer] Received Begin for {data.fileName} from {sender} with no registered handler for category {data.category}");
         }
 
         internal static void OnChunkReceived(long sender, FileTransferChunkData data) {
