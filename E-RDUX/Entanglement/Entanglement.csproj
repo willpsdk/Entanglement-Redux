@@ -357,8 +357,14 @@
     <Compile Include="src\Compat\CustomMaps\CustomMapsPatches.cs" />
     <Compile Include="src\Compat\CustomMaps\LoadCustomMapMessage.cs" />
     <Compile Include="src\Compat\Playermodels\LoadCustomPlayerMessage.cs" />
+    <Compile Include="src\Sync\SyncPrefs.cs" />
+    <Compile Include="src\Sync\CustomItemSync.cs" />
+    <Compile Include="src\Sync\PlayermodelSync.cs" />
+    <Compile Include="src\Network\Messages\Sync\ItemSyncRequestMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\ItemSyncUnavailableMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\ItemSyncFileIncomingMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\PlayermodelSyncRequestMessage.cs" />
     <Compile Include="src\Compat\Playermodels\PlayerSkinLoader.cs" />
-    <Compile Include="src\Data\Files\DataTransaction.cs" />
     <Compile Include="src\Data\Files\BanList.cs" />
     <Compile Include="src\Data\Files\EmbeddedResource.cs" />
     <Compile Include="src\Data\Files\EmebeddedAssetBundle.cs" />
@@ -403,8 +409,9 @@
     <Compile Include="src\Network\Messages\Arena\Zombie Warehouse\ZombieModeMessage.cs" />
     <Compile Include="src\Network\Messages\Arena\Zombie Warehouse\ZombieStartMessage.cs" />
     <Compile Include="src\Network\Messages\Attacks\BalloonShotMessage.cs" />
-    <Compile Include="src\Network\Messages\Data\TransactionBeginMessage.cs" />
-    <Compile Include="src\Network\Messages\Data\TransactionWorkMessage.cs" />
+    <Compile Include="src\Network\Messages\FileTransfer\FileTransferBeginMessage.cs" />
+    <Compile Include="src\Network\Messages\FileTransfer\FileTransferChunkMessage.cs" />
+    <Compile Include="src\Sync\FileTransfer.cs" />
     <Compile Include="src\Network\Messages\Destruction\ObjectDestroyMessage.cs" />
     <Compile Include="src\Network\Messages\EmptyMessageData.cs" />
     <Compile Include="src\Network\Messages\Objects\GripEventMessage.cs" />
@@ -479,6 +486,16 @@
     <Compile Include="src\UI\StatsUI.cs" />
     <Compile Include="src\UI\UI.cs" />
     <Compile Include="src\UI\VoiceUI.cs" />
+    <Compile Include="src\UI\SyncUI.cs" />
+    <Compile Include="src\UI\GamemodeUI.cs" />
+    <Compile Include="src\Gamemodes\EntanglementGamemode.cs" />
+    <Compile Include="src\Gamemodes\GamemodeHandler.cs" />
+    <Compile Include="src\Gamemodes\BuiltIn\DeathmatchGamemode.cs" />
+    <Compile Include="src\Gamemodes\BuiltIn\TeamBattleGamemode.cs" />
+    <Compile Include="src\Gamemodes\BuiltIn\LastManStandingGamemode.cs" />
+    <Compile Include="src\Network\Messages\Gamemodes\GamemodeStateMessage.cs" />
+    <Compile Include="src\Network\Messages\Gamemodes\GamemodeEventMessage.cs" />
+
     <Compile Include="src\Voice\VoiceManager.cs" />
     <Compile Include="src\Network\Messages\Voice\VoiceDataMessage.cs" />
   </ItemGroup>

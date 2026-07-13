@@ -56,6 +56,27 @@ namespace Entanglement.Representation
 
         public Collider[] colliders = new Collider[0];
 
+        Renderer[] cachedRenderers;
+        public bool IsEliminated { get; private set; }
+
+        // Hides/shows this rep for everyone else - used by gamemode elimination, doesn't touch
+        // colliders or transform sync, only what's rendered
+        public void SetEliminated(bool eliminated) {
+            if (IsEliminated == eliminated) return;
+            IsEliminated = eliminated;
+
+            if (!repRoot) return;
+
+            if (cachedRenderers == null)
+                cachedRenderers = repRoot.GetComponentsInChildren<Renderer>(true);
+
+            foreach (Renderer renderer in cachedRenderers) {
+                if (renderer) renderer.enabled = !eliminated;
+            }
+
+            if (repCanvas) repCanvas.SetActive(!eliminated);
+        }
+
         public SLZ_Body repBody;
         public SLZ_Body ragdollBody;
         public CharacterAnimationManager repAnimationManager;
@@ -449,6 +470,15 @@ namespace Entanglement.Representation
         }
 
         bool wasTalking;
+        Color baseNameColor = Color.white;
+
+        // Lets a gamemode tint this player's nametag (team color, etc). Applies right away
+        // unless they're currently talking, in which case it takes over once they stop.
+        public void SetNameColor(Color color) {
+            baseNameColor = color;
+            if (!wasTalking && repNameText)
+                repNameText.color = baseNameColor;
+        }
 
         // Tints the nametag green and prefixes a speaker dot while this player is talking
         void UpdateTalkingIndicator() {
@@ -461,7 +491,7 @@ namespace Entanglement.Representation
 
             wasTalking = talking;
             repNameText.text = talking ? $"● {playerName}" : playerName;
-            repNameText.color = talking ? new Color(0.4f, 1f, 0.5f) : Color.white;
+            repNameText.color = talking ? new Color(0.4f, 1f, 0.5f) : baseNameColor;
         }
 
         // This calculates the velocity on the client side for leg prediction
@@ -613,7 +643,7 @@ namespace Entanglement.Representation
                 // Since the distance is squared its 1000 * 1000. Just some optimization, you won't be seeing the player move that far away.
                 if (dist < 1000000f) {
                     rep.UpdateIK();
-                    rep.repCanvasTransform?.gameObject?.SetActive(Client.nameTagsVisible);
+                    rep.repCanvasTransform?.gameObject?.SetActive(Client.nameTagsVisible && !rep.IsEliminated);
                 }
             }
 

@@ -72,8 +72,13 @@ namespace Entanglement.Compat.Playermodels
 
                 if (string.IsNullOrWhiteSpace(modelPath))
                     PlayerSkinLoader.ClearPlayermodel(rep);
-                else
-                    PlayerSkinLoader.ApplyPlayermodel(rep, Path.Combine(PlayermodelsPatch.playerModelsPath, modelPath));
+                else {
+                    string fullPath = Path.Combine(PlayermodelsPatch.playerModelsPath, modelPath);
+                    if (File.Exists(fullPath))
+                        PlayerSkinLoader.ApplyPlayermodel(rep, fullPath);
+                    else
+                        Entanglement.Sync.PlayermodelSync.RequestModelIfMissing(userId, modelPath, userId);
+                }
             }
 
             if (Server.instance != null)

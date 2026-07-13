@@ -97,9 +97,13 @@ namespace Entanglement.Network {
             }
 
             UserConnectedEvent(userId);
+
+            if (isServer) Entanglement.Gamemodes.GamemodeHandler.ActiveMode?.OnPlayerJoined(userId);
         }
 
         public void OnUserLeft(long userId) {
+            if (isServer) Entanglement.Gamemodes.GamemodeHandler.ActiveMode?.OnPlayerLeft(userId);
+
             if (PlayerRepresentation.representations.TryGetValue(userId, out PlayerRepresentation rep)) {
                 EntangleNotif.PlayerLeave($"{rep.playerName}");
 
@@ -139,6 +143,7 @@ namespace Entanglement.Network {
             SteamIntegration.byteIds.Clear();
             SteamIntegration.localByteId = 0;
             SteamIntegration.lastByteId = 1;
+            Entanglement.Gamemodes.GamemodeHandler.Clear();
 
             if (PlayerScripts.playerHealth)
                 PlayerScripts.playerHealth.reloadLevelOnDeath = PlayerScripts.reloadLevelOnDeath;

@@ -115,7 +115,12 @@ namespace Entanglement.Network
 
             yield return null;
 
-            if (!spawnable) yield break;
+            if (!spawnable) {
+                // Unrecognized title usually means a custom item the sender has installed and we
+                // don't - ask them for the file instead of silently dropping the spawn
+                Entanglement.Sync.CustomItemSync.RequestItem(userId, title, position, rotation, objectId, userId);
+                yield break;
+            }
 
             Vector3 scale = spawnable.prefab.transform.localScale;
 

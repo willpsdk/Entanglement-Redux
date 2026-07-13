@@ -34,8 +34,8 @@
             FantasyChal = 27,
             ShortId = 28,
             MagazinePlug = 29,
-            TransactionBegin = 30,
-            TransactionWork = 31,
+            FileTransferBegin = 30,
+            FileTransferChunk = 31,
             ObjectDestroy = 32,
             Heartbeat = 33,
             TransformCollision = 34,
@@ -47,6 +47,12 @@
             SceneEvent = 40,
             ClientReady = 41,
             TransformSyncBatch = 42,
-            VoiceData = 43;
+            VoiceData = 43,
+            ItemSyncRequest = 44,        // "I don't have item X you just spawned, please send it"
+            ItemSyncUnavailable = 45,    // "I don't have that item's file either, give up"
+            ItemSyncFileIncoming = 46,   // "Sending item X as file Y" - sent right before the P2P transfer starts
+            PlayermodelSyncRequest = 47, // "I don't have your playermodel file, please send it"
+            GamemodeState = 48,          // Host-authoritative round/score state, sent on change
+            GamemodeEvent = 49;          // One-off gamemode events (kill, capture, round start/end)
     }
 }

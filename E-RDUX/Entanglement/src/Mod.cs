@@ -99,6 +99,10 @@ namespace Entanglement {
 
             Client.StartClient();
 
+            Entanglement.Sync.CustomItemSync.Initialize();
+            Entanglement.Sync.PlayermodelSync.Initialize();
+            Entanglement.Gamemodes.GamemodeHandler.Initialize();
+
             PlayerRepresentation.LoadBundle();
             LoadingScreen.LoadBundle();
 
@@ -162,7 +166,8 @@ namespace Entanglement {
 
             StatsUI.UpdateUI();
             PlayerRepresentation.SyncPlayerReps();
-            DataTransaction.Process();
+            Entanglement.Sync.FileTransferManager.Tick();
+            Entanglement.Gamemodes.GamemodeHandler.Tick();
         }
 
         public override void OnFixedUpdate() {
@@ -241,6 +246,9 @@ namespace Entanglement {
             SceneEventSync.OnSceneCleanup();
             TransformSyncBatcher.Clear();
             Server.instance?.replayedUsers.Clear();
+            Entanglement.Sync.FileTransferManager.Clear();
+            // Gamemode state (active mode, scores, teams) deliberately survives a scene change -
+            // a match shouldn't end because someone walked through a door
 
 #if DEBUG
             PlayerRepresentation.debugRepresentation = null;

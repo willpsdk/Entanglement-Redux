@@ -14,6 +14,7 @@ namespace Entanglement.Managers
     public static class PlayerDeathManager
     {
         public static bool hasDied = false;
+        public static event Action OnLocalPlayerDied;
 
         public static void Initialize()
         {
@@ -31,6 +32,8 @@ namespace Entanglement.Managers
         }
 
         public static IEnumerator OnDeathFinished() {
+            OnLocalPlayerDied?.Invoke();
+
             yield return new WaitForSeconds(1f);
 
 #if DEBUG

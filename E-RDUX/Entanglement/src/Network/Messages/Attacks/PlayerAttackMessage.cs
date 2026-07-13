@@ -13,6 +13,8 @@ namespace Entanglement.Network
     {
         public override byte? MessageIndex => BuiltInMessageType.PlayerAttack;
 
+        public static event Action<long, float> OnDamageReceived;
+
 
         public override NetworkMessage CreateMessage(PlayerAttackMessageData data)
         {
@@ -40,7 +42,10 @@ namespace Entanglement.Network
 
             float attackDamage = BitConverter.ToUInt16(message.messageData, index) / 10000f;
 
-            PlayerScripts.playerHealth.TAKEDAMAGE(attackDamage);
+            if (!Entanglement.Gamemodes.GamemodeHandler.ShouldBlockDamage(sender)) {
+                PlayerScripts.playerHealth.TAKEDAMAGE(attackDamage);
+                OnDamageReceived?.Invoke(sender, attackDamage);
+            }
 
             // Play Sound
             if (PlayerRepresentation.representations.ContainsKey(sender))
