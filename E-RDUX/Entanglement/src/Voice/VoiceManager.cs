@@ -86,7 +86,14 @@ namespace Entanglement.Voice
         }
 
         public static void Tick() {
-            if (!SteamIntegration.hasLobby) {
+            bool debugActive = false;
+#if DEBUG
+            // The debug rep loopback is a solo tool, so it has to run even with no lobby - otherwise
+            // mic capture never starts and there's nothing to hear yourself with.
+            debugActive = debugVoiceOnRep && PlayerRepresentation.debugRepresentation != null;
+#endif
+
+            if (!SteamIntegration.hasLobby && !debugActive) {
                 if (recording) {
                     SteamUser.StopVoiceRecording();
                     recording = false;
@@ -117,7 +124,9 @@ namespace Entanglement.Voice
                     result = SteamUser.GetVoice(true, compressedBuffer, (uint)compressedBuffer.Length, out uint written);
 
                     if (result == EVoiceResult.k_EVoiceResultOK && written > 0) {
-                        VoiceDataMessageHandler.SendVoice(compressedBuffer, (int)written);
+                        // Only broadcast when actually connected - solo debug capture has nobody to send to
+                        if (SteamIntegration.hasLobby)
+                            VoiceDataMessageHandler.SendVoice(compressedBuffer, (int)written);
                         localVoiceTime = Time.time;
 #if DEBUG
                         QueueDebugVoice(compressedBuffer, (int)written);
@@ -148,7 +157,9 @@ namespace Entanglement.Voice
         }
 
         public static void ReceiveVoice(long speakerId, byte[] data, int offset, int count) {
-            if (!SteamIntegration.hasLobby || count <= 0 || count > receiveScratch.Length)
+            // No hasLobby gate: network voice only arrives while connected anyway, and dropping it
+            // lets the solo debug-rep loopback actually play back.
+            if (count <= 0 || count > receiveScratch.Length)
                 return;
 
             if (mutedPlayers.Contains(speakerId))
