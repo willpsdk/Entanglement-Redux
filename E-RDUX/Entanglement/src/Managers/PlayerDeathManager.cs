@@ -21,10 +21,11 @@ namespace Entanglement.Managers
             Player_Health.add_OnPlayerDeath(new Action(DeathHook));
         }
 
-        // Kills the local player outright. TAKEDAMAGE won't do it - Boneworks has a death-save
-        // that survives the first lethal hit, so a single big hit just leaves you bloodied.
-        // Death() is the game's own instant-kill and it raises OnPlayerDeath, so the rest of the
-        // flow (broadcasting to everyone, ragdolls on their end) runs exactly like a normal death.
+        // Kills the local player the same way a death pit does: flip on instant-death mode so the
+        // death-save doesn't soak the hit, then deal lethal damage. This goes through the normal
+        // damage-to-respawn path (unlike Death(), which left you stuck dead with no respawn, which
+        // then blocked all further damage and made you unkillable). Instant-death is switched back
+        // off once the kill registers so single-player death-saves keep working.
         public static void Suicide()
         {
             if (hasDied)
@@ -32,7 +33,23 @@ namespace Entanglement.Managers
             if (PlayerScripts.playerHealth == null || !PlayerScripts.playerHealth.alive)
                 return;
 
-            PlayerScripts.playerHealth.Death();
+            MelonCoroutines.Start(DoSuicide());
+        }
+
+        static IEnumerator DoSuicide()
+        {
+            Player_Health health = PlayerScripts.playerHealth;
+
+            health.ToggleInstantDeathMode(true);
+            health.TAKEDAMAGE(1000f);
+
+            float waited = 0f;
+            while (health.alive && waited < 1f) {
+                waited += Time.deltaTime;
+                yield return null;
+            }
+
+            health.ToggleInstantDeathMode(false);
         }
 
         public static void DeathHook()
@@ -67,9 +84,13 @@ namespace Entanglement.Managers
                 PlayerRepresentation.debugRepresentation.CreateRagdoll();
 #endif
 
-            // Wait for us to teleport
-            while (!PlayerScripts.playerHealth.alive)
+            // Wait for us to respawn, but give up after a while - if we somehow never come back
+            // alive we don't want hasDied stuck true forever, or no future death would register.
+            float waited = 0f;
+            while (!PlayerScripts.playerHealth.alive && waited < 15f) {
+                waited += Time.deltaTime;
                 yield return null;
+            }
 
             hasDied = false;
         }

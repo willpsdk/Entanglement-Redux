@@ -57,6 +57,17 @@ namespace Entanglement.Voice
         static readonly Dictionary<long, VoicePlayer> players = new Dictionary<long, VoicePlayer>();
         static readonly HashSet<long> mutedPlayers = new HashSet<long>();
 
+#if DEBUG
+        // Debug loopback: feed your own captured voice back out of the spawned dummy rep after a
+        // delay, so solo you can confirm voice works and that proximity fades it with distance.
+        public static bool debugVoiceOnRep = false;
+        const long debugRepVoiceId = -1337;
+        const float debugVoiceDelaySeconds = 10f;
+
+        struct DelayedVoicePacket { public byte[] data; public int count; public float playAt; }
+        static readonly Queue<DelayedVoicePacket> debugVoiceQueue = new Queue<DelayedVoicePacket>();
+#endif
+
         public static bool IsMuted(long userId) => mutedPlayers.Contains(userId);
 
         public static void SetMuted(long userId, bool muted) {
@@ -107,9 +118,16 @@ namespace Entanglement.Voice
                     if (result == EVoiceResult.k_EVoiceResultOK && written > 0) {
                         VoiceDataMessageHandler.SendVoice(compressedBuffer, (int)written);
                         localVoiceTime = Time.time;
+#if DEBUG
+                        QueueDebugVoice(compressedBuffer, (int)written);
+#endif
                     }
                 }
             }
+
+#if DEBUG
+            ProcessDebugVoice();
+#endif
 
             // Track loop position per speaker and stop starved sources before they replay old audio
             foreach (VoicePlayer player in players.Values) {
@@ -206,7 +224,8 @@ namespace Entanglement.Voice
             if (player != null && player.source)
                 return player;
 
-            if (!PlayerRepresentation.representations.TryGetValue(speakerId, out PlayerRepresentation rep) || rep.repRoot == null)
+            PlayerRepresentation rep = ResolveRep(speakerId);
+            if (rep == null || rep.repRoot == null)
                 return null;
 
             GameObject go = new GameObject($"Voice {speakerId}");
@@ -229,6 +248,43 @@ namespace Entanglement.Voice
             ApplySettingsTo(player);
             return player;
         }
+
+        static PlayerRepresentation ResolveRep(long speakerId) {
+#if DEBUG
+            // The debug loopback id isn't a real player, it points at the spawned dummy so the
+            // voice comes out of its head
+            if (speakerId == debugRepVoiceId)
+                return PlayerRepresentation.debugRepresentation;
+#endif
+            PlayerRepresentation.representations.TryGetValue(speakerId, out PlayerRepresentation rep);
+            return rep;
+        }
+
+#if DEBUG
+        static void QueueDebugVoice(byte[] compressed, int written) {
+            if (!debugVoiceOnRep || PlayerRepresentation.debugRepresentation == null || written <= 0)
+                return;
+
+            byte[] copy = new byte[written];
+            Buffer.BlockCopy(compressed, 0, copy, 0, written);
+            debugVoiceQueue.Enqueue(new DelayedVoicePacket { data = copy, count = written, playAt = Time.time + debugVoiceDelaySeconds });
+        }
+
+        static void ProcessDebugVoice() {
+            if (!debugVoiceOnRep || PlayerRepresentation.debugRepresentation == null) {
+                if (debugVoiceQueue.Count > 0)
+                    debugVoiceQueue.Clear();
+                return;
+            }
+
+            // Anything that's waited out its 10s gets played back through the dummy's own voice
+            // source, the exact same path a remote speaker's audio takes
+            while (debugVoiceQueue.Count > 0 && Time.time >= debugVoiceQueue.Peek().playAt) {
+                DelayedVoicePacket packet = debugVoiceQueue.Dequeue();
+                ReceiveVoice(debugRepVoiceId, packet.data, 0, packet.count);
+            }
+        }
+#endif
 
         // Mode, range and volume apply live to every speaker
         public static void ApplySettings() {

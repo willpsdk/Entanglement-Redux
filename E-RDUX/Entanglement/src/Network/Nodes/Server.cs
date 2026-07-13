@@ -104,6 +104,8 @@ namespace Entanglement.Network
             RegisterLobbyCallbacks();
 
             SteamIntegration.UpdateActivity();
+
+            EntangleNotif.LobbyStarted();
         }
 
         public override void Tick() {

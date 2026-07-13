@@ -459,14 +459,21 @@ namespace Entanglement.Representation
                 repTransforms[r].rotation = Quaternion.Slerp(repTransforms[r].rotation, netRotations[r], limbT);
             }
 
-            if (repCanvasTransform && repTransforms[0]) {
-                repCanvasTransform.position = repTransforms[0].position + Vector3.up * 0.4f;
-
-                if (Camera.current)
-                    repCanvasTransform.rotation = Quaternion.LookRotation(Vector3.Normalize(repCanvasTransform.position - Camera.current.transform.position), Vector3.up);
-            }
-
+            UpdateNametagPosition();
             UpdateTalkingIndicator();
+        }
+
+        // Parks the nametag just above the head and turns it to face the camera. Split out so the
+        // debug dummy (which skips the network smoothing path) can keep its tag on its head too,
+        // instead of leaving it stranded at the spawn point.
+        public void UpdateNametagPosition() {
+            if (!repCanvasTransform || repTransforms[0] == null)
+                return;
+
+            repCanvasTransform.position = repTransforms[0].position + Vector3.up * 0.4f;
+
+            if (Camera.current)
+                repCanvasTransform.rotation = Quaternion.LookRotation(Vector3.Normalize(repCanvasTransform.position - Camera.current.transform.position), Vector3.up);
         }
 
         bool wasTalking;
@@ -604,6 +611,8 @@ namespace Entanglement.Representation
 
                     debugRepresentation.UpdateFingers(Handedness.LEFT, data.simplifiedLeftHand);
                     debugRepresentation.UpdateFingers(Handedness.RIGHT, data.simplifiedRightHand);
+
+                    debugRepresentation.UpdateNametagPosition();
                 }
 
                 UpdateDebugHeldLoopback();

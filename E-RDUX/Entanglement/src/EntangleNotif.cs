@@ -19,6 +19,10 @@ namespace Entanglement
             Notifications.SendNotification($"You were disconnected for reason {reason}.", 4f);
         }
 
+        public static void LobbyStarted() {
+            Notifications.SendNotification("Lobby started!", 4f);
+        }
+
         public static void JoinServer(string username) {
             Notifications.SendNotification($"Joined {username}'s server!", 4f);
         }

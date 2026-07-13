@@ -4,6 +4,7 @@ using UnityEngine;
 
 using Steamworks;
 
+using ModThatIsNotMod;
 using ModThatIsNotMod.BoneMenu;
 
 using Entanglement.Network;
@@ -43,10 +44,10 @@ namespace Entanglement.UI {
             muteCategory = voiceCategory.CreateSubCategory("Mute Players", Color.red);
             muteCategory.CreateFunctionElement(refreshText, Color.white, RefreshMuteList);
 
-            // Steam voice records from the device picked in Steam's settings, and Unity can't
-            // switch output devices - both live in the overlay settings, not in the mod
-            voiceCategory.CreateFunctionElement("Mic / Output: Steam Settings", Color.yellow, () => {
-                SteamFriends.ActivateGameOverlay("Settings");
+            // The mod uses Steam's voice, so the mic is whatever Steam is set to record from -
+            // there's nothing to pick in here. This just tells you where to change it.
+            voiceCategory.CreateFunctionElement("How to change mic", Color.yellow, () => {
+                Notifications.SendNotification("Voice uses your Steam mic.\nChange it in Steam: Settings > Voice > Voice Input Device.\nIn VR, open the Steam overlay (not SteamVR) to reach Steam Settings.", 10f);
             });
         }
 
