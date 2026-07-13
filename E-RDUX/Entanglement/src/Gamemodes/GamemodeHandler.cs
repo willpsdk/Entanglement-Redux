@@ -19,6 +19,11 @@ namespace Entanglement.Gamemodes
         // 0 means "use the active mode's own DefaultRoundSeconds", host-settable from BoneMenu
         public static float roundDurationOverrideSeconds = 0f;
 
+        // You can't start a match on your own - there's nobody to play against. This counts the
+        // host plus everyone connected. Bump it if you want to force a bigger minimum.
+        public const int minPlayersToStart = 2;
+        public static int PlayerCount => (Node.activeNode?.connectedUsers.Count ?? 0) + 1;
+
         public static readonly Dictionary<long, int> scores = new Dictionary<long, int>();
         public static readonly Dictionary<long, byte> teams = new Dictionary<long, byte>();
         public static readonly HashSet<long> eliminated = new HashSet<long>();
@@ -42,6 +47,22 @@ namespace Entanglement.Gamemodes
 
             PlayerAttackMessageHandler.OnDamageReceived += OnLocalDamageReceived;
             PlayerDeathManager.OnLocalPlayerDied += OnLocalPlayerDied;
+        }
+
+        // The one thing the menu calls to kick off a game. Picks the mode and starts its first
+        // round in one go, but only if there are enough players and nothing's already running -
+        // so you can't start a match solo or stack two at once. Hands back a plain-English reason
+        // when it won't, so the UI has something to show.
+        public static bool TryStartMatch(string id, out string reason) {
+            reason = "";
+            if (!Node.isServer) { reason = "Only the host can start a gamemode."; return false; }
+            if (RoundActive) { reason = "A round is already running. Force stop it first."; return false; }
+            if (PlayerCount < minPlayersToStart) { reason = $"Need at least {minPlayersToStart} players to start."; return false; }
+            if (!registeredModes.ContainsKey(id)) { reason = "That gamemode isn't registered."; return false; }
+
+            StartMode(id);
+            StartRound();
+            return true;
         }
 
         public static bool StartMode(string id) {
@@ -156,6 +177,23 @@ namespace Entanglement.Gamemodes
             if (netMessage != null)
                 Node.activeNode?.BroadcastMessage(NetworkChannel.Reliable, netMessage.GetBytes());
 
+            HandleEventLocally(type, a, b, value, message ?? "");
+        }
+
+        // Runs on whatever machine an event landed on - the host handles its own here (it never
+        // receives its own broadcast), clients handle it when the message arrives. Round start/end
+        // pop the same on-screen notification for everyone so a match visibly starts and ends,
+        // then the mode gets its callback.
+        static void HandleEventLocally(GamemodeEventType type, long a, long b, int value, string message) {
+            switch (type) {
+                case GamemodeEventType.RoundStart:
+                    EntangleNotif.GamemodeStarted(ActiveMode?.DisplayName ?? "Gamemode");
+                    break;
+                case GamemodeEventType.RoundEnd:
+                    EntangleNotif.GamemodeEnded(ActiveMode?.DisplayName ?? "Gamemode");
+                    break;
+            }
+
             ActiveMode?.OnEventReceived(type, a, b, value, message);
         }
 
@@ -253,7 +291,7 @@ namespace Entanglement.Gamemodes
             }
 
             if (!Node.isServer)
-                ActiveMode?.OnEventReceived(data.type, data.a, data.b, data.value, data.message);
+                HandleEventLocally(data.type, data.a, data.b, data.value, data.message);
         }
 
         // Host-only: the single place a death actually gets processed, whether it happened on

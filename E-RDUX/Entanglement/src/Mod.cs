@@ -165,6 +165,7 @@ namespace Entanglement {
 #endif
 
             StatsUI.UpdateUI();
+            EntanglementUI.UpdateUI();
             PlayerRepresentation.SyncPlayerReps();
             Entanglement.Sync.FileTransferManager.Tick();
             Entanglement.Gamemodes.GamemodeHandler.Tick();

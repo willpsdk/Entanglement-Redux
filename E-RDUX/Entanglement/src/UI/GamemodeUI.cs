@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 using UnityEngine;
 
+using ModThatIsNotMod;
 using ModThatIsNotMod.BoneMenu;
 
 using Entanglement.Network;
@@ -17,10 +18,14 @@ namespace Entanglement.UI {
 
             MenuCategory hostControls = gmCategory.CreateSubCategory("Host Controls", Color.yellow);
 
+            // One button per mode - picks the mode and starts the first round together, so there's
+            // no separate "now start a round" step to hunt for. Refuses (with a reason on screen)
+            // if you're alone or a round's already going.
             foreach (EntanglementGamemode mode in GamemodeHandler.registeredModes.Values) {
-                hostControls.CreateFunctionElement($"Start: {mode.DisplayName}", mode.MenuColor, () => {
+                hostControls.CreateFunctionElement($"Play: {mode.DisplayName}", mode.MenuColor, () => {
                     if (!Node.isServer) return;
-                    GamemodeHandler.StartMode(mode.Id);
+                    if (!GamemodeHandler.TryStartMatch(mode.Id, out string reason))
+                        Notifications.SendNotification(reason, 4f);
                 });
             }
 
@@ -29,36 +34,37 @@ namespace Entanglement.UI {
                 GamemodeHandler.StopMode();
             });
 
-            hostControls.CreateFunctionElement("Start Round", Color.green, () => {
-                if (!Node.isServer) return;
-                GamemodeHandler.StartRound();
-            });
+            MenuCategory timerControls = hostControls.CreateSubCategory("Round Timer", Color.cyan);
 
-            // 0 means "use the mode's own default" - see GamemodeHandler.roundDurationOverrideSeconds
-            hostControls.CreateIntElement("Round Duration (s, 0 = mode default)", Color.white, 0, (value) => {
+            // Pre-round default override. 0 hands it back to whatever the mode itself sets.
+            timerControls.CreateIntElement("Default Length (s, 0 = mode default)", Color.white, 0, (value) => {
                 if (!Node.isServer) return;
                 GamemodeHandler.SetRoundDuration(value);
             },
             30, 0, 3600, true);
 
-            hostControls.CreateIntElement("Set Time Remaining (s)", Color.white, 0, (value) => {
+            timerControls.CreateIntElement("Set Time Left (s)", Color.white, 0, (value) => {
                 if (!Node.isServer) return;
+                if (!GamemodeHandler.RoundActive) { Notifications.SendNotification("No round is running.", 3f); return; }
                 GamemodeHandler.SetRoundTimeRemaining(value);
+                Notifications.SendNotification($"Time left: {(int)GamemodeHandler.RoundTimeRemaining}s", 3f);
             },
             30, 0, 3600, true);
 
-            hostControls.CreateFunctionElement("+60s", Color.white, () => {
-                if (!Node.isServer) return;
-                GamemodeHandler.AddRoundTime(60f);
-            });
-
-            hostControls.CreateFunctionElement("-60s", Color.white, () => {
-                if (!Node.isServer) return;
-                GamemodeHandler.AddRoundTime(-60f);
-            });
+            timerControls.CreateFunctionElement("Add 60 seconds", Color.green, () => AdjustTime(60f));
+            timerControls.CreateFunctionElement("Remove 60 seconds", Color.red, () => AdjustTime(-60f));
 
             scoresCategory = gmCategory.CreateSubCategory("Scores", Color.white);
             scoresCategory.CreateFunctionElement(refreshText, Color.white, RefreshScores);
+        }
+
+        // Nudges the running round's clock and tells you what it landed on - the buttons looked
+        // dead before because nothing on screen changed when there was no round to adjust.
+        static void AdjustTime(float delta) {
+            if (!Node.isServer) return;
+            if (!GamemodeHandler.RoundActive) { Notifications.SendNotification("No round is running.", 3f); return; }
+            GamemodeHandler.AddRoundTime(delta);
+            Notifications.SendNotification($"Time left: {(int)GamemodeHandler.RoundTimeRemaining}s", 3f);
         }
 
         static void ClearScores() {

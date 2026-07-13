@@ -21,6 +21,19 @@ namespace Entanglement.Managers
             Player_Health.add_OnPlayerDeath(new Action(DeathHook));
         }
 
+        // Just hurts the local player enough to kill them. Everything after - the death event
+        // going out to everyone else and the ragdoll appearing on their end - is the same path a
+        // normal death already takes, we're only pulling the trigger on it early.
+        public static void Suicide()
+        {
+            if (hasDied)
+                return;
+            if (PlayerScripts.playerHealth == null || !PlayerScripts.playerHealth.alive)
+                return;
+
+            PlayerScripts.playerHealth.TAKEDAMAGE(1000f);
+        }
+
         public static void DeathHook()
         {
             if (hasDied)

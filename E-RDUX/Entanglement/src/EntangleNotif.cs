@@ -30,5 +30,13 @@ namespace Entanglement
         public static void InvalidSteam() {
             Notifications.SendNotification("Failed to initialize the Steam API! Continuing without Entanglement!\nMake sure Steam is running, you are logged in, and the game was launched through Steam.", 4f);
         }
+
+        public static void GamemodeStarted(string modeName) {
+            Notifications.SendNotification($"{modeName} has started!", 4f);
+        }
+
+        public static void GamemodeEnded(string modeName) {
+            Notifications.SendNotification($"{modeName} round over!", 4f);
+        }
     }
 }

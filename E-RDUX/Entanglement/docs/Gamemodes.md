@@ -14,8 +14,17 @@ network messages, which this builds on top of.
 ## The basic idea
 
 Only one gamemode is active at a time. The host picks it from BoneMenu
-(`Entanglement Redux > Gamemodes > Host Controls`) or by calling `GamemodeHandler.StartMode(id)`
-directly.
+(`Entanglement Redux > Gamemodes > Host Controls`), where each mode has a single `Play: <name>`
+button that selects it and starts the first round in one press. Everyone in the lobby gets an
+on-screen notification when a round starts and again when it ends, the same popup you get for
+joining or leaving a server.
+
+You can't start a match on your own - it needs at least two players (the host counts), so a
+solo lobby just gets told there's nobody to play against. You also can't stack two at once;
+if a round's already running the button refuses until you force stop it. If you're driving
+this from code instead of the menu, `GamemodeHandler.TryStartMatch(id, out reason)` does the
+same checks-then-start in one call, or you can call `StartMode(id)` and `StartRound()`
+yourself and skip the player-count guard entirely.
 
 The important thing to understand: **only the host's copy of your mode actually runs the
 game logic.** `HostTick`, `OnPlayerKilled`, `OnRoundStart` - none of that fires on a client.
@@ -69,12 +78,13 @@ set from it automatically whenever `StartRound()` is called, so you don't touch 
 yourself (its setter is private to `GamemodeHandler` on purpose - a mode writing to it
 directly would fight with the BoneMenu controls below).
 
-A host can override this per-lobby without editing any code: `Gamemodes > Host Controls >
-Round Duration` sets a fixed length that wins over your mode's default for every round after
-that, until it's set back to 0. There's also a `Set Time Remaining` field and `+60s`/`-60s`
-buttons for nudging the clock on a round that's already running - useful if a round's dragging
-on or you want to cut one short without ending it outright. None of this requires your mode to
-do anything; it's handled entirely in `GamemodeHandler`.
+A host can override this per-lobby without editing any code, under `Gamemodes > Host Controls
+> Round Timer`. `Default Length` sets a fixed length that wins over your mode's default for
+every round after that, until it's set back to 0. `Set Time Left` and the `Add/Remove 60
+seconds` buttons nudge the clock on a round that's already running - useful if a round's
+dragging on or you want to cut one short without ending it outright, and each one confirms the
+new time on screen so you can see it took. None of this requires your mode to do anything;
+it's handled entirely in `GamemodeHandler`.
 
 ## The lifecycle
 
@@ -162,9 +172,8 @@ sense.
 player is still standing, they get a survival bonus on top of whatever kills they scored and
 the round ends on the spot, which reappears everyone (see "Stopping a mode" below - a round
 ending always clears elimination, whether it ends on a timer, by hitting the win condition, or
-by force stop). It won't auto-end a solo lobby, since there's nobody left to call a winner -
-useful if you just want to trigger an elimination by hand and watch a player vanish/reappear
-without needing a second person connected.
+by force stop). Like every mode, it needs at least two players before the host can start it,
+so to actually see the invisibility you'll want one other person in the lobby.
 
 ## Your own events
 
