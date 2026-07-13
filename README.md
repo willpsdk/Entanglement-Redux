@@ -16,6 +16,8 @@ This is a work in progress. Expect bugs. Current version is 0.4.0.
 - Story mode sync: buttons, keys, levers, valves, pull boxes, and NPC deaths/despawns all replicate across clients
 - Ragdoll death sync
 - Zone-aware culling that won't hide a player who's still standing in a zone with someone else
+- Automatic file sync — if someone's running a custom item or playermodel you don't have, you just get it from them, no manual downloading
+- Built-in gamemodes (Deathmatch, Team Battle, Last Man Standing) with scoring, teams, elimination, and a BoneMenu scoreboard, plus an API so other mods can add their own
 
 
 ## Installing
@@ -33,6 +35,14 @@ Drop `EntanglementRedux.dll` and `ModThatIsNotMod.dll` into your `Mods` folder. 
 Open `Entanglement.sln` in Visual Studio. You'll need MelonLoader's `Managed` folder (the unhollowed game assemblies) referenced by the project — point the project at your own BONEWORKS install, or drop the DLLs into a `managed` folder next to the project.
 
 The build outputs `EntanglementRedux.dll`.
+
+## Modding
+
+Want your mod to sync over the network, or to add your own gamemode without touching this
+codebase? Both are supported:
+
+- [Modding.md](E-RDUX/Entanglement/docs/Modding.md) — how to hook a third-party mod into Entanglement's networking, send your own messages, and get your custom items/playermodels synced for free
+- [Gamemodes.md](E-RDUX/Entanglement/docs/Gamemodes.md) — how the gamemode framework works, and how to write your own using the built-in ones as reference
 
 ## Contributing
 
