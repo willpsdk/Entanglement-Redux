@@ -21,9 +21,10 @@ namespace Entanglement.Managers
             Player_Health.add_OnPlayerDeath(new Action(DeathHook));
         }
 
-        // Just hurts the local player enough to kill them. Everything after - the death event
-        // going out to everyone else and the ragdoll appearing on their end - is the same path a
-        // normal death already takes, we're only pulling the trigger on it early.
+        // Kills the local player outright. TAKEDAMAGE won't do it - Boneworks has a death-save
+        // that survives the first lethal hit, so a single big hit just leaves you bloodied.
+        // Death() is the game's own instant-kill and it raises OnPlayerDeath, so the rest of the
+        // flow (broadcasting to everyone, ragdolls on their end) runs exactly like a normal death.
         public static void Suicide()
         {
             if (hasDied)
@@ -31,7 +32,7 @@ namespace Entanglement.Managers
             if (PlayerScripts.playerHealth == null || !PlayerScripts.playerHealth.alive)
                 return;
 
-            PlayerScripts.playerHealth.TAKEDAMAGE(1000f);
+            PlayerScripts.playerHealth.Death();
         }
 
         public static void DeathHook()

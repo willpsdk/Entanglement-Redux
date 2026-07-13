@@ -34,8 +34,11 @@ namespace Entanglement.Network
             message.messageData[index++] = (byte)variables.cartridgeType;
             // Type
             message.messageData[index++] = (byte)variables.AttackType;
-            // Damage
-            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((short)(variables.AttackDamage * 10000f)), ref index);
+            // Damage. Same overflow the melee path already fixed: a signed short * 10000 wraps
+            // negative past 3.2767 damage, so any real gun was landing as a tiny or negative hit -
+            // which is why shots barely hurt. Scale down and clamp into an unsigned short instead,
+            // giving room up to 655.35 damage with 0.01 precision.
+            message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((ushort)Math.Min(variables.AttackDamage * 100f, ushort.MaxValue)), ref index);
             // Mass
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes((short)(variables.ProjectileMass * 10000f)), ref index);
             // Tracer
@@ -60,9 +63,9 @@ namespace Entanglement.Network
             Cart cartridgeType = (Cart)message.messageData[index++];
             // Type
             AttackType attackType = (AttackType)message.messageData[index++];
-            // Damage
-            float attackDamage = (float)BitConverter.ToInt16(message.messageData, index) / 10000f;
-            index += sizeof(short);
+            // Damage - matches the unsigned-short encoding above
+            float attackDamage = (float)BitConverter.ToUInt16(message.messageData, index) / 100f;
+            index += sizeof(ushort);
             // Mass
             float projectileMass = (float)BitConverter.ToInt16(message.messageData, index) / 10000f;
             index += sizeof(short);
