@@ -644,7 +644,19 @@ namespace Entanglement.Representation
         }
 
         public static void UpdatePlayerReps() {
+            // The local rig is torn down and rebuilt across scene loads, so syncedRoot can be a
+            // destroyed transform for a few frames. Reading .position off it then throws every
+            // FixedUpdate, and because the throw aborts the loop below, every rep stops updating -
+            // which is what made reps jitter and freeze. Bail until the rig is back.
+            if (!syncedRoot)
+                return;
+
             foreach (PlayerRepresentation rep in representations.Values) {
+                // A rep can be mid-recreate on a level change, or half torn down after its player
+                // left. Skip those individually so one bad rep doesn't stop everyone else updating.
+                if (rep == null || !rep.repRoot)
+                    continue;
+
                 rep.ApplyNetSmoothing(Time.fixedDeltaTime);
 
                 float dist = (syncedRoot.position - rep.repRoot.position).sqrMagnitude;

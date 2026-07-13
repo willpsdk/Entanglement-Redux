@@ -197,6 +197,11 @@ namespace Entanglement.Objects
 
             GetPooleeData(grip.transform, out rigidbodies, out string overrideRootName, out short spawnIndex, out float spawnTime);
 
+            // Diagnostic: shows how a gripped object resolved. A story item that vanishes on
+            // pickup (Gamon stick) should show here whether it looked like a poolee, what spawn
+            // index it matched, and how many bodies got synced - which is where a bad despawn starts.
+            EntangleLogger.Log($"[ObjectSync] Grip '{grip.name}': bodies={rigidbodies?.Length ?? 0}, root='{overrideRootName}', spawnIndex={spawnIndex}, spawnTime={spawnTime:F2}");
+
             for (int i = 0; i < rigidbodies.Length; i++) SyncUtilities.UpdateBodyAttached(rigidbodies[i], overrideRootName, spawnIndex, spawnTime);
         }
 

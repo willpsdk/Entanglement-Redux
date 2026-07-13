@@ -52,6 +52,25 @@ namespace Entanglement.Managers
             health.ToggleInstantDeathMode(false);
         }
 
+        // Boneworks has a death-save that keeps you alive on a hit that should've killed you, plus
+        // health regen - great single-player, but in PvP it means you get shot down to a sliver and
+        // never actually die ("didn't go past a certain health point"). While in a lobby, once the
+        // game flags death as imminent (the death-save firing) and health is genuinely low, finish
+        // the kill so hits are lethal. Runs every frame; guarded so it can't fire at full health or
+        // loop after a respawn. Single-player (no lobby) is left completely alone.
+        public static void CheckLethality()
+        {
+            if (!SteamIntegration.hasLobby || hasDied)
+                return;
+
+            Player_Health health = PlayerScripts.playerHealth;
+            if (health == null || !health.alive)
+                return;
+
+            if (health.deathIsImminent && health.curr_Health <= health.max_Health * 0.5f)
+                Suicide();
+        }
+
         public static void DeathHook()
         {
             if (hasDied)

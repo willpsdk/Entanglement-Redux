@@ -42,6 +42,9 @@ namespace Entanglement.Sync
         public Action<FileTransfer> onFailed;
 
         public float lastActivity;
+
+        // Last 25% milestone we logged, so progress lines don't spam every chunk
+        public int lastLoggedProgress;
     }
 
     // Chunked file transfer over the reliable Transaction channel, no third-party host involved.
@@ -139,8 +142,25 @@ namespace Entanglement.Sync
 
             incoming[data.transferId] = transfer;
 
+            EntangleLogger.Log($"[FileTransfer] Downloading {data.fileName} ({data.totalBytes / 1024}KB) from {sender}...");
+
             if (onComplete == null)
-                EntangleLogger.Log($"[FileTransfer] Received Begin for {data.fileName} from {sender} with no registered handler for category {data.category}");
+                EntangleLogger.Warn($"[FileTransfer] No registered handler for category {data.category}, {data.fileName} will download but won't be used");
+        }
+
+        // Logs at 25% steps so a big download shows progress without one line per chunk
+        static void LogProgress(FileTransfer transfer, int currentBytes) {
+            if (transfer.totalBytes <= 0)
+                return;
+
+            int pct = (int)(100L * currentBytes / transfer.totalBytes);
+            int milestone = pct / 25 * 25;
+            if (milestone <= transfer.lastLoggedProgress || milestone <= 0 || milestone >= 100)
+                return;
+
+            transfer.lastLoggedProgress = milestone;
+            string dir = transfer.outgoing ? $"to {transfer.peer}" : $"from {transfer.peer}";
+            EntangleLogger.Log($"[FileTransfer] {(transfer.outgoing ? "Sending" : "Downloading")} {transfer.fileName} {dir}: {pct}% ({currentBytes / 1024}/{transfer.totalBytes / 1024}KB)");
         }
 
         internal static void OnChunkReceived(long sender, FileTransferChunkData data) {
@@ -159,9 +179,11 @@ namespace Entanglement.Sync
             Buffer.BlockCopy(data.chunk, 0, transfer.receiveBuffer, transfer.receivedBytes, data.chunk.Length);
             transfer.receivedBytes += data.chunk.Length;
 
+            LogProgress(transfer, transfer.receivedBytes);
+
             if (transfer.receivedBytes >= transfer.totalBytes) {
                 incoming.Remove(data.transferId);
-                EntangleLogger.Log($"[FileTransfer] Finished receiving {transfer.fileName} ({transfer.totalBytes / 1024}KB) from {sender}");
+                EntangleLogger.Log($"[FileTransfer] Finished downloading {transfer.fileName} ({transfer.totalBytes / 1024}KB) from {sender}");
                 transfer.onComplete?.Invoke(transfer);
             }
         }
@@ -190,7 +212,10 @@ namespace Entanglement.Sync
                         transfer.sentBytes += size;
                     }
 
+                    LogProgress(transfer, transfer.sentBytes);
+
                     if (transfer.sentBytes >= transfer.totalBytes) {
+                        EntangleLogger.Log($"[FileTransfer] Finished sending {transfer.fileName} ({transfer.totalBytes / 1024}KB) to {transfer.peer}");
                         (finished ?? (finished = new List<ushort>())).Add(pair.Key);
                         transfer.onComplete?.Invoke(transfer);
                     }
@@ -212,7 +237,8 @@ namespace Entanglement.Sync
                     foreach (ushort id in timedOut) {
                         FileTransfer transfer = incoming[id];
                         incoming.Remove(id);
-                        EntangleLogger.Warn($"[FileTransfer] Timed out receiving {transfer.fileName} from {transfer.peer}");
+                        int pct = transfer.totalBytes > 0 ? (int)(100L * transfer.receivedBytes / transfer.totalBytes) : 0;
+                        EntangleLogger.Warn($"[FileTransfer] Timed out downloading {transfer.fileName} from {transfer.peer} - stalled at {pct}% ({transfer.receivedBytes / 1024}/{transfer.totalBytes / 1024}KB) after {timeoutSeconds:F0}s of silence");
                         transfer.onFailed?.Invoke(transfer);
                     }
                 }

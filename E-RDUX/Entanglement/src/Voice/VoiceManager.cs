@@ -23,6 +23,7 @@ namespace Entanglement.Voice
         public static VoiceMode mode = VoiceMode.Proximity;
         public static int proximityRange = 12; // Meters until a voice fades out completely
         public static int outputVolume = 100;  // Percent
+        const float baseVoiceGain = 2f;         // 100% on the slider = this much actual gain, Steam voice is quiet
 
         static bool recording;
         static uint sampleRate;
@@ -174,7 +175,9 @@ namespace Entanglement.Voice
             if (sampleBuffer.Length < sampleCount)
                 sampleBuffer = new float[sampleCount];
 
-            float gain = outputVolume / 100f;
+            // Steam's decoded voice comes in quiet, so 100% maps to 2x gain (not 1x) to bring it
+            // up to a usable level. The slider still scales from there - 200% is 4x, etc.
+            float gain = outputVolume / 100f * baseVoiceGain;
             for (int i = 0; i < sampleCount; i++) {
                 short sample = (short)(decompressBuffer[i * 2] | (decompressBuffer[i * 2 + 1] << 8));
                 sampleBuffer[i] = Mathf.Clamp(sample / 32768f * gain, -1f, 1f);
