@@ -167,14 +167,17 @@ namespace Entanglement.Voice
             if (player == null)
                 return;
 
-            // 16 bit signed PCM to floats
+            // 16 bit signed PCM to floats. Volume is applied here as gain rather than on the
+            // AudioSource, because AudioSource.volume is capped at 1.0 - so anything past 100%
+            // did nothing. Clamp after so a boost hard-clips instead of wrapping into noise.
             int sampleCount = (int)bytesWritten / 2;
             if (sampleBuffer.Length < sampleCount)
                 sampleBuffer = new float[sampleCount];
 
+            float gain = outputVolume / 100f;
             for (int i = 0; i < sampleCount; i++) {
                 short sample = (short)(decompressBuffer[i * 2] | (decompressBuffer[i * 2 + 1] << 8));
-                sampleBuffer[i] = sample / 32768f;
+                sampleBuffer[i] = Mathf.Clamp(sample / 32768f * gain, -1f, 1f);
             }
 
             player.lastReceiveTime = Time.time;
@@ -296,7 +299,9 @@ namespace Entanglement.Voice
             if (!player.source)
                 return;
 
-            player.source.volume = outputVolume / 100f;
+            // Kept at full - loudness (including boost past 100%) is applied as sample gain in
+            // ReceiveVoice, since the AudioSource can't go above 1.0
+            player.source.volume = 1f;
 
             if (mode == VoiceMode.Global) {
                 player.source.spatialBlend = 0f;
