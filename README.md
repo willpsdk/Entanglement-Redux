@@ -54,4 +54,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Credits
 
-Built on the original Entanglement by zCubed and Lakatrazz. Maintained by willpsdk.
+Built on the original Entanglement by zCubed and Lakatrazz. Maintained by willpsdk & datgingeguy.
