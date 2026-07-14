@@ -1,257 +1,294 @@
 # Writing a Gamemode
 
-This is how you add a competitive mode - deathmatch, capture the flag, whatever you want -
-without touching Entanglement Redux's own source. Register your mode from your own
-MelonLoader mod and it shows up in every host's Gamemodes menu on its own.
+Want to build a custom gamemode—deathmatch, capture the flag, king of the hill, whatever you want? This doc shows you how to do it without touching Entanglement Redux's source code.
 
-Three modes ship with the mod as working examples - `Deathmatch`, `TeamBattle`, and
-`LastManStanding` - sitting in `src/Gamemodes/BuiltIn/`. If something below is unclear, those
-are short and probably answer it faster than this doc will.
+Your mode shows up automatically in every host's BoneMenu once you register it, and everything syncs across the network for you.
 
-If you haven't read `Modding.md` yet, do that first - it covers the module system and custom
-network messages, which this builds on top of.
+**Not sure about the module system?** Go read [Modding.md](Modding.md) first—that covers the basics of hooking into Entanglement.
 
-## The basic idea
+## The Quick Version: A Gamemode You Can Copy
 
-Only one gamemode is active at a time. The host picks it from BoneMenu
-(`Entanglement Redux > Gamemodes > Host Controls`), where each mode has a single `Play: <name>`
-button that selects it and starts the first round in one press. Everyone in the lobby gets an
-on-screen notification when a round starts and again when it ends, the same popup you get for
-joining or leaving a server.
-
-You can't start a match on your own - it needs at least two players (the host counts), so a
-solo lobby just gets told there's nobody to play against. You also can't stack two at once;
-if a round's already running the button refuses until you force stop it. If you're driving
-this from code instead of the menu, `GamemodeHandler.TryStartMatch(id, out reason)` does the
-same checks-then-start in one call, or you can call `StartMode(id)` and `StartRound()`
-yourself and skip the player-count guard entirely.
-
-The important thing to understand: **only the host's copy of your mode actually runs the
-game logic.** `HostTick`, `OnPlayerKilled`, `OnRoundStart` - none of that fires on a client.
-What happens instead is the host decides something, broadcasts the result, and every machine
-(including the host itself) reacts to that broadcast the same way. It's the same pattern this
-mod already uses for who owns a grabbed object or who's allowed to spawn what - one source of
-truth, everyone else just applies what it says. If you've worked with authoritative-host
-networking before this will feel familiar; if you haven't, the short version is: don't trust
-a client to decide anything that matters, only to report what happened to it and react to
-what the host says.
-
-Scores and teams live in `GamemodeHandler`, not in your mode. Call `SetScore`/`AddScore`/
-`SetTeam` and read them back from `GamemodeHandler.scores`/`GamemodeHandler.teams` - don't
-keep your own copies, because other things (the scoreboard, friendly fire) read directly from
-those dictionaries and won't know about a copy you're keeping on the side.
-
-## A small example
+Before we dive deep, here's the simplest possible working example. Copy this and you have a working mode:
 
 ```csharp
 using Entanglement.Gamemodes;
 using UnityEngine;
 
-public class KingOfTheHillGamemode : EntanglementGamemode
+public class SimpleDeathMatchGamemode : EntanglementGamemode
 {
-    public override string Id => "koth";
-    public override string DisplayName => "King of the Hill";
-    public override Color MenuColor => Color.yellow;
-    public override float DefaultRoundSeconds => 5f * 60f;
+    public override string Id => "simple_dm";
+    public override string DisplayName => "Simple Deathmatch";
+    public override Color MenuColor => Color.red;
+    public override float DefaultRoundSeconds => 5f * 60f;  // 5 minutes
 
     public override void OnPlayerKilled(long killerId, long victimId) {
+        // Ignore suicides and environmental deaths
         if (killerId == victimId || killerId == 0) return;
+        
+        // Give the killer one point
         AddScore(killerId, 1);
     }
 }
 ```
 
-And register it, once, from your mod's startup:
+Register it once in your mod's startup:
 
 ```csharp
-Entanglement.Gamemodes.GamemodeHandler.RegisterGamemode(new KingOfTheHillGamemode());
+public override void OnApplicationStart() {
+    Entanglement.Gamemodes.GamemodeHandler.RegisterGamemode(
+        new SimpleDeathMatchGamemode()
+    );
+}
 ```
 
-Registration just adds to a dictionary, so there's no strict ordering requirement against
-Entanglement's own startup - it only needs to happen before a host tries to pick your mode
-from the menu, which in practice means "call it from your own `OnApplicationStart`" is fine.
+That's it. It shows up in BoneMenu under `Entanglement Redux > Gamemodes`, and when someone starts it, kills are counted automatically.
 
-## Round length
+Real examples are in `src/Gamemodes/BuiltIn/`—`Deathmatch.cs`, `TeamBattle.cs`, and `LastManStanding.cs` all show more advanced patterns.
 
-Override `DefaultRoundSeconds` to set how long your round runs - `RoundTimeRemaining` gets
-set from it automatically whenever `StartRound()` is called, so you don't touch the timer
-yourself (its setter is private to `GamemodeHandler` on purpose - a mode writing to it
-directly would fight with the BoneMenu controls below).
+## How Gamemodes Actually Work
 
-A host can override this per-lobby without editing any code, under `Gamemodes > Host Controls
-> Round Timer`. `Default Length` sets a fixed length that wins over your mode's default for
-every round after that, until it's set back to 0. `Set Time Left` and the `Add/Remove 60
-seconds` buttons nudge the clock on a round that's already running - useful if a round's
-dragging on or you want to cut one short without ending it outright, and each one confirms the
-new time on screen so you can see it took. None of this requires your mode to do anything;
-it's handled entirely in `GamemodeHandler`.
+### Only One Mode Runs at a Time
 
-## The lifecycle
+The host picks an active gamemode from BoneMenu. Once started, that mode's code runs **only on the host's machine**. Here's the crucial part:
 
-Host-only - these never run on a client's machine:
+> The host runs the game logic. Clients don't. The host broadcasts decisions, and everyone reacts to them the same way.
 
-| Method | Fires when |
-|---|---|
-| `OnModeStart()` | your mode was just selected |
-| `OnModeStop()` | the host switched away or turned gamemodes off |
-| `OnRoundStart()` | someone called `StartRound()` - the menu, you, your own timer, doesn't matter |
-| `OnRoundEnd()` | the round timer hit zero, or you called `EndRound()` yourself |
-| `HostTick(float deltaTime)` | every frame, only while your mode is the active one |
-| `OnPlayerKilled(long killerId, long victimId)` | see "kill attribution" below |
-| `OnPlayerJoined` / `OnPlayerLeft` | someone joined or left the lobby while your mode is running |
+This is called host-authoritative networking. If you let clients decide who killed who, score changes, or anything else that matters, cheating becomes trivial. Instead:
 
-Everywhere - host and every client, once something round-trips back down:
+1. Host detects something happened
+2. Host decides the result
+3. Host broadcasts it
+4. Everyone (including the host) applies that result
 
-| Method | Fires when |
-|---|---|
-| `OnStateApplied(GamemodeState state)` | the active mode, round state, or timer changed |
-| `OnEventReceived(...)` | a `BroadcastEvent` call landed |
+You won't notice this when building your mode—you just write `OnPlayerKilled()` and `AddScore()`, and they work. But knowing *why* it's this way helps when you're thinking about what your mode should do.
 
-Don't spawn or despawn anything, or apply damage, from `OnStateApplied`/`OnEventReceived`.
-Those run on every machine in the lobby at once - anything with a real side effect belongs in
-the host-only methods, or you'll end up doing it once per player instead of once.
+### Before You Start
 
-## What you get to call
+- **You need at least 2 players to start a round** (the host counts, so 1 host + 1 client). Solo testing doesn't work.
+- **You can't stack rounds.** If one's running, the button refuses until you force stop it.
+- **Scores, teams, and eliminated players live in `GamemodeHandler`**, not in your mode. Read/write through the official methods (`SetScore`, `SetTeam`, etc.) so the scoreboard and other systems see the changes.
+
+## Round Length (With On-the-Fly Adjustments)
+
+Override `DefaultRoundSeconds` to set how long your round is:
 
 ```csharp
-SetScore(userId, score);
-AddScore(userId, delta);
-SetTeam(userId, team);
-BroadcastEvent(type, a, b, value, message);
+public override float DefaultRoundSeconds => 3f * 60f;  // 3 minutes
+```
+
+The host can override this per-lobby without editing code:
+
+`Entanglement Redux > Gamemodes > Host Controls > Round Timer`
+
+The options there are:
+- **`Default Length`** — sets a fixed time for all future rounds
+- **`Set Time Left`** — changes the timer on a round that's already running
+- **`Add/Remove 60 seconds`** — nudge the clock up or down
+
+Your mode doesn't need to do anything—this is all handled for you.
+
+## The Gamemode Lifecycle
+
+These methods are **host-only** (they only run on the host):
+
+| Method | When it fires |
+|---|---|
+| `OnModeStart()` | Your mode was just selected |
+| `OnRoundStart()` | A round was started (by menu, by you, by timer) |
+| `HostTick(float deltaTime)` | Every frame, only while your mode is active |
+| `OnPlayerKilled(long killerId, long victimId)` | Someone died (see details below) |
+| `OnPlayerJoined(long userId)` | A player joined the lobby |
+| `OnPlayerLeft(long userId)` | A player left the lobby |
+| `OnRoundEnd()` | Round timer hit zero or you called `EndRound()` |
+| `OnModeStop()` | The mode was switched off or force-stopped |
+
+These run on **every player's machine**:
+
+| Method | When it fires |
+|---|---|
+| `OnStateApplied(GamemodeState state)` | Something changed (active mode, round state, timer) |
+| `OnEventReceived(GamemodeEventType type, ...)` | A custom event arrived |
+
+**Important:** Don't spawn/despawn things or apply damage in the "every player" methods. Those run once per player in the lobby, so you'd end up doing it N times instead of once. Keep your side-effects in the host-only methods.
+
+## What You Can Call From Your Mode
+
+```csharp
+SetScore(userId, score);      // Set a player's score
+AddScore(userId, delta);       // Add points to a player
+SetTeam(userId, team);         // Assign a player to a team
+BroadcastEvent(type, a, b, value, message);  // Send a custom event
 StartRound();
 EndRound();
 ```
 
-All of these are host-only - calling them from a client build of your mode just does nothing,
-since `GamemodeHandler` checks `Node.isServer` before touching any state.
+All of these are host-only. If a client calls them, they silently do nothing.
 
-## Teams and friendly fire
+## Teams and Friendly Fire
 
-Set `UsesTeams => true` and pick a `TeamCount`. Once you've called `SetTeam` on a player,
-damage between two players on the same team gets blocked automatically, before it's even
-applied - you don't have to check for it yourself in `OnPlayerKilled` or anywhere else. Who
-goes on which team is entirely up to you; `TeamBattleGamemode` just round-robins new arrivals,
-which is about as simple as it gets, but you could just as easily let players pick.
-
-Override `GetTeamColor(byte team)` to give each team its own nametag color - return whatever
-`Color` you want for a given team index, and every player on that team shows up tinted that
-way to everyone else. `TeamBattleGamemode` does this with a small fixed array (red, blue,
-green, yellow); if `team` is out of range for whatever you return, players just default to
-white. This only touches the nametag - it doesn't recolor the player model itself. If someone's
-talking, the green talking-indicator color takes over their nametag temporarily and reverts to
-their team color once they stop, so the two don't fight each other.
-
-## Elimination mode
-
-Override `EliminationMode => true` and dying removes a player from the round: their body
-stops rendering for everyone else and their nametag disappears, until the next round starts.
-It's opt-in and off by default on both built-in modes - nothing about existing games changes
-unless a mode asks for it.
-
-A few things worth knowing about what this actually does:
-
-- It's visual only. The eliminated player can still move around, talk, and take up space in
-  the world - other players just can't see or hear-locate them by nametag anymore. It doesn't
-  touch colliders, physics, or voice chat.
-- It's tracked separately from kills. A death always calls `OnPlayerKilled` the same as
-  before; elimination is layered on top of that, not instead of it.
-- Everyone reappears automatically the moment a round ends - naturally, via `EndRound()`, or
-  because the host force-stopped the mode - so nobody's left invisible after the fact waiting
-  for a round that isn't coming.
-- `GamemodeEventType.PlayerEliminated` fires (with `a` set to the eliminated player's id)
-  whenever this happens, if you want to react to it - print something, play a sound, whatever.
-- The current eliminated set is `GamemodeHandler.eliminated`, a plain `HashSet<long>` of user
-  ids, same pattern as `scores` and `teams`.
-
-This pairs naturally with something like a last-man-standing mode, but nothing stops you from
-using it for anything where "dead players shouldn't be visible until the round resets" makes
-sense.
-
-`LastManStandingGamemode` is the built-in example of this - it's a free-for-all with
-`EliminationMode => true`, and it watches the alive count after every death. Once only one
-player is still standing, they get a survival bonus on top of whatever kills they scored and
-the round ends on the spot, which reappears everyone (see "Stopping a mode" below - a round
-ending always clears elimination, whether it ends on a timer, by hitting the win condition, or
-by force stop). Like every mode, it needs at least two players before the host can start it,
-so to actually see the invisibility you'll want one other person in the lobby.
-
-## Your own events
-
-Kills, scores, and round start/end cover the obvious cases, but your mode is probably going
-to need something specific to it - a flag got captured, a hill changed hands. Rather than
-inventing a new network message for every possible gamemode, there's one type reserved for
-exactly this:
+Override `UsesTeams => true` and set `TeamCount`:
 
 ```csharp
-BroadcastEvent(GamemodeEventType.Custom, value: someInt, message: "flag_captured:red");
+public override bool UsesTeams => true;
+public override byte TeamCount => 2;  // Red vs Blue
 ```
 
-and on the receiving end:
+Now call `SetTeam(userId, teamIndex)` to put players on teams. Friendly fire automatically blocks damage between teammates—you don't have to check for it.
+
+### Team Colors
+
+Override `GetTeamColor(byte team)` to give each team a color:
 
 ```csharp
-public override void OnEventReceived(GamemodeEventType type, long a, long b, int value, string message) {
-    if (type != GamemodeEventType.Custom) return;
-    if (message == "flag_captured:red") { /* whatever you want to happen */ }
+public override Color GetTeamColor(byte team) {
+    return team switch {
+        0 => Color.red,
+        1 => Color.blue,
+        _ => Color.white  // fallback
+    };
 }
 ```
 
-`a`, `b`, `value`, and `message` don't mean anything to the framework itself - they're yours
-to use however your mode needs.
+Everyone sees that team's nametags in that color. If someone's talking, the green talking indicator temporarily takes over their nametag, then switches back to their team color when they stop.
 
-## How kill attribution actually works
+## Elimination Mode: "Dead Players Become Invisible"
 
-There's no "who shot who" message. Two things that already exist in the core PvP code do the
-work:
+Override `EliminationMode => true` and when players die, they disappear:
 
-- when you take damage from another player, your machine finds out who hit you
-- when your health hits zero, your machine finds out you died
+```csharp
+public override bool EliminationMode => true;
+```
 
-If those two happen within 8 seconds of each other, the earlier hit gets credited as the
-kill. If you're the host, `OnPlayerKilled` just fires directly. If you're a client, a short
-report goes to the host first, and the host is the one who actually calls `OnPlayerKilled`
-and tells everyone what happened - same reasoning as everywhere else in this framework, the
-host decides, nobody else gets to.
+What this actually does:
+- Eliminated players' bodies don't render for other players
+- Their nametags disappear
+- They can still move, talk, and exist in the world—other players just can't see them
+- Everyone reappears automatically when the round ends
 
-`OnPlayerKilled` fires for every death while your mode is active, not just ones another
-player caused - fall damage, an NPC, walking off a ledge, all of it. A death with no recent
-hit behind it just reports `killerId == 0`. Check for that if you only want to count actual
-PvP kills; both built-in modes do exactly this. It fires for everything, rather than only
-attributed kills, because elimination mode (above) needs to catch every death a player has,
-not just the ones another player gets credit for.
+It's visual only—colliders, physics, and voice chat are untouched.
 
-## What happens when you actually die
+The current eliminated set is `GamemodeHandler.eliminated`, a `HashSet<long>` of user IDs. Read it if you need to (e.g., to check "how many players are still alive?").
 
-Physically, nothing changes. Dying in a gamemode looks exactly like dying anywhere else in
-Entanglement - your ragdoll spawns for everyone the same way it always does, and whatever
-happens after that (a level reload, a checkpoint, however Boneworks itself handles it) is
-untouched by any of this. The gamemode framework doesn't sit in that path; it just watches it
-go by and, if it can attribute the death to another player, quietly scores a kill in the
-background. You won't notice anything different in the moment you die - unless the active
-mode has `EliminationMode` turned on, in which case your body and nametag disappear for
-everyone else right away. See "Elimination mode" above for exactly what that does and doesn't
-cover.
+**Example:** `LastManStandingGamemode` uses this—free-for-all with elimination. After every death, it checks if only one player's still standing. If so, that player wins and the round ends (which reappears everyone else).
 
-That also means there's currently **no respawn system** - no "you come back in 5 seconds," no
-spawn points, nothing like that. If your mode needs one, you'd build it yourself: hook
-`PlayerDeathManager.OnLocalPlayerDied` the same way `GamemodeHandler` already does, and drive
-your own timer/teleport from there. This is the single biggest gap in the framework right
-now, and if you'd rather it existed as a shared thing instead of something every mode
-reinvents on its own, that's a reasonable thing to ask for.
+## Broadcasting Custom Events
 
-## Stopping a mode
+Kills, scores, and round start/end cover the basics, but your mode probably has something specific—a flag got captured, a point got scored on the hill. Rather than making a new network message for every possible mode, there's one reserved for this:
 
-The host can shut a mode off from `Gamemodes > Host Controls > Force Stop Gamemode`, or by
-calling `GamemodeHandler.StopMode()` directly. It works whether or not a round is currently
-running - if one is, your mode gets `OnRoundEnd()` first so it can clean up (stop a capture
-timer, whatever it needs to do) before `OnModeStop()` runs and everything gets cleared.
-Scores, teams, and the eliminated list are all wiped once the mode's stopped, so switching to
-a different mode afterward starts from a clean slate.
+```csharp
+// Send an event
+BroadcastEvent(GamemodeEventType.Custom, a: 0, b: 0, value: 1, message: "flag_captured_red");
 
-## What's missing on purpose (for now)
+// Receive it
+public override void OnEventReceived(GamemodeEventType type, long a, long b, int value, string message) {
+    if (type != GamemodeEventType.Custom) return;
+    
+    if (message == "flag_captured_red") {
+        // Do something—play a sound, update the UI, whatever
+    }
+}
+```
 
-- **No respawn/spawn-point system** - covered above.
-- **No UI beyond the BoneMenu scoreboard.** `Entanglement Redux > Gamemodes > Scores` is a
-  plain text list you refresh by pressing a button - BoneMenu doesn't do live-updating
-  elements, so that's about as fancy as it gets without you building your own HUD.
-- **No win/lose screen.** `OnRoundEnd` is where you'd trigger one; what it looks like is up to
-  you.
+`a`, `b`, `value`, and `message` mean whatever you want them to. They're yours to use.
+
+## How Kills Actually Get Attributed
+
+You don't send "player A shot player B" messages. Instead, Boneworks itself already knows:
+- When you take damage, you know who hit you
+- When your health hits zero, you know you died
+
+If those two things happen within 8 seconds of each other, the hit gets credited as the kill.
+
+**If you're the host:** `OnPlayerKilled()` fires directly.
+
+**If you're a client:** Your machine tells the host about the hit first, then the host calls `OnPlayerKilled()` and tells everyone.
+
+`OnPlayerKilled()` fires for *every* death while your mode is active—falls, NPCs, environmental damage, all of it. Deaths with no clear attacker have `killerId == 0`. Check for that if you only want PvP kills:
+
+```csharp
+public override void OnPlayerKilled(long killerId, long victimId) {
+    if (killerId == 0 || killerId == victimId) return;  // ignore environmental deaths and suicides
+    
+    AddScore(killerId, 1);
+}
+```
+
+## What Happens When Players Die
+
+Physically, nothing special happens. They ragdoll the same way they always do, Boneworks respawns them however it normally does—the gamemode framework just watches and quietly scores kills in the background.
+
+**Big gap:** There's currently no respawn system in the framework. No "wait 5 seconds and come back," no spawn points. If your mode needs respawning, you build it yourself. Hook `PlayerDeathManager.OnLocalPlayerDied` the same way `GamemodeHandler` does, then drive your own timer and teleport.
+
+This is the biggest thing missing right now, and if you want it as a shared feature instead of something every mode reinvents, that's worth asking for.
+
+## Stopping a Mode
+
+The host can force-stop from BoneMenu or by calling `GamemodeHandler.StopMode()`:
+
+```csharp
+if (someCondition) {
+    Entanglement.Gamemodes.GamemodeHandler.StopMode();
+}
+```
+
+When a mode stops:
+1. If a round is running, `OnRoundEnd()` fires first (so you can clean up)
+2. Then `OnModeStop()` fires
+3. All scores, teams, and eliminated players are wiped
+4. Switching to a new mode starts fresh
+
+## What's Not There (Yet)
+
+- **No respawn system** (you can build one—see above)
+- **No custom HUD.** The scoreboard is text-based, refresh-on-demand from BoneMenu
+- **No win/lose screen** (you trigger it from `OnRoundEnd`, then you build what it looks like)
+
+These aren't bugs—they're intentionally minimal so each mode can do its own thing instead of fighting a one-size-fits-all framework.
+
+## Putting It All Together
+
+Here's a slightly more complete example—a team deathmatch mode:
+
+```csharp
+public class TeamDeathMatchGamemode : EntanglementGamemode
+{
+    public override string Id => "team_dm";
+    public override string DisplayName => "Team Deathmatch";
+    public override Color MenuColor => Color.cyan;
+    public override float DefaultRoundSeconds => 10f * 60f;
+    
+    public override bool UsesTeams => true;
+    public override byte TeamCount => 2;
+    
+    public override Color GetTeamColor(byte team) {
+        return team == 0 ? Color.red : Color.blue;
+    }
+
+    public override void OnRoundStart() {
+        // Put players on teams when the round starts
+        int playerCount = 0;
+        foreach (long userId in Node.activeNode.connectedUsers) {
+            SetTeam(userId, (byte)(playerCount % 2));
+            playerCount++;
+        }
+    }
+
+    public override void OnPlayerKilled(long killerId, long victimId) {
+        if (killerId == victimId || killerId == 0) return;
+        AddScore(killerId, 1);
+    }
+
+    public override void OnPlayerJoined(long userId) {
+        // Assign new players to the team with fewer people
+        int team0Count = GamemodeHandler.teams.Values.Count(t => t == 0);
+        int team1Count = GamemodeHandler.teams.Count - team0Count;
+        SetTeam(userId, (byte)(team1Count > team0Count ? 0 : 1));
+    }
+}
+```
+
+Register it, start it, and watch it work.
+
+---
+
+**Have questions?** Check out the built-in modes in `src/Gamemodes/BuiltIn/` for real-world examples. They're well-commented and show patterns for elimination, teams, scoring, and events.

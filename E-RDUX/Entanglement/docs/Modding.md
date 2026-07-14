@@ -1,26 +1,29 @@
-# Building a mod that talks to Entanglement Redux
+# Building a Mod That Works With Entanglement Redux
 
-This is for people writing a separate MelonLoader mod that wants to hook into Entanglement
-Redux - get told when a player joins, send your own data across the lobby, sync your own
-files, that kind of thing. If you want to build a gamemode specifically, skip ahead to
-`Gamemodes.md` - this doc is the more general "how do I even talk to this mod" one.
+So you've got a MelonLoader mod and you want it to play nice with Entanglement Redux. This doc covers everything from "how do I even start?" to "how do I sync files across the network?"
 
-Everything here is optional. If you're just making a normal Boneworks mod that doesn't care
-about multiplayer, none of this applies to you and Entanglement won't get in your way.
+**Don't need multiplayer stuff?** Then you don't need any of this. Entanglement Redux won't get in your way if you're just making a regular single-player mod.
 
-## Getting your mod loaded and noticed
+## Getting Started: The Module System
 
-Entanglement has its own lightweight module system, separate from MelonLoader's, because it
-needs update hooks that fire in a specific order relative to its own networking tick. To hook
-into it:
+Entanglement Redux has its own lightweight module system because it needs to call your code at specific times—like right before it does networking stuff, or when a scene loads. It's optional, but it makes things easier.
+
+Here's the bare minimum:
 
 ```csharp
-[assembly: Entanglement.Modularity.EntanglementModuleInfo(typeof(MyModule), "My Mod", "1.0.0", "YourName")]
+[assembly: Entanglement.Modularity.EntanglementModuleInfo(
+    typeof(MyModule), 
+    "My Cool Mod",      // display name
+    "1.0.0",            // your version
+    "YourName"          // author
+)]
 
 public class MyModule : Entanglement.Modularity.EntanglementModule
 {
     public override void OnModuleLoaded() {
-        // register message handlers, subscribe to events, whatever you need
+        // This runs once when the mod loads.
+        // Register message handlers, subscribe to events, etc here.
+        MelonLogger.Msg("My module loaded!");
     }
 
     public override void Update() { }
@@ -28,27 +31,23 @@ public class MyModule : Entanglement.Modularity.EntanglementModule
 }
 ```
 
-Then, from your own MelonMod's `OnApplicationStart`, tell Entanglement about your assembly:
+Then from your main MelonMod class, tell Entanglement to load it:
 
 ```csharp
-Entanglement.Modularity.ModuleHandler.SetupModule(System.Reflection.Assembly.GetExecutingAssembly());
+public override void OnApplicationStart() {
+    Entanglement.Modularity.ModuleHandler.SetupModule(System.Reflection.Assembly.GetExecutingAssembly());
+}
 ```
 
-That's it. `OnModuleLoaded()` fires once, right away, and the rest of the lifecycle methods
-get called from the same place Entanglement calls its own (see `Module.cs` for the full list
-- it's short, just `Update`/`FixedUpdate`/`LateUpdate`/`OnSceneWasInitialized`/
-`OnLoadingScreen`/`OnApplicationQuit`).
+That's it. The module fires `OnModuleLoaded()` right away, and then gets called at the same time Entanglement does its own updates. The full list of available hooks is: `Update`, `FixedUpdate`, `LateUpdate`, `OnSceneWasInitialized`, `OnLoadingScreen`, `OnApplicationQuit`.
 
-You don't strictly need a module just to send network messages - it's mainly useful if you
-want the lifecycle hooks. If all you want is to react to a message arriving, registering the
-handler (next section) is enough on its own.
+**Quick tip:** You don't *need* a module just to receive network messages. If you only want to react to incoming data, just register the message handler (next section) and you're good.
 
-## Sending your own network messages
+## Sending Network Messages
 
-Entanglement's whole networking layer is built around one pattern: a byte identifies the
-message type, and a `NetworkMessageHandler<T>` knows how to turn your data into bytes and
-back. Every feature in this mod - object sync, chat, voice, gamemodes - is just another one
-of these. Yours can be too.
+Entanglement's entire networking layer works the same way: a `NetworkMessageHandler<T>` knows how to pack your data into bytes and unpack it on the other end. Everything—object sync, chat, voice, gamemodes—is built on this same pattern.
+
+Here's how to add your own message type:
 
 ```csharp
 public class MyMessageData : NetworkMessageData {
@@ -58,131 +57,132 @@ public class MyMessageData : NetworkMessageData {
 
 public class MyMessageHandler : NetworkMessageHandler<MyMessageData>
 {
-    public override byte? MessageIndex => 200; // pick something unclaimed, see below
+    public override byte? MessageIndex => 200;  // pick an unused ID (see below)
 
     public override NetworkMessage CreateMessage(MyMessageData data) {
         NetworkMessage message = new NetworkMessage();
-        // pack data.someText / data.someNumber into message.messageData however you like
+        // Pack your data into message.messageData
+        // Use BinaryWriter/BinaryReader if you want, or hand-roll it
         return message;
     }
 
     public override void HandleMessage(NetworkMessage message, long sender) {
-        // unpack message.messageData, sender is the Steam id of whoever sent it
+        // Unpack message.messageData
+        // sender is the Steam ID of whoever sent it
     }
 }
 ```
 
-Register it once, from `OnModuleLoaded` or `OnApplicationStart`:
+Register it once (from `OnModuleLoaded` or `OnApplicationStart`):
 
 ```csharp
 Entanglement.Network.NetworkMessage.RegisterHandler<MyMessageHandler>();
 ```
 
-To actually send one:
+To send a message:
 
 ```csharp
-var msg = Entanglement.Network.NetworkMessage.CreateMessage((byte)200, new MyMessageData { someText = "hi", someNumber = 5 });
-Entanglement.Network.Node.activeNode.BroadcastMessage(Entanglement.Network.NetworkChannel.Reliable, msg.GetBytes());
-// or SendMessage(userId, channel, bytes) to talk to one specific player
+var data = new MyMessageData { someText = "hi", someNumber = 5 };
+var msg = Entanglement.Network.NetworkMessage.CreateMessage((byte)200, data);
+Entanglement.Network.Node.activeNode.BroadcastMessage(
+    Entanglement.Network.NetworkChannel.Reliable, 
+    msg.GetBytes()
+);
+// Use SendMessage(userId, channel, bytes) to send to one player instead
 ```
 
-### About that message id
+### Picking a Message ID
 
-Here's the part I want to be straight with you about: **there's no central registry**. The
-byte you pick for `MessageIndex` just needs to not collide with anything else registered in
-the same running game. If two different mods both pick 200, whichever one registers second
-throws an exception the moment it tries to register - Entanglement itself currently uses ids
-0 through 49, and its own optional compat messages (CustomMaps, PlayerModels support) use 80
-and 81. Past that, it's genuinely first-come-first-served between whatever mods happen to be
-installed together.
+Here's the honest truth: **there's no central registry of message IDs.** You just pick a byte that nobody else in the running game has claimed. Entanglement itself uses 0–49, and custom compat messages (CustomMaps, PlayerModels) use 80–81.
 
-Practically: pick something well clear of the low end (150+ is a reasonable bet right now),
-and wrap your `RegisterHandler` call in a try/catch so that if you do collide with something,
-your mod logs an error and keeps running instead of taking the whole game down with it. It's
-not a great system, but it's an honest one, and it's the same one every message in this mod
-uses internally.
+**What to do:** Pick something high (150+) and assume you won't collide. Wrap your `RegisterHandler` call in a try/catch just in case:
 
-## Getting notified about players
+```csharp
+try {
+    Entanglement.Network.NetworkMessage.RegisterHandler<MyMessageHandler>();
+} catch (Exception e) {
+    MelonLogger.Error($"Failed to register my message: {e.Message}");
+    // your mod still works, just without networking
+}
+```
 
-You don't need your own messages for basic stuff like "a player joined." Entanglement already
-tracks this - `Entanglement.Representation.PlayerRepresentation.representations` is a live
-dictionary of every connected player's Steam id to their in-world representation, and
-`Entanglement.Network.Node.activeNode.connectedUsers` is the raw id list. Read from these
-rather than keeping your own copy.
+It's not a perfect system, but it's honest.
 
-## Syncing files (items, playermodels, or your own)
+## Getting Notified About Players
 
-If you're making a spawnable item or a playermodel, **you don't need to do anything** - it
-already syncs. This is worth explaining because it's easy to assume you need to hook
-something, and you really don't.
+You don't need to build your own player tracking. Entanglement already does it:
 
-Here's what's actually happening: when someone spawns your item, Entanglement's existing
-spawn message already tells every other client what got spawned and where. If one of those
-clients doesn't recognize the item (because they don't have your mod), their game asks the
-spawner for the file behind it, over Steam directly - no third-party file host, no upload
-step, nothing you have to set up. The spawner finds which of their installed `.melon` files
-contains that item and sends it. The receiver loads it, registers it, and the item that was
-waiting to spawn finally shows up. Playermodels work the same way, just simpler, since there's
-only one file to ask for instead of a whole item registry to search.
+- **`Entanglement.Representation.PlayerRepresentation.representations`** — a live dictionary of every connected player: Steam ID → their in-world player rep
+- **`Entanglement.Network.Node.activeNode.connectedUsers`** — just the list of connected Steam IDs
 
-The one thing that won't sync, on purpose: if your `.melon` contains a `.bytes` asset (a
-compiled C# assembly), the entire file is refused, not just the code part. There's no safe
-way to split "the mesh you wanted" from "the code you didn't agree to run," so we don't try -
-we just don't send it. If you want your item's assets to reach people who don't have your mod
-installed, keep them in a bundle that's assets only, separate from anything with code in it.
+Read from these instead of keeping your own copies. They stay in sync automatically.
 
-Players can turn either kind of sync off, or cap the file size, from
-`Entanglement Redux > File Sync` in BoneMenu. If you want to read those settings yourself:
-`Entanglement.Sync.SyncPrefs.itemSyncEnabled`, `.playermodelSyncEnabled`, `.maxSyncSizeKB`.
+## File Sync: The Easy Part
 
-### Syncing something that isn't an item or a playermodel
+### Items and Player Models (Automatic)
 
-The file transfer underneath both of those is a normal public API, not something private to
-them. If your mod needs to send a file to another player - a config, a level fragment,
-anything - you can use the same thing:
+You don't need to do anything. If someone spawns your item or player model in multiplayer, it syncs automatically.
+
+Here's what actually happens behind the scenes:
+1. Someone spawns your item
+2. Entanglement tells all players "item X spawned at location Y"
+3. A player who doesn't recognize the item asks the spawner for it
+4. The spawner finds the `.melon` file that contains it and sends it over Steam
+5. The receiver loads the file and the item appears
+
+Player models work the same way. It's all peer-to-peer, no upload step, no third-party hosting needed.
+
+**One important thing:** If your `.melon` file contains `.bytes` assets (compiled C# assemblies), we won't send the whole file. There's no safe way to split "the mesh you wanted" from "the code you didn't agree to run," so we don't try. If you want to let people download your item's assets, put the assets in a separate bundle with no code in it.
+
+Players can disable file sync or set a max file size in BoneMenu (`Entanglement Redux > File Sync`). If you want to read those settings:
+
+```csharp
+Entanglement.Sync.SyncPrefs.itemSyncEnabled
+Entanglement.Sync.SyncPrefs.playermodelSyncEnabled
+Entanglement.Sync.SyncPrefs.maxSyncSizeKB
+```
+
+### Sending Your Own Files
+
+Maybe you want to send a config file, a level fragment, or something custom. You can use the same file transfer system:
 
 ```csharp
 using Entanglement.Sync;
 
-// once, at startup
-FileTransferManager.RegisterCategoryHandler(FileTransferCategory.Custom1, OnFileReceived, OnFileFailed);
+// Set this up once at startup
+FileTransferManager.RegisterCategoryHandler(
+    FileTransferCategory.Custom1,
+    OnFileReceived,
+    OnFileFailed
+);
 
 void OnFileReceived(FileTransfer transfer) {
-    string path = Path.Combine(myModFolder, transfer.fileName);
-    FileTransferManager.WriteReceivedFile(transfer, path);
+    string savePath = Path.Combine(myModFolder, transfer.fileName);
+    FileTransferManager.WriteReceivedFile(transfer, savePath);
 }
 
 void OnFileFailed(FileTransfer transfer) {
-    // transfer can be null here - e.g. the file couldn't even be read on the sending side
+    // Something went wrong; transfer might be null
+    MelonLogger.Warning($"File transfer failed: {transfer?.fileName}");
 }
 
-// whenever you want to actually send one
+// Send a file whenever you need to
 FileTransferManager.SendFile(targetUserId, fullFilePath, FileTransferCategory.Custom1);
 ```
 
-There are four shared slots, `Custom1` through `Custom4`, because the category list can't be
-extended from outside this mod's own source. Only one handler can be registered per category
-at a time, so if you're worried about another mod also using `Custom1`, filter on
-`transfer.fileName` inside your own handler rather than assuming everything that lands there
-is yours.
+There are four shared slots: `Custom1` through `Custom4`. Only one handler can be registered per category at a time. If you're worried about collisions with other mods, filter by `transfer.fileName` inside your handler instead of assuming everything there is yours.
 
-This doesn't include any kind of "ask first" negotiation - `SendFile` just starts sending.
-Item sync and playermodel sync both build their own request/reply step on top of it using a
-small message like the one described above (see `CustomItemSync.cs` if you want the exact
-pattern). Files move over the reliable channel, chunked and paced automatically, so you don't
-need to think about packet size.
+Files automatically chunk and pace themselves—don't worry about packet size, just call `SendFile` and it handles the rest.
 
-### One thing to know about sending a file right when someone joins
+## Important: The Join Gate
 
-A freshly-joined client holds off broadcasting its own body/nametag until it has no file
-downloads in flight - so nobody sees someone half-loaded in. This check isn't per-category, it
-watches every incoming transfer regardless of who registered it. If your mod pushes a file at
-someone the moment they join, you're holding up their entrance right along with item/
-playermodel sync, for as long as your transfer takes (capped at 90 seconds either way, so it
-can't hang someone forever). Usually that's fine or even desirable, but if you're sending
-something large and non-essential, consider delaying it a few seconds rather than firing it
-immediately on connect.
+When a player first joins, they stay hidden from other players until their file downloads finish. This keeps people from seeing someone half-loaded.
 
-## See also
+**Here's what this means for you:** If your mod sends a file to someone the moment they join, you're holding up their visibility along with items and player models. It's usually fine (or even desirable), but if you're sending something large and optional, consider waiting a few seconds instead of firing it immediately.
 
-- `Gamemodes.md` - writing an actual competitive mode (deathmatch, capture the flag, etc.)
+This is capped at 90 seconds—if a download gets stuck, the player appears anyway rather than waiting forever.
+
+## Next Steps
+
+- **Making a gamemode?** Check out [Gamemodes.md](Gamemodes.md)
+- **Need more network message examples?** Look at `CustomItemSync.cs` or `FileTransfer.cs` for real implementations
