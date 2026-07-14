@@ -624,6 +624,11 @@ namespace Entanglement.Representation
 
         public static void SyncPlayerReps() {
             if (SteamIntegration.hasLobby) {
+                // Don't broadcast our body while still downloading join files - we shouldn't
+                // appear to others until we're loaded in
+                if (Entanglement.Network.DownloadGate.IsGated)
+                    return;
+
                 var syncData = GetPlayerSyncData();
 
                 if (syncData != null) {

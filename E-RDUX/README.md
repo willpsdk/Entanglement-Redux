@@ -28,7 +28,18 @@ You'll need:
 - [ModThatIsNotMod](https://boneworks.thunderstore.io/) — required dependency, the mod won't load without it
 - Steam running before you launch the game
 
-Drop `EntanglementRedux.dll` and `ModThatIsNotMod.dll` into your `Mods` folder. Steamworks.NET and the native Steam API DLL are embedded in the mod and extract themselves automatically, you don't need to install them separately.
+Drop `EntanglementRedux.dll` and `ModThatIsNotMod.dll` into your `Mods` folder. Both Steamworks.NET and `steam_api64.dll` are embedded in the mod and it tries to sort itself out on startup — `steam_api64.dll` gets extracted to `%AppData%/EntanglementMod/` and preloaded automatically. If Steam still fails to initialize (check the MelonLoader console for a `steam_api64.dll` error), drop `steam_api64.dll` into your BONEWORKS root folder yourself as a fallback.
+
+You can download Steamworks.NET from this link: https://github.com/rlabrecque/Steamworks.NET/releases/tag/20.1.0
+
+If your getting errors in start up put these files here:
+
+Go into the Downloads -> (Steamworks.NET You just downloaded) -> x64
+
+Put `Steamworks.NET.dll` into BONEWORKS\BONEWORKS\MelonLoader\Managed
+Put `steam_api64.dll` into BONEWORKS\BONEWORKS
+
+should have steamworks embedded in the `EntanglementRedux~` but its still WIP.
 
 ## Building from source
 
@@ -54,4 +65,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Credits
 
-Built on the original Entanglement by zCubed and Lakatrazz. Maintained by willpsdk.
+Built on the original Entanglement by zCubed and Lakatrazz. Maintained by willpsdk & datgingeguy.

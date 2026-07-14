@@ -60,6 +60,29 @@ namespace Entanglement.Sync
         static readonly Dictionary<ushort, FileTransfer> outgoing = new Dictionary<ushort, FileTransfer>();
         static readonly Dictionary<ushort, FileTransfer> incoming = new Dictionary<ushort, FileTransfer>();
 
+        // Read-only status for the download UI / join gate
+        public static bool HasActiveDownloads => incoming.Count > 0;
+        public static int ActiveDownloadCount => incoming.Count;
+
+        // Largest active download, so the readout tracks the big model instead of flickering onto tiny files
+        public static FileTransfer LargestActiveDownload() {
+            FileTransfer biggest = null;
+            foreach (FileTransfer t in incoming.Values)
+                if (biggest == null || t.totalBytes > biggest.totalBytes)
+                    biggest = t;
+            return biggest;
+        }
+
+        // Combined 0..1 progress across every active download
+        public static float TotalDownloadProgress() {
+            long total = 0, received = 0;
+            foreach (FileTransfer t in incoming.Values) {
+                total += t.totalBytes;
+                received += t.receivedBytes;
+            }
+            return total > 0 ? Mathf.Clamp01((float)received / total) : 0f;
+        }
+
         public static ushort SendFile(long peer, string filePath, FileTransferCategory category, Action<FileTransfer> onComplete = null, Action<FileTransfer> onFailed = null) {
             byte[] bytes;
             try { bytes = File.ReadAllBytes(filePath); }

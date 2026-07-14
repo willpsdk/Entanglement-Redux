@@ -105,6 +105,7 @@ namespace Entanglement.Network {
             hostName = userName;
             EntangleLogger.Log($"Joined {hostName}'s server!");
             EntangleNotif.JoinServer(hostName);
+            DownloadGate.OnJoinedServer();
 
             // Test our connection by sending our connection message
             ConnectionMessageData connectionData = new ConnectionMessageData();

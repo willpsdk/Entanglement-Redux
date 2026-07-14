@@ -166,6 +166,7 @@ namespace Entanglement {
 
             StatsUI.UpdateUI();
             EntanglementUI.UpdateUI();
+            DownloadUI.Update();
             Entanglement.Managers.PlayerDeathManager.CheckLethality();
             PlayerRepresentation.SyncPlayerReps();
             Entanglement.Sync.FileTransferManager.Tick();

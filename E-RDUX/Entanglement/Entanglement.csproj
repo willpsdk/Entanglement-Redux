@@ -488,6 +488,8 @@
     <Compile Include="src\UI\VoiceUI.cs" />
     <Compile Include="src\UI\SyncUI.cs" />
     <Compile Include="src\UI\GamemodeUI.cs" />
+    <Compile Include="src\UI\DownloadUI.cs" />
+    <Compile Include="src\Network\DownloadGate.cs" />
     <Compile Include="src\Gamemodes\EntanglementGamemode.cs" />
     <Compile Include="src\Gamemodes\GamemodeHandler.cs" />
     <Compile Include="src\Gamemodes\BuiltIn\DeathmatchGamemode.cs" />
