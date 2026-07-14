@@ -16,7 +16,7 @@ This is a work in progress. Expect bugs. Current version is 0.4.0.
 - Story mode sync: buttons, keys, levers, valves, pull boxes, and NPC deaths/despawns all replicate across clients
 - Ragdoll death sync
 - Zone-aware culling that won't hide a player who's still standing in a zone with someone else
-- Automatic file sync — if someone's running a custom item or playermodel you don't have, you just get it from them, no manual downloading
+- Automatic file sync — if someone's running a custom item or playermodel you don't have, you just get it from them, no manual downloading. A radial progress readout shows on your hand while a download's in flight, and you stay hidden from other players until yours finish
 - Built-in gamemodes (Deathmatch, Team Battle, Last Man Standing) with scoring, teams, elimination, and a BoneMenu scoreboard, plus an API so other mods can add their own
 
 
@@ -28,18 +28,13 @@ You'll need:
 - [ModThatIsNotMod](https://boneworks.thunderstore.io/) — required dependency, the mod won't load without it
 - Steam running before you launch the game
 
-Drop `EntanglementRedux.dll` and `ModThatIsNotMod.dll` into your `Mods` folder. Both Steamworks.NET and `steam_api64.dll` are embedded in the mod and it tries to sort itself out on startup — `steam_api64.dll` gets extracted to `%AppData%/EntanglementMod/` and preloaded automatically. If Steam still fails to initialize (check the MelonLoader console for a `steam_api64.dll` error), drop `steam_api64.dll` into your BONEWORKS root folder yourself as a fallback.
+Drop `EntanglementRedux.dll` and `ModThatIsNotMod.dll` into your `Mods` folder. Both Steamworks.NET and `steam_api64.dll` are embedded in the mod and it tries to sort itself out on startup — `steam_api64.dll` gets extracted to `%AppData%/EntanglementMod/` and preloaded automatically.
 
-You can download Steamworks.NET from this link: https://github.com/rlabrecque/Steamworks.NET/releases/tag/20.1.0
+If Steam still fails to initialize on launch (check the MelonLoader console for a `steam_api64.dll` error), fall back to installing it manually:
 
-If your getting errors in start up put these files here:
-
-Go into the Downloads -> (Steamworks.NET You just downloaded) -> x64
-
-Put `Steamworks.NET.dll` into BONEWORKS\BONEWORKS\MelonLoader\Managed
-Put `steam_api64.dll` into BONEWORKS\BONEWORKS
-
-should have steamworks embedded in the `EntanglementRedux~` but its still WIP.
+1. Download [Steamworks.NET](https://github.com/rlabrecque/Steamworks.NET/releases/tag/20.1.0) and open the `x64` folder inside it
+2. Put `Steamworks.NET.dll` into `BONEWORKS\MelonLoader\Managed`
+3. Put `steam_api64.dll` into the `BONEWORKS` root folder (next to `BONEWORKS.exe`)
 
 ## Building from source
 

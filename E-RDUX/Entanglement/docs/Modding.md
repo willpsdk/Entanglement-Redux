@@ -172,6 +172,17 @@ small message like the one described above (see `CustomItemSync.cs` if you want 
 pattern). Files move over the reliable channel, chunked and paced automatically, so you don't
 need to think about packet size.
 
+### One thing to know about sending a file right when someone joins
+
+A freshly-joined client holds off broadcasting its own body/nametag until it has no file
+downloads in flight - so nobody sees someone half-loaded in. This check isn't per-category, it
+watches every incoming transfer regardless of who registered it. If your mod pushes a file at
+someone the moment they join, you're holding up their entrance right along with item/
+playermodel sync, for as long as your transfer takes (capped at 90 seconds either way, so it
+can't hang someone forever). Usually that's fine or even desirable, but if you're sending
+something large and non-essential, consider delaying it a few seconds rather than firing it
+immediately on connect.
+
 ## See also
 
 - `Gamemodes.md` - writing an actual competitive mode (deathmatch, capture the flag, etc.)
