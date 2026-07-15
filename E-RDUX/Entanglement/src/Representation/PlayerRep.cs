@@ -19,6 +19,8 @@ using MelonLoader;
 
 using TMPro;
 
+using UnityEngine.UI;
+
 using Entanglement.Data;
 
 using StressLevelZero;
@@ -50,6 +52,7 @@ namespace Entanglement.Representation
         public Canvas repCanvasComponent;
         public Transform repCanvasTransform;
         public TextMeshProUGUI repNameText;
+        public Image repTalkingIcon;
 
         public Transform repGeo;
         public Transform repSHJnt;
@@ -272,6 +275,16 @@ namespace Entanglement.Representation
 
                 repNameText.text = playerName;
 
+                GameObject iconGo = new GameObject("TalkingIcon");
+                iconGo.transform.SetParent(repCanvasTransform, false);
+                repTalkingIcon = iconGo.AddComponent<Image>();
+                repTalkingIcon.sprite = GetSpeakerSprite();
+                repTalkingIcon.color = new Color(0.4f, 1f, 0.5f);
+                iconGo.SetActive(false);
+
+                // Fresh canvas starts with no indicator; forget any mid-speech state from before
+                wasTalking = false;
+
                 repHologram = Material.Instantiate(playerRepBundle.LoadAsset<Material>("PlayerHolographic"));
 
                 repFord = GameObject.Instantiate(playerRepBundle.LoadAsset<GameObject>("PlayerRep"));
@@ -487,7 +500,56 @@ namespace Entanglement.Representation
                 repNameText.color = baseNameColor;
         }
 
-        // Tints the nametag green and prefixes a speaker dot while this player is talking
+        static Sprite speakerSprite;
+
+        // Speaker-with-sound-waves shape drawn straight into a texture, same trick as the
+        // download pie - the game's TMP font has no speaker glyph and we don't ship an icon
+        // bundle, so a text prefix just rendered as an empty box.
+        static Sprite GetSpeakerSprite() {
+            if (speakerSprite != null)
+                return speakerSprite;
+
+            const int size = 64;
+            Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            Color opaque = Color.white;
+            Color clear = new Color(1f, 1f, 1f, 0f);
+            float cy = size / 2f;
+
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    bool fill = false;
+                    float dy = y - cy;
+
+                    // Driver box
+                    if (x >= 6 && x <= 18 && Mathf.Abs(dy) <= 9f)
+                        fill = true;
+
+                    // Cone, widening to the right
+                    if (x > 18 && x <= 32) {
+                        float t = (x - 18f) / 14f;
+                        if (Mathf.Abs(dy) <= Mathf.Lerp(9f, 22f, t))
+                            fill = true;
+                    }
+
+                    // Three sound-wave arcs fanning out from the cone mouth
+                    float wx = x - 36f;
+                    if (!fill && wx > 0f) {
+                        float dist = Mathf.Sqrt(wx * wx + dy * dy);
+                        float angle = Mathf.Abs(Mathf.Atan2(dy, wx)) * Mathf.Rad2Deg;
+                        if (angle <= 50f && (Mathf.Abs(dist - 10f) <= 2f || Mathf.Abs(dist - 17f) <= 2f || Mathf.Abs(dist - 24f) <= 2f))
+                            fill = true;
+                    }
+
+                    tex.SetPixel(x, y, fill ? opaque : clear);
+                }
+            }
+
+            tex.Apply();
+            speakerSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f));
+            return speakerSprite;
+        }
+
+        // Tints the nametag green and shows a speaker icon beside it while this player is talking
         void UpdateTalkingIndicator() {
             if (!repNameText)
                 return;
@@ -497,8 +559,22 @@ namespace Entanglement.Representation
                 return;
 
             wasTalking = talking;
-            repNameText.text = talking ? $"● {playerName}" : playerName;
             repNameText.color = talking ? new Color(0.4f, 1f, 0.5f) : baseNameColor;
+
+            if (repTalkingIcon) {
+                if (talking) {
+                    // Sit the icon just left of the rendered name, sized to the text height
+                    repNameText.ForceMeshUpdate();
+                    Bounds textBounds = repNameText.textBounds;
+                    float iconSize = Mathf.Max(textBounds.size.y, 6f);
+
+                    RectTransform iconRect = repTalkingIcon.rectTransform;
+                    iconRect.sizeDelta = new Vector2(iconSize, iconSize);
+                    iconRect.localPosition = new Vector3(textBounds.min.x - iconSize * 0.75f, textBounds.center.y, 0f);
+                }
+
+                repTalkingIcon.gameObject.SetActive(talking);
+            }
         }
 
         // This calculates the velocity on the client side for leg prediction
