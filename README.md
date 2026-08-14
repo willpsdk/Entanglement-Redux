@@ -6,7 +6,7 @@ It is not affiliated with the original `boneworks-mp` project. It shares no code
 
 ## Status
 
-This is a work in progress. Expect bugs. Current version is 0.4.0.
+This is a work in progress. Expect bugs. Current version is 2.0.0.
 
 ## What it does
 
