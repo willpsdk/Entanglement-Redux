@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -55,6 +55,57 @@ namespace Entanglement.Extensions
             return current.parent.GetFullPath(otherRootName) + "/" + Array.FindIndex(GetChildrenWithName(current.parent, current.name), o => o == current) + "/" + current.name;
         }
 
+
+        // GameObject.Find skips inactive objects, so zone-culled story props (Runoff buttons, etc.)
+        // fail to resolve on remotes. Walk loaded scene roots instead so inactive hierarchies match.
+        public static GameObject FindRootIncludingInactive(string rootName) {
+            if (string.IsNullOrEmpty(rootName))
+                return null;
+
+            GameObject active = GameObject.Find("/" + rootName);
+            if (active)
+                return active;
+
+            for (int s = 0; s < SceneManager.sceneCount; s++) {
+                Scene scene = SceneManager.GetSceneAt(s);
+                if (!scene.IsValid() || !scene.isLoaded)
+                    continue;
+
+                GameObject[] roots = scene.GetRootGameObjects();
+                for (int r = 0; r < roots.Length; r++) {
+                    if (roots[r] && roots[r].name == rootName)
+                        return roots[r];
+                }
+            }
+
+            return null;
+        }
+
+        public static Transform FindRelativeIncludingInactive(Transform root, string relativePath) {
+            if (!root || string.IsNullOrEmpty(relativePath))
+                return root;
+
+            Transform current = root;
+            string[] parts = relativePath.Split('/');
+            for (int i = 0; i < parts.Length; i++) {
+                if (string.IsNullOrEmpty(parts[i]))
+                    continue;
+                if (!current)
+                    return null;
+
+                Transform next = null;
+                for (int c = 0; c < current.childCount; c++) {
+                    Transform child = current.GetChild(c);
+                    if (child && child.name == parts[i]) {
+                        next = child;
+                        break;
+                    }
+                }
+                current = next;
+            }
+            return current;
+        }
+
         // Tries to get the closest transform to path
         public static Transform GetFromFullPath(this string path, int spawnIndex = -1, float spawnTime = -1f) {
             string[] transformPaths = path.Split('/');
@@ -65,7 +116,7 @@ namespace Entanglement.Extensions
             GameObject rootObject = null;
 
             if (spawnIndex < 0)
-                rootObject = GameObject.Find($"/{rootName}");
+                rootObject = FindRootIncludingInactive(rootName);
             else { 
                 // Try and find the pooled object
                 // Register the pool if not already
@@ -100,11 +151,17 @@ namespace Entanglement.Extensions
                     i++;
                     currentName += $"/{transformPaths[i]}";
                 }
-                GameObject found = GameObject.Find(currentName);
-                if (found)
-                    current = found.transform;
-                else
-                    current = null;
+                // Prefer an inactive-aware walk under the custom map root; Find() misses culled props
+                string relative = currentName.StartsWith("/CUSTOM_MAP_ROOT/")
+                    ? currentName.Substring("/CUSTOM_MAP_ROOT/".Length)
+                    : currentName.TrimStart('/');
+                Transform foundT = FindRelativeIncludingInactive(rootObject.transform, relative);
+                if (foundT)
+                    current = foundT;
+                else {
+                    GameObject found = GameObject.Find(currentName);
+                    current = found ? found.transform : null;
+                }
             }
             else {
                 for (int i = index; i < transformPaths.Length; i++) {

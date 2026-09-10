@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -43,6 +43,9 @@ namespace Entanglement.Sync
 
         public float lastActivity;
 
+        // Outgoing sends wait a beat after Begin so Reliable announce messages can land first
+        public float sendReadyTime;
+
         // Last 25% milestone we logged, so progress lines don't spam every chunk
         public int lastLoggedProgress;
     }
@@ -54,7 +57,7 @@ namespace Entanglement.Sync
         public const int chunkSize = 16000;          // Comfortably under Steam's reliable message ceiling
         public const int chunksPerFrame = 4;          // ~64KB/frame/transfer, throttled so it can't hog a frame
         public const int maxFileBytes = 200 * 1024 * 1024; // 200MB hard ceiling, matches item/model realistic sizes
-        public const float timeoutSeconds = 60f;
+        public const float timeoutSeconds = 180f;
 
         static ushort nextId = 1;
         static readonly Dictionary<ushort, FileTransfer> outgoing = new Dictionary<ushort, FileTransfer>();
@@ -114,6 +117,8 @@ namespace Entanglement.Sync
                 lastActivity = Time.time,
             };
 
+            // Give Reliable ItemSync announcements a moment to arrive before Transaction chunks
+            transfer.sendReadyTime = Time.time + 0.35f;
             outgoing[id] = transfer;
 
             FileTransferBeginData beginData = new FileTransferBeginData {
@@ -123,9 +128,10 @@ namespace Entanglement.Sync
                 fileName = transfer.fileName,
             };
 
+            // Begin goes Reliable so it is less likely to race ahead of category announcements
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.FileTransferBegin, beginData);
             if (message != null)
-                Node.activeNode?.SendMessage(peer, NetworkChannel.Transaction, message.GetBytes());
+                Node.activeNode?.SendMessage(peer, NetworkChannel.Reliable, message.GetBytes());
 
             EntangleLogger.Log($"[FileTransfer] Sending {transfer.fileName} ({bytes.Length / 1024}KB) to {peer}");
             return id;
@@ -219,6 +225,10 @@ namespace Entanglement.Sync
 
                 foreach (var pair in outgoing) {
                     FileTransfer transfer = pair.Value;
+
+                    // Wait for Begin + item announce to land before pumping chunks
+                    if (Time.time < transfer.sendReadyTime)
+                        continue;
 
                     for (int i = 0; i < chunksPerFrame && transfer.sentBytes < transfer.totalBytes; i++) {
                         int remaining = transfer.totalBytes - transfer.sentBytes;

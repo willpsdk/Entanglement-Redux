@@ -100,6 +100,7 @@ namespace Entanglement.Network
             SteamMatchmaking.SetLobbyData(SteamIntegration.lobby, "version", EntanglementMod.VersionString);
             SteamMatchmaking.SetLobbyData(SteamIntegration.lobby, "host_name", SteamIntegration.currentUserName);
             SteamMatchmaking.SetLobbyJoinable(SteamIntegration.lobby, !isLocked);
+            ModDependency.PublishHostRequirements();
 
             RegisterLobbyCallbacks();
 

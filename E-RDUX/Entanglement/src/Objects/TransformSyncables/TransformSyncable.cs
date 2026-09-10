@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -52,11 +52,11 @@ namespace Entanglement.Objects
         public const float linearLimit = 0.005f;
 
         // Remote interpolation settings
-        public const float extrapolationLimit = 0.25f; // Never predict further than this past the last packet
-        public const float followSharpness = 24f;      // Exponential smoothing rate for the follow target
-        public const float velocityGain = 24f;         // Positional correction gain for joint-constrained bodies
-        public const float angularGain = 18f;          // Rotational correction gain for joint-constrained bodies
-        public const float snapDistance = 2f;          // Teleport instead of chasing when further than this
+        public const float extrapolationLimit = 0.3f; // Never predict further than this past the last packet
+        public const float followSharpness = 30f;      // Exponential smoothing rate for the follow target
+        public const float velocityGain = 28f;         // Positional correction gain for joint-constrained bodies
+        public const float angularGain = 22f;          // Rotational correction gain for joint-constrained bodies
+        public const float snapDistance = 2.75f;          // Teleport instead of chasing when further than this
 
         // Latest received network state, used to smoothly drive the object between packets
         public bool hasNetTarget = false;

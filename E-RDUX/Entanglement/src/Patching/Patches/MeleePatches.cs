@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using UnityEngine;
 
@@ -45,6 +45,61 @@ namespace Entanglement.Patching
                 byte[] msgBytes = message.GetBytes();
 
                 Node.activeNode.SendMessage(id, NetworkChannel.Attack, msgBytes);
+            }
+            catch { }
+        }
+    }
+
+    /// <summary>
+    /// Bats/knives apply blunt damage through ImpactProperties.ReceiveAttack.
+    /// Stabbing is already networked via StabPoint; blunt hits against a PlayerRep were local-only.
+    /// PlayerRep exists only for remote players, so a ReceiveAttack on one means the local attacker
+    /// scored the hit on their machine.
+    /// </summary>
+    [HarmonyPatch(typeof(ImpactProperties), "ReceiveAttack")]
+    public static class BluntMeleePatch
+    {
+        static float lastSendTime;
+        static long lastSendTarget;
+
+        public static void Postfix(ImpactProperties __instance, Attack attack) {
+            if (!SteamIntegration.hasLobby || attack == null)
+                return;
+
+            try {
+                // Stabs are already sent by StabPatch; avoid double-damage
+                if (attack.attackType == AttackType.Stabbing)
+                    return;
+
+                if (attack.damage <= 0.01f)
+                    return;
+
+                Transform root = __instance.transform.root;
+                string objName = root.name;
+                if (!objName.Contains("PlayerRep"))
+                    return;
+
+                string[] playerName = objName.Split('.');
+                if (playerName.Length < 2)
+                    return;
+                long id = long.Parse(playerName[1]);
+
+                // Collision callbacks can spam for one swing
+                if (id == lastSendTarget && Time.time - lastSendTime < 0.08f)
+                    return;
+                lastSendTarget = id;
+                lastSendTime = Time.time;
+
+                float multiplier = 1f;
+                try { multiplier = __instance.FireResistance; } catch { }
+
+                NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PlayerAttack, new PlayerAttackMessageData()
+                {
+                    attackType = AttackType.Blunt,
+                    attackDamage = attack.damage * multiplier
+                });
+
+                Node.activeNode.SendMessage(id, NetworkChannel.Attack, message.GetBytes());
             }
             catch { }
         }

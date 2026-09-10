@@ -76,6 +76,14 @@ namespace Entanglement.Network {
 
             SteamIntegration.lobby = new CSteamID(result.m_ulSteamIDLobby);
 
+            if (!ModDependency.TryValidateLobbyMods(SteamIntegration.lobby, out string missingMods)) {
+                EntangleLogger.Error($"Missing required mods to join this lobby: {missingMods}");
+                EntangleNotif.MissingMods(missingMods);
+                SteamMatchmaking.LeaveLobby(SteamIntegration.lobby);
+                SteamIntegration.lobby = CSteamID.Nil;
+                return;
+            }
+
             RegisterLobbyCallbacks();
 
             hostId = SteamIntegration.lobbyOwnerId;

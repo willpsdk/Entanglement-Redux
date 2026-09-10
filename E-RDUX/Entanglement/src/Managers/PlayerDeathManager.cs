@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 
 using Entanglement.Network;
@@ -15,6 +15,10 @@ namespace Entanglement.Managers
     {
         public static bool hasDied = false;
         public static event Action OnLocalPlayerDied;
+
+        // How long the death FX (slow-mo + eye close) is allowed to play before we force a respawn
+        const float deathFxSeconds = 2.5f;
+        const float respawnTimeoutSeconds = 12f;
 
         public static void Initialize()
         {
@@ -84,34 +88,90 @@ namespace Entanglement.Managers
         public static IEnumerator OnDeathFinished() {
             OnLocalPlayerDied?.Invoke();
 
-            yield return new WaitForSeconds(1f);
+            // Let the slow-mo / eye-close vignette play. In lobbies, RELOADLEVEL is blocked and
+            // reloadLevelOnDeath is forced off, so the game never finishes this sequence on its own.
+            float fxWait = 0f;
+            while (fxWait < deathFxSeconds) {
+                fxWait += Time.unscaledDeltaTime;
+                yield return null;
+            }
 
 #if DEBUG
             EntangleLogger.Log("Died! Sending Death event to all players!");
 #endif
 
-            PlayerEventMessageData data = new PlayerEventMessageData()
-            {
-                type = PlayerEventType.Death,
-            };
+            if (Node.activeNode != null && SteamIntegration.hasLobby) {
+                PlayerEventMessageData data = new PlayerEventMessageData()
+                {
+                    type = PlayerEventType.Death,
+                };
 
-            NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.PlayerEvent, data);
-            Node.activeNode.BroadcastMessageP2P(NetworkChannel.Reliable, message.GetBytes());
+                NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.PlayerEvent, data);
+                Node.activeNode.BroadcastMessageP2P(NetworkChannel.Reliable, message.GetBytes());
+            }
 
 #if DEBUG
             if (PlayerRepresentation.debugRepresentation != null)
                 PlayerRepresentation.debugRepresentation.CreateRagdoll();
 #endif
 
-            // Wait for us to respawn, but give up after a while - if we somehow never come back
-            // alive we don't want hasDied stuck true forever, or no future death would register.
+            // Force a playable recovery when the level will not reload for us
+            if (SteamIntegration.hasLobby)
+                ForceRespawn();
+
             float waited = 0f;
-            while (!PlayerScripts.playerHealth.alive && waited < 15f) {
-                waited += Time.deltaTime;
+            while (PlayerScripts.playerHealth != null && !PlayerScripts.playerHealth.alive && waited < respawnTimeoutSeconds) {
+                // Keep clearing slow-mo in case the death FX re-applies it
+                if (Time.timeScale < 0.99f)
+                    ClearDeathTimeScale();
+
+                waited += Time.unscaledDeltaTime;
                 yield return null;
             }
 
+            ClearDeathTimeScale();
             hasDied = false;
+        }
+
+        static void ClearDeathTimeScale() {
+            Time.timeScale = 1f;
+            Time.fixedDeltaTime = 0.02f;
+        }
+
+        // Completes the death pipeline without a scene reload: restore health, clear slow-mo, live again.
+        public static void ForceRespawn() {
+            Player_Health health = PlayerScripts.playerHealth;
+            if (health == null)
+                return;
+
+            ClearDeathTimeScale();
+
+            try {
+                // InstantDeath and other BW mods use SetFullHealth to revive without reloading
+                health.SetFullHealth();
+            }
+            catch (Exception e) {
+                EntangleLogger.Warn($"SetFullHealth failed during MP respawn: {e.Message}");
+            }
+
+            try {
+                health.curr_Health = health.max_Health;
+            }
+            catch { }
+
+            try {
+                if (!health.alive)
+                    health.alive = true;
+            }
+            catch (Exception e) {
+                EntangleLogger.Warn($"Failed to set Player_Health.alive during MP respawn: {e.Message}");
+            }
+
+            // Death-save / imminent flags can stick and immediately re-kill after a forced revive
+            try { health.deathIsImminent = false; } catch { }
+            try { health.ToggleInstantDeathMode(false); } catch { }
+
+            EntangleLogger.Log("Forced multiplayer respawn after death (level reload disabled in lobby).");
         }
     }
 }

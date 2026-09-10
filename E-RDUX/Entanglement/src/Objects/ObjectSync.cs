@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -183,8 +183,10 @@ namespace Entanglement.Objects
             MelonCoroutines.Start(OnGripValid(grip));
         }
 
-        // We wait two frames so custom gun magazines don't spawn regular ones at 0, 0, 0 too
+        // Wait a few frames so custom gun magazines don't spawn regular ones at 0,0,0,
+        // and so two-hand / throw handoffs settle before ownership is claimed.
         public static IEnumerator OnGripValid(GameObject grip) {
+            yield return null;
             yield return null;
             yield return null;
 

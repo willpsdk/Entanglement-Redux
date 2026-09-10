@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -116,11 +116,11 @@ namespace Entanglement.Representation
         public Quaternion[] netRotations = new Quaternion[3];
         public Vector3[] netLimbVelocities = new Vector3[3];
 
-        public const float repFollowSharpness = 35f;   // Exponential smoothing rate for the root
-        public const float repLimbSharpness = 60f;      // Head/hands track much harder, they are what pushes other players
-        public const float repExtrapolationLimit = 0.2f; // Never predict further than this past the last packet
-        public const float repSnapDistance = 2f;        // Teleport instead of chasing when further than this
-        public const float repMaxPredictedSpeed = 25f;  // Caps dead reckoning speed so a teleport can't fling the rep
+        public const float repFollowSharpness = 28f;   // Exponential smoothing rate for the root
+        public const float repLimbSharpness = 48f;      // Head/hands track much harder, they are what pushes other players
+        public const float repExtrapolationLimit = 0.28f; // Never predict further than this past the last packet
+        public const float repSnapDistance = 2.5f;        // Teleport instead of chasing when further than this
+        public const float repMaxPredictedSpeed = 18f;  // Caps dead reckoning speed so a teleport can't fling the rep
 
 
 #if DEBUG
@@ -280,6 +280,11 @@ namespace Entanglement.Representation
                 repTalkingIcon = iconGo.AddComponent<Image>();
                 repTalkingIcon.sprite = GetSpeakerSprite();
                 repTalkingIcon.color = new Color(0.4f, 1f, 0.5f);
+                repTalkingIcon.preserveAspect = true;
+                repTalkingIcon.raycastTarget = false;
+                repTalkingIcon.type = Image.Type.Simple;
+                RectTransform iconRect = repTalkingIcon.rectTransform;
+                iconRect.sizeDelta = new Vector2(24f, 24f);
                 iconGo.SetActive(false);
 
                 // Fresh canvas starts with no indicator; forget any mid-speech state from before
@@ -509,10 +514,17 @@ namespace Entanglement.Representation
             if (speakerSprite != null)
                 return speakerSprite;
 
+            // Procedural icon: Il2Cpp SetPixel + Rad2Deg paths have rendered as a blank white
+            // Image quad in-game, so we write raw Color32s and avoid Mathf.Rad2Deg.
             const int size = 64;
+            const float rad2deg = 57.29578f;
             Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            Color opaque = Color.white;
-            Color clear = new Color(1f, 1f, 1f, 0f);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+
+            Color32 opaque = new Color32(255, 255, 255, 255);
+            Color32 clear = new Color32(255, 255, 255, 0);
+            Color32[] pixels = new Color32[size * size];
             float cy = size / 2f;
 
             for (int y = 0; y < size; y++) {
@@ -526,26 +538,27 @@ namespace Entanglement.Representation
 
                     // Cone, widening to the right
                     if (x > 18 && x <= 32) {
-                        float t = (x - 18f) / 14f;
-                        if (Mathf.Abs(dy) <= Mathf.Lerp(9f, 22f, t))
+                        float tt = (x - 18f) / 14f;
+                        if (Mathf.Abs(dy) <= Mathf.Lerp(9f, 22f, tt))
                             fill = true;
                     }
 
-                    // Three sound-wave arcs fanning out from the cone mouth
+                    // Three sound-wave arcs
                     float wx = x - 36f;
                     if (!fill && wx > 0f) {
                         float dist = Mathf.Sqrt(wx * wx + dy * dy);
-                        float angle = Mathf.Abs(Mathf.Atan2(dy, wx)) * Mathf.Rad2Deg;
+                        float angle = Mathf.Abs(Mathf.Atan2(dy, wx)) * rad2deg;
                         if (angle <= 50f && (Mathf.Abs(dist - 10f) <= 2f || Mathf.Abs(dist - 17f) <= 2f || Mathf.Abs(dist - 24f) <= 2f))
                             fill = true;
                     }
 
-                    tex.SetPixel(x, y, fill ? opaque : clear);
+                    pixels[y * size + x] = fill ? opaque : clear;
                 }
             }
 
-            tex.Apply();
-            speakerSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f));
+            tex.SetPixels32(pixels);
+            tex.Apply(false, false);
+            speakerSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
             return speakerSprite;
         }
 

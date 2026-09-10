@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -30,6 +30,7 @@ namespace Entanglement.Sync
         }
 
         static readonly Dictionary<string, List<PendingSpawn>> waitingSpawns = new Dictionary<string, List<PendingSpawn>>();
+        static readonly Dictionary<string, FileTransfer> pendingTransfersByKey = new Dictionary<string, FileTransfer>();
         static readonly Dictionary<string, string> incomingFileTitles = new Dictionary<string, string>(); // "peer|fileName" -> title
         static readonly HashSet<string> requestedTitles = new HashSet<string>();
 
@@ -131,17 +132,29 @@ namespace Entanglement.Sync
         }
 
         public static void OnFileIncoming(long sender, string title, string fileName) {
-            incomingFileTitles[$"{sender}|{fileName}"] = title;
+            string key = $"{sender}|{fileName}";
+            incomingFileTitles[key] = title;
+
+            // Begin/chunks can finish before the Reliable announce on another channel
+            if (pendingTransfersByKey.TryGetValue(key, out FileTransfer pending)) {
+                pendingTransfersByKey.Remove(key);
+                EntangleLogger.Log($"[ItemSync] Announce for {fileName} arrived after the file; finishing apply");
+                ApplyReceivedItem(pending, title);
+            }
         }
 
         static void OnItemFileReceived(FileTransfer transfer) {
             string key = $"{transfer.peer}|{transfer.fileName}";
             if (!incomingFileTitles.TryGetValue(key, out string title)) {
-                EntangleLogger.Warn($"[ItemSync] Received {transfer.fileName} from {transfer.peer} but never announced/requested it, ignoring");
+                pendingTransfersByKey[key] = transfer;
+                EntangleLogger.Warn($"[ItemSync] Received {transfer.fileName} from {transfer.peer} before announce; holding until announcement arrives");
                 return;
             }
             incomingFileTitles.Remove(key);
+            ApplyReceivedItem(transfer, title);
+        }
 
+        static void ApplyReceivedItem(FileTransfer transfer, string title) {
             string destPath = Path.Combine(syncFolder, transfer.fileName);
             try {
                 FileTransferManager.WriteReceivedFile(transfer, destPath);
