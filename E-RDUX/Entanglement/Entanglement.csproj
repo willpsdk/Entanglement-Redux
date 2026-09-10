@@ -472,6 +472,7 @@
     <Compile Include="src\Patching\Patches\ZonePatches.cs" />
     <Compile Include="src\Representation\PlayerRep.cs" />
     <Compile Include="src\Network\SteamIntegration.cs" />
+    <Compile Include="src\Network\NetworkSanity.cs" />
     <Compile Include="src\Network\ModDependency.cs" />
     <Compile Include="src\Network\Messages\Server\ClientReadyMessage.cs" />
     <Compile Include="src\Network\Messages\Server\ConnectionMessage.cs" />

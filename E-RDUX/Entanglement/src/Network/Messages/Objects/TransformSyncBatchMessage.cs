@@ -11,14 +11,36 @@ namespace Entanglement.Network
 {
     // Packs many transform updates into one packet. Continuous motion rides the unreliable
     // channel; the single rest pose an object sends when it falls asleep rides reliable, so
-    // every machine settles it identically and then goes silent
+    // every machine settles it identically and then goes silent.
+    // Velocities are short-quantized (0.01 u/s) to cut ~18 bytes per entry vs float×6.
     [Net.SkipHandleOnLoading]
     public class TransformSyncBatchMessageHandler : NetworkMessageHandler<TransformSyncBatchData>
     {
-        public const int entrySize = sizeof(ushort) + SimplifiedTransform.size + sizeof(float) * 6 + sizeof(byte);
+        public const float velocityPrecision = 100f;
+        public const int entrySize = sizeof(ushort) + SimplifiedTransform.size + sizeof(short) * 6 + sizeof(byte);
         public const int maxEntriesPerMessage = 24;
 
         public override byte? MessageIndex => BuiltInMessageType.TransformSyncBatch;
+
+        static void WriteShortVelocity(byte[] buffer, ref int index, Vector3 velocity) {
+            velocity = NetworkSanity.ClampLinearVelocity(velocity);
+            buffer.WriteShort(ref index, (short)Mathf.Clamp(Mathf.Round(velocity.x * velocityPrecision), short.MinValue, short.MaxValue));
+            buffer.WriteShort(ref index, (short)Mathf.Clamp(Mathf.Round(velocity.y * velocityPrecision), short.MinValue, short.MaxValue));
+            buffer.WriteShort(ref index, (short)Mathf.Clamp(Mathf.Round(velocity.z * velocityPrecision), short.MinValue, short.MaxValue));
+        }
+
+        static void WriteShortAngular(byte[] buffer, ref int index, Vector3 angularVelocity) {
+            angularVelocity = NetworkSanity.ClampAngularVelocity(angularVelocity);
+            buffer.WriteShort(ref index, (short)Mathf.Clamp(Mathf.Round(angularVelocity.x * velocityPrecision), short.MinValue, short.MaxValue));
+            buffer.WriteShort(ref index, (short)Mathf.Clamp(Mathf.Round(angularVelocity.y * velocityPrecision), short.MinValue, short.MaxValue));
+            buffer.WriteShort(ref index, (short)Mathf.Clamp(Mathf.Round(angularVelocity.z * velocityPrecision), short.MinValue, short.MaxValue));
+        }
+
+        static Vector3 ReadShortVector(byte[] buffer, ref int index) {
+            Vector3 v = buffer.FromShortBytes(index, velocityPrecision);
+            index += sizeof(short) * 3;
+            return v;
+        }
 
         public override NetworkMessage CreateMessage(TransformSyncBatchData data)
         {
@@ -36,13 +58,8 @@ namespace Entanglement.Network
                 message.messageData.WriteUShort(ref index, entry.objectId);
                 entry.simplifiedTransform.WriteTo(message.messageData, ref index);
 
-                message.messageData.WriteFloat(ref index, entry.velocity.x);
-                message.messageData.WriteFloat(ref index, entry.velocity.y);
-                message.messageData.WriteFloat(ref index, entry.velocity.z);
-
-                message.messageData.WriteFloat(ref index, entry.angularVelocity.x);
-                message.messageData.WriteFloat(ref index, entry.angularVelocity.y);
-                message.messageData.WriteFloat(ref index, entry.angularVelocity.z);
+                WriteShortVelocity(message.messageData, ref index, entry.velocity);
+                WriteShortAngular(message.messageData, ref index, entry.angularVelocity);
 
                 message.messageData[index++] = entry.resting ? (byte)1 : (byte)0;
             }
@@ -58,6 +75,10 @@ namespace Entanglement.Network
             int index = 0;
             byte count = message.messageData[index++];
 
+            bool isHost = Server.instance != null;
+            TransformSyncBatchData relayBatch = null;
+            bool relayHasRest = false;
+
             for (int i = 0; i < count; i++) {
                 if (message.messageData.Length < index + entrySize)
                     break;
@@ -68,35 +89,46 @@ namespace Entanglement.Network
                 SimplifiedTransform simpleTransform = SimplifiedTransform.FromBytes(message.messageData, index);
                 index += SimplifiedTransform.size;
 
-                Vector3 velocity;
-                velocity.x = BitConverter.ToSingle(message.messageData, index); index += sizeof(float);
-                velocity.y = BitConverter.ToSingle(message.messageData, index); index += sizeof(float);
-                velocity.z = BitConverter.ToSingle(message.messageData, index); index += sizeof(float);
-
-                Vector3 angularVelocity;
-                angularVelocity.x = BitConverter.ToSingle(message.messageData, index); index += sizeof(float);
-                angularVelocity.y = BitConverter.ToSingle(message.messageData, index); index += sizeof(float);
-                angularVelocity.z = BitConverter.ToSingle(message.messageData, index); index += sizeof(float);
+                Vector3 velocity = ReadShortVector(message.messageData, ref index);
+                Vector3 angularVelocity = ReadShortVector(message.messageData, ref index);
 
                 bool resting = message.messageData[index++] != 0;
 
-                if (ObjectSync.TryGetSyncable(objectId, out Syncable syncable) && syncable is TransformSyncable) {
-                    TransformSyncable sync = syncable.Cast<TransformSyncable>();
+                if (!ObjectSync.TryGetSyncable(objectId, out Syncable syncable) || !(syncable is TransformSyncable))
+                    continue;
+
+                // Host must filter before relay — clients treat lobby owner as the P2P sender
+                if (!NetworkSanity.IsAuthorizedSyncSender(sender, syncable.staleOwner))
+                    continue;
+
+                TransformSyncable sync = syncable.Cast<TransformSyncable>();
+                if (resting)
+                    sync.ApplyRestState(simpleTransform);
+                else
+                    sync.ApplyTransform(simpleTransform, velocity, angularVelocity);
+
+                if (isHost) {
+                    if (relayBatch == null)
+                        relayBatch = new TransformSyncBatchData();
+
+                    relayBatch.entries.Add(new TransformSyncMessageData() {
+                        objectId = objectId,
+                        simplifiedTransform = simpleTransform,
+                        velocity = velocity,
+                        angularVelocity = angularVelocity,
+                        resting = resting
+                    });
+
                     if (resting)
-                        sync.ApplyRestState(simpleTransform);
-                    else
-                        sync.ApplyTransform(simpleTransform, velocity, angularVelocity);
+                        relayHasRest = true;
                 }
             }
 
-            if (Server.instance != null) {
-                // Rest batches arrive reliable and must be relayed reliable; a whole batch is
-                // one kind, so the first entry's flag decides the relay channel
-                NetworkChannel channel = count > 0 && message.messageData[1 + entrySize - 1] != 0
-                    ? NetworkChannel.Reliable
-                    : NetworkChannel.Unreliable;
-
-                Server.instance.BroadcastMessageExcept(channel, message.GetBytes(), sender);
+            if (isHost && relayBatch != null && relayBatch.entries.Count > 0) {
+                NetworkChannel channel = relayHasRest ? NetworkChannel.Reliable : NetworkChannel.Unreliable;
+                NetworkMessage relay = NetworkMessage.CreateMessage(BuiltInMessageType.TransformSyncBatch, relayBatch);
+                if (relay != null)
+                    Server.instance.BroadcastMessageExcept(channel, relay.GetBytes(), sender);
             }
         }
     }

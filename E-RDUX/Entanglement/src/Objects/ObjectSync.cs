@@ -241,8 +241,14 @@ namespace Entanglement.Objects
                 if (!rb || rb.isKinematic)
                     continue;
 
-                if (TransformSyncable.cache.Get(rb.gameObject))
+                TransformSyncable existing = TransformSyncable.cache.Get(rb.gameObject);
+                if (existing) {
+                    // Fusion-style held lock: punching a held object must not steal ownership
+                    if (!existing.CanStealOwnership(SteamIntegration.currentUserId))
+                        continue;
+                    // Already synced and stealable - leave the current owner simulating
                     continue;
+                }
 
                 SyncUtilities.UpdateBodyAttached(rb, overrideRootName, spawnIndex, spawnTime);
                 SyncUtilities.UpdateBodyDetached(rb);

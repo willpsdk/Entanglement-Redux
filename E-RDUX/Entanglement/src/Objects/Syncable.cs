@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 using UnityEngine;
@@ -64,6 +64,10 @@ namespace Entanglement.Objects
         }
 
         public virtual void TrySetStale(long owner) {
+            // Collision / pool steals must not override an active held lock
+            if (!CanStealOwnership(owner))
+                return;
+
             lastOwner = staleOwner;
             if (ownerQueue.Count == 0) staleOwner = owner;
             else EnqueueOwner(owner);
@@ -90,6 +94,28 @@ namespace Entanglement.Objects
 
         public bool IsOwner() {
             return staleOwner == SteamIntegration.currentUserId;
+        }
+
+        /// <summary>
+        /// While someone is in the owner queue (holding / transferring), treat ownership as locked
+        /// so punches and collision steals cannot yank the object out from under them.
+        /// </summary>
+        public bool IsOwnershipLocked => ownerQueue.Count > 0;
+
+        public bool CanStealOwnership(long requester) {
+            if (!IsOwnershipLocked)
+                return true;
+            // The current holder and anyone already queued may continue the handoff
+            if (requester == staleOwner || ownerQueue.Contains(requester))
+                return true;
+            return false;
+        }
+
+        public virtual bool TryForceOwner(long owner, bool checkForMag = true) {
+            if (!CanStealOwnership(owner))
+                return false;
+            ForceOwner(owner, checkForMag);
+            return true;
         }
     }
 }

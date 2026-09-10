@@ -57,6 +57,8 @@ namespace Entanglement.Objects
         public const float velocityGain = 28f;         // Positional correction gain for joint-constrained bodies
         public const float angularGain = 22f;          // Rotational correction gain for joint-constrained bodies
         public const float snapDistance = 2.75f;          // Teleport instead of chasing when further than this
+        public const float pdFrequency = 8f;         // PD spring frequency for free remote bodies
+        public const float pdDamping = 0.85f;        // PD damping ratio (1 = critical)
 
         // Latest received network state, used to smoothly drive the object between packets
         public bool hasNetTarget = false;
@@ -86,6 +88,9 @@ namespace Entanglement.Objects
         private TransformSyncMessageData cachedSyncData;
         private TransformSyncMessageData cachedRestData;
         private bool wasSleeping;
+        private float sleepAccum;
+        public const float sleepRestDelay = 0.35f;
+        public const float remoteSilenceFreeze = 0.55f;
         private float lastRestTime = -10f;
         private float nextSendTime;
 
@@ -94,12 +99,13 @@ namespace Entanglement.Objects
         // seconds between sends (0 = every step). The rest-state edge covers whatever a throttled
         // object misses, so a body that stops far away still lands its exact final pose.
         float InterestInterval() {
-            if (cachedRigAttached)
-                return 0f;
+            // Held props stay snappy; everything else is hard-capped so we never spam FixedUpdate-rate P2P
+            if (cachedRigAttached || ownerQueue.Count > 0)
+                return 1f / 30f;
 
             var reps = PlayerRepresentation.representations;
             if (reps.Count == 0)
-                return 0f;
+                return 1f / 20f;
 
             Vector3 pos = transform.position;
             float nearestSqr = float.MaxValue;
@@ -113,10 +119,10 @@ namespace Entanglement.Objects
                     nearestSqr = sqr;
             }
 
-            if (nearestSqr < 100f) return 0f;      // < 10m  full rate
-            if (nearestSqr < 400f) return 1f / 30f; // < 20m  30 Hz
-            if (nearestSqr < 900f) return 1f / 15f; // < 30m  15 Hz
-            return 1f / 8f;                         // beyond 8 Hz
+            if (nearestSqr < 100f) return 1f / 20f; // < 10m  20 Hz global ceiling
+            if (nearestSqr < 400f) return 1f / 15f; // < 20m  15 Hz
+            if (nearestSqr < 900f) return 1f / 10f; // < 30m  10 Hz
+            return 1f / 5f;                          // beyond 5 Hz
         }
 
         void SendRestState() {
@@ -137,8 +143,15 @@ namespace Entanglement.Objects
             if (SteamIntegration.currentUserId == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside()))
                 return;
 
-            netPosition = simplifiedTransform.position;
-            netRotation = simplifiedTransform.rotation.ExpandQuat();
+            Vector3 position = simplifiedTransform.position;
+            Quaternion rotation = simplifiedTransform.rotation.ExpandQuat();
+            Vector3 velocity = Vector3.zero;
+            Vector3 angularVelocity = Vector3.zero;
+            if (!NetworkSanity.SanitizePose(ref position, ref rotation, ref velocity, ref angularVelocity))
+                return;
+
+            netPosition = position;
+            netRotation = rotation;
             netVelocity = Vector3.zero;
             netAngularVelocity = Vector3.zero;
             hasNetTarget = false;
@@ -336,20 +349,38 @@ namespace Entanglement.Objects
                 JointCheck(); // Check for joint
 
                 if (IsOwner() && rb) {
-                    // One reliable rest state when the body falls asleep, so every machine
-                    // settles it in exactly the same pose and stops simulating it
+                    // Wait until sleep has stuck for a beat before sending rest, so brief
+                    // contact micro-sleeps don't spam reliable rest poses
                     bool sleeping = rb.IsSleeping();
-                    if (sleeping && !wasSleeping)
-                        SendRestState();
-                    wasSleeping = sleeping;
+                    if (sleeping) {
+                        sleepAccum += Time.fixedDeltaTime;
+                        if (!wasSleeping && sleepAccum >= sleepRestDelay) {
+                            SendRestState();
+                            wasSleeping = true;
+                        }
+                    }
+                    else {
+                        sleepAccum = 0f;
+                        wasSleeping = false;
+                    }
                 }
 
                 if (!IsOwner()) {
                     SetHealth(float.PositiveInfinity);
 
                     // A plugged magazine rides its gun's sync, driving it would fight the plug joint
-                    if (rb && hasNetTarget && !rb.isKinematic && !IsPluggedIntoGun())
-                        InterpolateRemote();
+                    if (rb && hasNetTarget && !rb.isKinematic && !IsPluggedIntoGun()) {
+                        // Freeze remotes that went silent instead of extrapolating forever
+                        if (Time.time - netReceiveTime > remoteSilenceFreeze) {
+                            hasNetTarget = false;
+                            rb.velocity = Vector3.zero;
+                            rb.angularVelocity = Vector3.zero;
+                            rb.Sleep();
+                        }
+                        else {
+                            InterpolateRemote();
+                        }
+                    }
                 }
             }
 
@@ -468,15 +499,23 @@ namespace Entanglement.Objects
             if (Time.time - lastRestTime < 0.35f)
                 return;
 
+            Vector3 position = simplifiedTransform.position;
+            Quaternion rotation = simplifiedTransform.rotation.ExpandQuat();
+            if (!NetworkSanity.SanitizePose(ref position, ref rotation, ref velocity, ref angularVelocity))
+                return;
+
             // Buffer the state instead of snapping to it, InterpolateRemote drives the object smoothly every physics step
-            netPosition = simplifiedTransform.position;
-            netRotation = simplifiedTransform.rotation.ExpandQuat();
+            netPosition = position;
+            netRotation = rotation;
             netVelocity = velocity;
             netAngularVelocity = angularVelocity;
             netReceiveTime = Time.time;
             hasNetTarget = true;
 
-            if (!rb) simplifiedTransform.Apply(transform);
+            if (!rb) {
+                transform.position = position;
+                transform.rotation = rotation;
+            }
 
             // Only revive a directly-deactivated object; leave zone-culled ones (inactive ancestor) culled
             if (!transform.gameObject.activeSelf && Mathf.Abs(Time.realtimeSinceStartup - timeOfDisable) >= 2f)
@@ -522,20 +561,48 @@ namespace Entanglement.Objects
 
                 rb.angularVelocity = netAngularVelocity + correction;
             }
-            else if (targetBody) {
-                if ((targetBody.position - predictedPos).sqrMagnitude > snapDistance * snapDistance) {
-                    targetBody.position = predictedPos;
-                    targetBody.rotation = predictedRot;
+            else {
+                // Free bodies: PD forces toward the networked pose (Fusion-style). Feels heavier
+                // and more physical than a mega-stiff ConfigurableJoint follow target.
+                Vector3 posError = predictedPos - rb.position;
+
+                if (posError.sqrMagnitude > snapDistance * snapDistance) {
                     rb.position = predictedPos;
                     rb.rotation = predictedRot;
                     rb.velocity = netVelocity;
                     rb.angularVelocity = netAngularVelocity;
+                    if (targetBody) {
+                        targetBody.position = predictedPos;
+                        targetBody.rotation = predictedRot;
+                    }
                     return;
                 }
 
-                float t = 1f - Mathf.Exp(-followSharpness * dt);
-                targetBody.MovePosition(Vector3.Lerp(targetBody.position, predictedPos, t));
-                targetBody.MoveRotation(Quaternion.Slerp(targetBody.rotation, predictedRot, t));
+                float omega = 2f * Mathf.PI * pdFrequency;
+                float accelGain = omega * omega;
+                float dampGain = 2f * pdDamping * omega;
+
+                Vector3 velError = netVelocity - rb.velocity;
+                Vector3 force = (posError * accelGain + velError * dampGain) * rb.mass;
+                rb.AddForce(force, ForceMode.Force);
+
+                Quaternion qDelta = predictedRot * Quaternion.Inverse(rb.rotation);
+                if (qDelta.w < 0f) { qDelta.x = -qDelta.x; qDelta.y = -qDelta.y; qDelta.z = -qDelta.z; qDelta.w = -qDelta.w; }
+                qDelta.ToAngleAxis(out float angleDeg, out Vector3 axis);
+                if (float.IsInfinity(axis.x) || float.IsNaN(axis.x) || axis.sqrMagnitude < 0.0001f)
+                    axis = Vector3.up;
+                if (angleDeg > 180f) angleDeg -= 360f;
+                Vector3 angleError = axis.normalized * (angleDeg * Mathf.Deg2Rad);
+                Vector3 angVelError = netAngularVelocity - rb.angularVelocity;
+                // Torque ≈ I * (ω² θ + 2ζω ωerr); use mass as a stand-in for inertia magnitude
+                Vector3 torque = (angleError * accelGain + angVelError * dampGain) * rb.mass * 0.05f;
+                rb.AddTorque(torque, ForceMode.Force);
+
+                // Keep the follow target posed for anything still jointed to it, without MovePosition fighting PD
+                if (targetBody) {
+                    targetBody.position = predictedPos;
+                    targetBody.rotation = predictedRot;
+                }
             }
         }
 
@@ -600,8 +667,8 @@ namespace Entanglement.Objects
                     nextConstraintCheck = Time.time + 2f;
                 }
 
-                if (rb && !isWorldConstrained && !syncJoint)
-                    ReCreateJoint();
+                // Free bodies use PD forces in InterpolateRemote; the follow joint fights them
+                // if (rb && !isWorldConstrained && !syncJoint) ReCreateJoint();
 
                 // The scene gained/lost a joint (e.g. a door was broken off), swap drive modes
                 if (rb && isWorldConstrained && syncJoint)
