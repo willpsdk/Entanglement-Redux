@@ -33,11 +33,11 @@ namespace Entanglement {
     public struct EntanglementVersion {
         public const byte versionMajor = 0;
         public const byte versionMinor = 5;
-        public const short versionPatch = 0;
+        public const short versionPatch = 1;
 
         // Patches don't matter too much when supporting old versions
         // Although we don't support anything newer than the current version, just in case
-        // 0.5.0: compressed TransformSyncBatch velocities + owner-validated transform apply
+        // 0.5.1: compressed TransformSyncBatch velocities + owner-validated transform apply
         public const byte minVersionMajorSupported = 0;
         public const byte minVersionMinorSupported = 5;
     }
@@ -101,12 +101,14 @@ namespace Entanglement {
 
             Entanglement.Sync.CustomItemSync.Initialize();
             Entanglement.Sync.PlayermodelSync.Initialize();
+            Entanglement.Sync.CustomMapSync.Initialize();
             Entanglement.Gamemodes.GamemodeHandler.Initialize();
 
             PlayerRepresentation.LoadBundle();
             LoadingScreen.LoadBundle();
 
             EntanglementUI.CreateUI();
+            EntanglementRadial.Initialize();
 
             BanList.PullFromFile();
 

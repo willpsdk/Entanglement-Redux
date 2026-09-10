@@ -14,6 +14,12 @@ namespace Entanglement.Sync
         public static readonly MelonPreferences_Entry<bool> playermodelSyncEnabled =
             category.CreateEntry("playermodelSyncEnabled", true, description: "Automatically send/receive playermodels other players are wearing");
 
+        public static readonly MelonPreferences_Entry<bool> mapSyncEnabled =
+            category.CreateEntry("mapSyncEnabled", true, description: "Automatically send/receive custom map files when the host loads a map you don't have");
+
+        public static readonly MelonPreferences_Entry<bool> requireDownloadConsent =
+            category.CreateEntry("requireDownloadConsent", true, description: "Ask before downloading synced files (custom maps always ask). Accept/Deny from BoneMenu or the circle-menu Entanglement button");
+
         public static readonly MelonPreferences_Entry<int> maxSyncSizeKB =
             category.CreateEntry("maxSyncSizeKB", 100 * 1024, description: "Refuse to send or receive a single item/model file larger than this many KB (default 100MB)");
 
@@ -40,5 +46,8 @@ namespace Entanglement.Sync
                 if (paths[i] == path) return true;
             return false;
         }
+
+        // Reserved for a future "always allow this friend" list. Today always false so consent still prompts.
+        public static bool IsUserTrusted(long userId) => false;
     }
 }

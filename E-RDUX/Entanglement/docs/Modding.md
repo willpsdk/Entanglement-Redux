@@ -186,3 +186,8 @@ This is capped at 90 seconds—if a download gets stuck, the player appears anyw
 
 - **Making a gamemode?** Check out [Gamemodes.md](Gamemodes.md)
 - **Need more network message examples?** Look at `CustomItemSync.cs` or `FileTransfer.cs` for real implementations
+
+
+## Custom map sync
+
+When the host loads a Custom Maps map, clients missing the file are prompted to Accept/Deny a P2P download (circle menu or BoneMenu → File Sync). Maps never auto-install without consent.

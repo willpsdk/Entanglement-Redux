@@ -360,10 +360,12 @@
     <Compile Include="src\Sync\SyncPrefs.cs" />
     <Compile Include="src\Sync\CustomItemSync.cs" />
     <Compile Include="src\Sync\PlayermodelSync.cs" />
+    <Compile Include="src\Sync\CustomMapSync.cs" />
     <Compile Include="src\Network\Messages\Sync\ItemSyncRequestMessage.cs" />
     <Compile Include="src\Network\Messages\Sync\ItemSyncUnavailableMessage.cs" />
     <Compile Include="src\Network\Messages\Sync\ItemSyncFileIncomingMessage.cs" />
     <Compile Include="src\Network\Messages\Sync\PlayermodelSyncRequestMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\MapSyncRequestMessage.cs" />
     <Compile Include="src\Compat\Playermodels\PlayerSkinLoader.cs" />
     <Compile Include="src\Data\Files\BanList.cs" />
     <Compile Include="src\Data\Files\EmbeddedResource.cs" />
@@ -491,6 +493,7 @@
     <Compile Include="src\UI\SyncUI.cs" />
     <Compile Include="src\UI\GamemodeUI.cs" />
     <Compile Include="src\UI\DownloadUI.cs" />
+    <Compile Include="src\UI\EntanglementRadial.cs" />
     <Compile Include="src\Network\DownloadGate.cs" />
     <Compile Include="src\Gamemodes\EntanglementGamemode.cs" />
     <Compile Include="src\Gamemodes\GamemodeHandler.cs" />

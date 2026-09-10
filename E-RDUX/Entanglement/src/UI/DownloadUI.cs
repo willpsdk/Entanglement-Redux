@@ -23,7 +23,10 @@ namespace Entanglement.UI
 
         public static void Update()
         {
-            if (!FileTransferManager.HasActiveDownloads) {
+            bool pending = FileTransferManager.HasPendingConsent;
+            bool downloading = FileTransferManager.HasActiveDownloads;
+
+            if (!pending && !downloading) {
                 if (root != null && root.activeSelf)
                     root.SetActive(false);
                 return;
@@ -35,15 +38,30 @@ namespace Entanglement.UI
             if (!root.activeSelf)
                 root.SetActive(true);
 
-            float progress = FileTransferManager.TotalDownloadProgress();
-            pie.fillAmount = progress;
+            if (pending) {
+                FileTransfer waiting = FileTransferManager.LargestPendingConsent();
+                pie.fillAmount = waiting != null && waiting.totalBytes > 0
+                    ? Mathf.Clamp01((float)waiting.receivedBytes / waiting.totalBytes)
+                    : 0f;
+                pie.color = new Color(1f, 0.75f, 0.2f, 0.95f);
+                if (waiting != null) {
+                    string name = Path.GetFileNameWithoutExtension(waiting.fileName);
+                    float mb = waiting.totalBytes / 1024f / 1024f;
+                    label.text = $"ACCEPT?\n{name}\n{mb:F1} MB\nBoneMenu / Circle: Accept or Deny";
+                }
+            }
+            else {
+                float progress = FileTransferManager.TotalDownloadProgress();
+                pie.fillAmount = progress;
+                pie.color = new Color(0.3f, 0.8f, 1f, 0.95f);
 
-            FileTransfer current = FileTransferManager.LargestActiveDownload();
-            if (current != null) {
-                string name = Path.GetFileNameWithoutExtension(current.fileName);
-                float mb = current.totalBytes / 1024f / 1024f;
-                float doneMb = current.receivedBytes / 1024f / 1024f;
-                label.text = $"Downloading\n{name}\n{doneMb:F1} / {mb:F1} MB ({(int)(progress * 100f)}%)";
+                FileTransfer current = FileTransferManager.LargestActiveDownload();
+                if (current != null) {
+                    string name = Path.GetFileNameWithoutExtension(current.fileName);
+                    float mb = current.totalBytes / 1024f / 1024f;
+                    float doneMb = current.receivedBytes / 1024f / 1024f;
+                    label.text = $"Downloading\n{name}\n{doneMb:F1} / {mb:F1} MB ({(int)(progress * 100f)}%)";
+                }
             }
         }
 

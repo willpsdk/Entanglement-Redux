@@ -82,5 +82,11 @@ namespace Entanglement.UI {
 
             PlayerDeathManager.Suicide();
         }
+
+        // Used by the circle-menu Entanglement button
+        public static void OpenRootMenu() {
+            if (rootCategory != null)
+                MenuManager.OpenCategory(rootCategory);
+        }
     }
 }
