@@ -265,7 +265,11 @@ namespace Entanglement.Objects
 
             if (currentObject.IsBlacklisted()) return;
 
-            Rigidbody[] rigidbodies = currentObject.transform.GetJointedBodies();
+            // Same body resolution as attach — magazines resolve via GetChildBodies / pool path,
+            // so detach must not only use GetJointedBodies or ownership sticks / orphans float.
+            GetPooleeData(currentObject.transform, out Rigidbody[] rigidbodies, out _, out _, out _);
+            if (rigidbodies == null || rigidbodies.Length == 0)
+                rigidbodies = currentObject.transform.GetJointedBodies();
 
             // Two hand check
             Rigidbody otherRb = __instance.otherHand.GetHeldObject();
@@ -282,7 +286,9 @@ namespace Entanglement.Objects
 
             if (grip.IsBlacklisted()) return;
 
-            Rigidbody[] rigidbodies = grip.transform.GetJointedBodies();
+            GetPooleeData(grip.transform, out Rigidbody[] rigidbodies, out _, out _, out _);
+            if (rigidbodies == null || rigidbodies.Length == 0)
+                rigidbodies = grip.transform.GetJointedBodies();
 
             for (int i = 0; i < rigidbodies.Length; i++)
                 SyncUtilities.UpdateBodyDetached(rigidbodies[i]);

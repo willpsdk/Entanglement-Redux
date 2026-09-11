@@ -59,6 +59,8 @@ namespace Entanglement.Objects
         public const float snapDistance = 2.75f;          // Teleport instead of chasing when further than this
         public const float pdFrequency = 8f;         // PD spring frequency for free remote bodies
         public const float pdDamping = 0.85f;        // PD damping ratio (1 = critical)
+        public const float heldHardTrackAge = 0.04f; // Tiny dead-reckon window for held props (not free-body skate)
+        public const float heldSnapDistance = 0.4f;  // Teleport if the held remote drifted this far
 
         // Latest received network state, used to smoothly drive the object between packets
         public bool hasNetTarget = false;
@@ -99,9 +101,9 @@ namespace Entanglement.Objects
         // seconds between sends (0 = every step). The rest-state edge covers whatever a throttled
         // object misses, so a body that stops far away still lands its exact final pose.
         float InterestInterval() {
-            // Held props stay snappy; everything else is hard-capped so we never spam FixedUpdate-rate P2P
+            // Held props stay snappy; Fusion-quality hand follow needs higher than free-body rates
             if (cachedRigAttached || ownerQueue.Count > 0)
-                return 1f / 30f;
+                return 1f / 45f;
 
             var reps = PlayerRepresentation.representations;
             if (reps.Count == 0)
@@ -126,6 +128,11 @@ namespace Entanglement.Objects
         }
 
         void SendRestState() {
+            // Never rest-freeze a held object mid-air — mags/guns sleep in-hand and would
+            // otherwise broadcast a floating reliable pose to everyone else.
+            if (ownerQueue.Count > 0 || IsPluggedIntoGun())
+                return;
+
             if (cachedRestData == null)
                 cachedRestData = new TransformSyncMessageData() { resting = true };
 
@@ -141,6 +148,10 @@ namespace Entanglement.Objects
         // locally, so resting objects cost nothing until their owner moves them again
         public void ApplyRestState(SimplifiedTransform simplifiedTransform) {
             if (SteamIntegration.currentUserId == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside()))
+                return;
+
+            // Held remotes must keep chasing the owner — a rest packet is how floating mags stick
+            if (ownerQueue.Count > 0)
                 return;
 
             Vector3 position = simplifiedTransform.position;
@@ -212,7 +223,8 @@ namespace Entanglement.Objects
                 cachedRigAttached = parent && transform.GetComponentInParent<StressLevelZero.Rig.RigManager>();
             }
 
-            if (cachedRigAttached)
+            // Grip ownership must keep sending even if PhysX sleeps the body in-hand
+            if (cachedRigAttached || ownerQueue.Count > 0)
                 return HasChangedPositions();
 
             return rb ? !rb.IsSleeping() && HasChangedPositions() : HasChangedPositions();
@@ -283,7 +295,22 @@ namespace Entanglement.Objects
 
             DestroyJoint();
 
+            // Transient disables (zone cull, plug anims, pool flicker) must not drop held
+            // ownership — that freezes mags/guns mid-air until something else wakes them.
+            // Real release still goes through OnGripDetached → SendDequeue.
+            if (IsHeldByLocalHand())
+                return;
+
             SendDequeue();
+        }
+
+        bool IsHeldByLocalHand() {
+            try {
+                return _CachedBodies != null && _CachedBodies.IsHolding();
+            }
+            catch {
+                return false;
+            }
         }
 
         protected void UpdateStoredPositions() {
@@ -352,7 +379,7 @@ namespace Entanglement.Objects
                     // Wait until sleep has stuck for a beat before sending rest, so brief
                     // contact micro-sleeps don't spam reliable rest poses
                     bool sleeping = rb.IsSleeping();
-                    if (sleeping) {
+                    if (sleeping && ownerQueue.Count == 0 && !IsPluggedIntoGun()) {
                         sleepAccum += Time.fixedDeltaTime;
                         if (!wasSleeping && sleepAccum >= sleepRestDelay) {
                             SendRestState();
@@ -370,8 +397,13 @@ namespace Entanglement.Objects
 
                     // A plugged magazine rides its gun's sync, driving it would fight the plug joint
                     if (rb && hasNetTarget && !rb.isKinematic && !IsPluggedIntoGun()) {
-                        // Freeze remotes that went silent instead of extrapolating forever
-                        if (Time.time - netReceiveTime > remoteSilenceFreeze) {
+                        bool heldRemote = ownerQueue.Count > 0;
+
+                        // Held props hard-track (Fusion-like); never silence-freeze them mid-air
+                        if (heldRemote) {
+                            HardTrackHeldRemote();
+                        }
+                        else if (Time.time - netReceiveTime > remoteSilenceFreeze) {
                             hasNetTarget = false;
                             rb.velocity = Vector3.zero;
                             rb.angularVelocity = Vector3.zero;
@@ -495,8 +527,9 @@ namespace Entanglement.Objects
             if (SteamIntegration.currentUserId == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside())) return;
 
             // A reliable rest pose is definitive; swallow unreliable stragglers that were
-            // still in flight, or a reordered stale packet would re-wake the object forever
-            if (Time.time - lastRestTime < 0.35f)
+            // still in flight, or a reordered stale packet would re-wake the object forever.
+            // Held props ignore this gate — they must keep updating even if a stale rest arrived.
+            if (ownerQueue.Count == 0 && Time.time - lastRestTime < 0.35f)
                 return;
 
             Vector3 position = simplifiedTransform.position;
@@ -520,6 +553,36 @@ namespace Entanglement.Objects
             // Only revive a directly-deactivated object; leave zone-culled ones (inactive ancestor) culled
             if (!transform.gameObject.activeSelf && Mathf.Abs(Time.realtimeSinceStartup - timeOfDisable) >= 2f)
                 transform.gameObject.SetActive(true);
+        }
+
+        // Held guns/mags/props: MovePosition toward the owner's pose instead of soft PD.
+        // PD lag + silence-freeze is what made magazines hover beside hands.
+        protected void HardTrackHeldRemote() {
+            float age = Mathf.Min(Time.time - netReceiveTime, heldHardTrackAge);
+            Vector3 predictedPos = netPosition + netVelocity * age;
+            Quaternion predictedRot = netRotation;
+
+            float angSpeed = netAngularVelocity.magnitude;
+            if (angSpeed > 0.001f)
+                predictedRot = Quaternion.AngleAxis(angSpeed * age * 57.29578f, netAngularVelocity / angSpeed) * netRotation;
+
+            Vector3 posError = predictedPos - rb.position;
+            if (posError.sqrMagnitude > heldSnapDistance * heldSnapDistance) {
+                rb.position = predictedPos;
+                rb.rotation = predictedRot;
+            }
+            else {
+                rb.MovePosition(predictedPos);
+                rb.MoveRotation(predictedRot);
+            }
+
+            rb.velocity = netVelocity;
+            rb.angularVelocity = netAngularVelocity;
+
+            if (targetBody) {
+                targetBody.position = predictedPos;
+                targetBody.rotation = predictedRot;
+            }
         }
 
         protected void InterpolateRemote() {

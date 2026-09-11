@@ -74,6 +74,14 @@ namespace Entanglement.Network
                         MagazineSocket magSocket = syncGun._CachedGun.magazineSocket;
 
                         if (isInsert) {
+                            // Stop free-body chase immediately so the mag doesn't hover at the
+                            // last hand pose while the plug hierarchy takes over.
+                            syncMag.hasNetTarget = false;
+                            if (syncMag.rb && !syncMag.rb.isKinematic) {
+                                syncMag.rb.velocity = Vector3.zero;
+                                syncMag.rb.angularVelocity = Vector3.zero;
+                            }
+
                             syncMag._CachedPlug.InsertPlug(magSocket);
 
 #if DEBUG
@@ -82,6 +90,17 @@ namespace Entanglement.Network
                         }
                         else {
                             syncMag._CachedPlug.ForceEject();
+
+                            // Seed the free-body target at the eject pose so remotes don't keep
+                            // the pre-reload float position until the next motion packet.
+                            if (syncMag.rb) {
+                                syncMag.netPosition = syncMag.rb.position;
+                                syncMag.netRotation = syncMag.rb.rotation;
+                                syncMag.netVelocity = Vector3.zero;
+                                syncMag.netAngularVelocity = Vector3.zero;
+                                syncMag.netReceiveTime = Time.time;
+                                syncMag.hasNetTarget = true;
+                            }
 
 #if DEBUG
                             EntangleLogger.Log("Trying to eject a magazine!");

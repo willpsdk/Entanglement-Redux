@@ -207,4 +207,8 @@ Gamemodes are not exposed in the menu (backend API remains for mods that registe
 
 ## Player grab physics
 
-Live `PlayerRep` bodies are never treated as syncable props. Grabbing another player keeps their pose under PlayerRep sync (hard-tracked while you hold them) instead of stealing TransformSyncable ownership.
+Live `PlayerRep` bodies are never treated as syncable props. Grabbing another player keeps their pose under PlayerRep sync (step-clamped while you hold them, crouch Y damped) instead of stealing TransformSyncable ownership.
+
+## Held item sync
+
+Props in a grip ownership queue hard-track on remotes (MovePosition) at ~45 Hz, never silence-freeze or rest-sleep mid-air, and detach uses the same magazine/pool body resolution as attach.
