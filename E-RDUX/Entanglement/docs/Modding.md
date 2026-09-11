@@ -204,3 +204,7 @@ Circle menu opens the full hub:
 **Profile · Lobby · Matchmaking · Players · Downloads · Settings**
 
 Gamemodes are not exposed in the menu (backend API remains for mods that register modes themselves).
+
+## Player grab physics
+
+Live `PlayerRep` bodies are never treated as syncable props. Grabbing another player keeps their pose under PlayerRep sync (hard-tracked while you hold them) instead of stealing TransformSyncable ownership.
