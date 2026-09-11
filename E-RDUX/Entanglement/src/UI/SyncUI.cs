@@ -30,12 +30,8 @@ namespace Entanglement.UI {
             },
             10, 1, 500, true);
 
-            syncCategory.CreateFunctionElement("Accept Pending Downloads", Color.green, () => {
-                FileTransferManager.AcceptAllPending();
-            });
-
-            syncCategory.CreateFunctionElement("Deny Pending Downloads", Color.red, () => {
-                FileTransferManager.DenyAllPending();
+            syncCategory.CreateFunctionElement("Open Downloads Inbox", new Color(1f, 0.75f, 0.25f), () => {
+                EntanglementMenu.OpenDownloads();
             });
         }
     }

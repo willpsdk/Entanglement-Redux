@@ -11,10 +11,10 @@ using Entanglement;
 
 [assembly: Guid("490e160d-251d-4ab4-a3bb-f473961ff8a1")]
 [assembly: AssemblyTitle("Entanglement Redux")]
-[assembly: AssemblyVersion("0.5.1")]
-[assembly: AssemblyFileVersion("0.5.1")]
+[assembly: AssemblyVersion("0.5.2")]
+[assembly: AssemblyFileVersion("0.5.2")]
 
-[assembly: MelonInfo(typeof(EntanglementMod), "Entanglement Redux", "0.5.1", "willpsdk")]
+[assembly: MelonInfo(typeof(EntanglementMod), "Entanglement Redux", "0.5.2", "willpsdk")]
 [assembly: MelonGame("Stress Level Zero", "BONEWORKS")]
 [assembly: MelonIncompatibleAssemblies("MultiplayerMod")]
 [assembly: MelonPriority(-10000)]

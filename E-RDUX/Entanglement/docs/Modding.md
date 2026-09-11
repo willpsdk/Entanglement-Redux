@@ -191,3 +191,9 @@ This is capped at 90 seconds—if a download gets stuck, the player appears anyw
 ## Custom map sync
 
 When the host loads a Custom Maps map, clients missing the file are prompted to Accept/Deny a P2P download (circle menu or BoneMenu → File Sync). Maps never auto-install without consent.
+
+## Downloads permission (Fusion-style)
+
+When a synced file needs permission, Entanglement queues it and notifies you.
+Open the wrist **circle menu → Downloads**, then open the file's submenu to see
+what it is (name, size, type, sender) and **Accept** or **Decline**.

@@ -194,7 +194,7 @@ namespace Entanglement.Sync
             if (needsConsent && !SyncPrefs.IsUserTrusted(sender)) {
                 pendingConsent[data.transferId] = transfer;
                 EntangleLogger.Log($"[FileTransfer] Waiting for consent to download {data.fileName} ({data.totalBytes / 1024}KB) from {sender}");
-                ModThatIsNotMod.Notifications.SendNotification($"Download ready: {data.fileName}\nAccept from circle menu or BoneMenu → File Sync", 5f);
+                ModThatIsNotMod.Notifications.SendNotification($"Download needs permission:\n{data.fileName}\nCircle menu → Downloads → Accept or Decline", 6f);
                 return;
             }
 

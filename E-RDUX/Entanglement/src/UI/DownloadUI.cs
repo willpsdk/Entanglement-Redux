@@ -11,7 +11,7 @@ using Entanglement.Sync;
 
 namespace Entanglement.UI
 {
-    // Radial "pie" download progress stuck to the right hand, shown only while files are coming in.
+    // Hand pie: progress while downloading, or a "permission needed" nudge pointing at Circle → Downloads.
     // Built lazily and wrapped in try/catch so a UI failure can't take the game down. The
     // localPosition/localScale below are guesses - nudge them once you can see it in-headset.
     public static class DownloadUI
@@ -47,7 +47,7 @@ namespace Entanglement.UI
                 if (waiting != null) {
                     string name = Path.GetFileNameWithoutExtension(waiting.fileName);
                     float mb = waiting.totalBytes / 1024f / 1024f;
-                    label.text = $"ACCEPT?\n{name}\n{mb:F1} MB\nBoneMenu / Circle: Accept or Deny";
+                    label.text = $"PERMISSION NEEDED\n{name}\n{mb:F1} MB\nCircle → Downloads\nAccept or Decline";
                 }
             }
             else {

@@ -18,7 +18,7 @@ namespace Entanglement.Sync
             category.CreateEntry("mapSyncEnabled", true, description: "Automatically send/receive custom map files when the host loads a map you don't have");
 
         public static readonly MelonPreferences_Entry<bool> requireDownloadConsent =
-            category.CreateEntry("requireDownloadConsent", true, description: "Ask before downloading synced files (custom maps always ask). Accept/Deny from BoneMenu or the circle-menu Entanglement button");
+            category.CreateEntry("requireDownloadConsent", true, description: "Ask before downloading synced files (custom maps always ask). Accept/Decline from Circle → Downloads");
 
         public static readonly MelonPreferences_Entry<int> maxSyncSizeKB =
             category.CreateEntry("maxSyncSizeKB", 100 * 1024, description: "Refuse to send or receive a single item/model file larger than this many KB (default 100MB)");

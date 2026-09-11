@@ -33,11 +33,11 @@ namespace Entanglement {
     public struct EntanglementVersion {
         public const byte versionMajor = 0;
         public const byte versionMinor = 5;
-        public const short versionPatch = 1;
+        public const short versionPatch = 2;
 
         // Patches don't matter too much when supporting old versions
         // Although we don't support anything newer than the current version, just in case
-        // 0.5.1: compressed TransformSyncBatch velocities + owner-validated transform apply
+        // 0.5.x: physics authority + map sync + Fusion-style Downloads consent UI
         public const byte minVersionMajorSupported = 0;
         public const byte minVersionMinorSupported = 5;
     }
