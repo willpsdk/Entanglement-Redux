@@ -4,30 +4,22 @@ using ModThatIsNotMod.BoneMenu;
 
 namespace Entanglement.UI
 {
-    // Fusion-style menu shell for Entanglement.
-    // Fusion opens one multiplayer panel with tabs (Location, Matchmaking, Notifications…).
-    // On BONEWORKS we map that to BoneMenu categories under a single root, opened from the
-    // wrist circle. Expand page helpers here as we grow — keep radial entries thin.
+    // Full Fusion-style hub for Entanglement on BONEWORKS BoneMenu.
+    // Fusion: Profile / Location / Matchmaking / Notifications / Settings
+    // Here:   Profile / Lobby / Matchmaking / Players / Downloads / Settings
     public static class EntanglementMenu
     {
         public static MenuCategory Root { get; private set; }
         public static MenuCategory Downloads => DownloadsUI.downloadsCategory;
 
         public static void Create() {
-            // Same product entry Fusion uses: one named hub, not a scatter of top-level mods
             Root = MenuManager.CreateCategory("Entanglement", Color.white);
 
-            // Page order mirrors Fusion's mental model:
-            //   Lobby/Location → Matchmaking → Downloads (notifications) → Settings → Voice → Modes
-            ServerUI.CreateUI(Root);       // Lobby / host controls / players
-            LobbiesUI.CreateUI(Root);      // Matchmaking / public lobbies
-            DownloadsUI.CreateUI(Root);    // Consent inbox (Fusion Notifications pattern)
-            ClientUI.CreateUI(Root);
-            BanlistUI.CreateUI(Root);
-            VoiceUI.CreateUI(Root);
-            SyncUI.CreateUI(Root);         // File sync / download settings
-            GamemodeUI.CreateUI(Root);
-            StatsUI.CreateUI(Root);
+            ProfileUI.CreateUI(Root);      // who you are + suicide + status
+            ServerUI.CreateUI(Root);       // Lobby (+ Players sibling)
+            LobbiesUI.CreateUI(Root);      // Matchmaking / browse / join
+            DownloadsUI.CreateUI(Root);    // consent inbox (Fusion Notifications)
+            SettingsUI.CreateUI(Root);     // Client, Voice, File Sync, Banlist, Stats
 
 #if DEBUG
             DebugUI.CreateUI(Root);
@@ -39,8 +31,14 @@ namespace Entanglement.UI
                 MenuManager.OpenCategory(Root);
         }
 
-        public static void OpenDownloads() {
-            DownloadsUI.Open();
+        public static void OpenDownloads() => DownloadsUI.Open();
+        public static void OpenLobby() {
+            // BoneMenu has no GetSubCategory helper; reopen root so Lobby is one click down
+            OpenRoot();
         }
+        public static void OpenMatchmaking() => LobbiesUI.Open();
+        public static void OpenPlayers() => ServerUI.OpenPlayers();
+        public static void OpenSettings() => SettingsUI.Open();
+        public static void OpenProfile() => ProfileUI.Open();
     }
 }

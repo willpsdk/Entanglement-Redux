@@ -22,7 +22,7 @@ namespace Entanglement.UI {
         const string refreshText = "Refresh";
 
         public static void CreateUI(MenuCategory category) {
-            MenuCategory serverCategory = category.CreateSubCategory("Server Menu", Color.white);
+            MenuCategory serverCategory = category.CreateSubCategory("Lobby", new Color(0.55f, 0.85f, 0.65f));
 
             serverCategory.CreateFunctionElement("Start Server", Color.white, () => { Server.StartServer(); });
 
@@ -67,8 +67,8 @@ namespace Entanglement.UI {
                 Server.instance?.UpdateLobbyConfig();
             });
 
-            playersCategory = serverCategory.CreateSubCategory("Players", Color.white);
-
+            // Players sits at hub root (Fusion Location players panel), not buried under Lobby
+            playersCategory = category.CreateSubCategory("Players", new Color(0.6f, 0.8f, 1f));
             playersCategory.CreateFunctionElement(refreshText, Color.white, Refresh);
         }
 
@@ -104,6 +104,13 @@ namespace Entanglement.UI {
         }
 
         public static void UpdateMenu() => MenuManager.OpenCategory(playersCategory);
+
+        public static void OpenPlayers() {
+            Refresh();
+            if (playersCategory != null)
+                MenuManager.OpenCategory(playersCategory);
+        }
+
 
         public static void AddUser(long userId, string userName) {
             string playerName = userName;

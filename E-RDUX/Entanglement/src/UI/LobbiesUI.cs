@@ -25,11 +25,17 @@ namespace Entanglement.UI
         const string refreshText = "Refresh";
 
         public static void CreateUI(MenuCategory category) {
-            lobbiesCategory = category.CreateSubCategory("Public Lobbies", Color.white);
+            lobbiesCategory = category.CreateSubCategory("Matchmaking", new Color(0.55f, 0.7f, 1f));
 
             lobbiesCategory.CreateFunctionElement(refreshText, Color.white, Refresh);
 
             lobbyListResult = CallResult<LobbyMatchList_t>.Create(OnSteamLobbySearch);
+        }
+
+        public static void Open() {
+            Refresh();
+            if (lobbiesCategory != null)
+                MenuManager.OpenCategory(lobbiesCategory);
         }
 
         public static void Refresh() {

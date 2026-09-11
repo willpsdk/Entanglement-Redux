@@ -197,3 +197,10 @@ When the host loads a Custom Maps map, clients missing the file are prompted to 
 When a synced file needs permission, Entanglement queues it and notifies you.
 Open the wrist **circle menu → Downloads**, then open the file's submenu to see
 what it is (name, size, type, sender) and **Accept** or **Decline**.
+
+## Entanglement menu (Fusion-style hub)
+
+Circle menu opens the full hub:
+**Profile · Lobby · Matchmaking · Players · Downloads · Settings**
+
+Gamemodes are not exposed in the menu (backend API remains for mods that register modes themselves).

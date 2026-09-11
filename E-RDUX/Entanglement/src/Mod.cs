@@ -33,7 +33,7 @@ namespace Entanglement {
     public struct EntanglementVersion {
         public const byte versionMajor = 0;
         public const byte versionMinor = 5;
-        public const short versionPatch = 2;
+        public const short versionPatch = 3;
 
         // Patches don't matter too much when supporting old versions
         // Although we don't support anything newer than the current version, just in case

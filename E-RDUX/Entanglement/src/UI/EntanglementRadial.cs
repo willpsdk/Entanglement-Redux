@@ -10,8 +10,7 @@ using Entanglement.Sync;
 
 namespace Entanglement.UI
 {
-    // Wrist circle entries — Fusion opens one "Fusion" button; we open Entanglement and,
-    // when a download needs permission, a Downloads shortcut into the Accept/Decline submenu.
+    // Wrist circle → full Entanglement hub pages (Fusion opens one button; we expose the main tabs)
     public static class EntanglementRadial
     {
         static bool registered;
@@ -41,23 +40,17 @@ namespace Entanglement.UI
                     return;
                 }
 
-                addRadialButton.Invoke(null, new object[] { "Entanglement", (Action)OpenEntanglement });
+                addRadialButton.Invoke(null, new object[] { "Entanglement", (Action)(() => EntanglementMenu.OpenRoot()) });
+                addRadialButton.Invoke(null, new object[] { "Lobby", (Action)(() => EntanglementMenu.OpenLobby()) });
+                addRadialButton.Invoke(null, new object[] { "Matchmaking", (Action)(() => EntanglementMenu.OpenMatchmaking()) });
+                addRadialButton.Invoke(null, new object[] { "Players", (Action)(() => EntanglementMenu.OpenPlayers()) });
                 addRadialButton.Invoke(null, new object[] { "Downloads", (Action)OpenDownloads });
+                addRadialButton.Invoke(null, new object[] { "Settings", (Action)(() => EntanglementMenu.OpenSettings()) });
 
-                EntangleLogger.Log("[EntanglementRadial] Registered circle-menu buttons (Entanglement, Downloads)");
+                EntangleLogger.Log("[EntanglementRadial] Registered full circle-menu hub buttons");
             }
             catch (Exception e) {
                 EntangleLogger.Warn($"[EntanglementRadial] Failed to register circle-menu buttons: {e.Message}");
-            }
-        }
-
-        static void OpenEntanglement() {
-            try {
-                EntanglementMenu.OpenRoot();
-            }
-            catch (Exception e) {
-                EntangleLogger.Warn($"[EntanglementRadial] OpenEntanglement failed: {e.Message}");
-                Notifications.SendNotification("Open BoneMenu → Entanglement", 3f);
             }
         }
 

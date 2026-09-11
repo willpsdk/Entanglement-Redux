@@ -20,7 +20,7 @@ namespace Entanglement.UI
         const string refreshText = "Refresh";
 
         public static void CreateUI(MenuCategory category) {
-            banCategory = category.CreateSubCategory("Banned Users", Color.white);
+            banCategory = category.CreateSubCategory("Safety", Color.white);
             banCategory.CreateFunctionElement(refreshText, Color.white, Refresh);
         }
 

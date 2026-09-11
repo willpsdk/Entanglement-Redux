@@ -16,7 +16,7 @@ namespace Entanglement.UI {
         const string refreshText = "Refresh";
 
         public static void CreateUI(MenuCategory category) {
-            MenuCategory voiceCategory = category.CreateSubCategory("Voice Settings", Color.cyan);
+            MenuCategory voiceCategory = category.CreateSubCategory("Voice", Color.cyan);
 
             voiceCategory.CreateBoolElement("Voice Chat", Color.white, true, (value) => {
                 VoiceManager.micEnabled = value;
