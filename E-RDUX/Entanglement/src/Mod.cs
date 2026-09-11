@@ -33,11 +33,11 @@ namespace Entanglement {
     public struct EntanglementVersion {
         public const byte versionMajor = 0;
         public const byte versionMinor = 5;
-        public const short versionPatch = 5;
+        public const short versionPatch = 6;
 
         // Patches don't matter too much when supporting old versions
         // Although we don't support anything newer than the current version, just in case
-        // 0.5.x: physics authority + held-item hard-track + PlayerRep grab clamps + map sync UI
+        // 0.5.x: physics authority + hand-relative held props + PlayerRep grab clamps + map sync UI
         public const byte minVersionMajorSupported = 0;
         public const byte minVersionMinorSupported = 5;
     }
@@ -182,6 +182,9 @@ namespace Entanglement {
 
             // Updates the VRIK of all the players
             PlayerRepresentation.UpdatePlayerReps();
+
+            // Held props follow PlayerRep hands after IK (Fusion sticks grips to remote hands)
+            TransformSyncable.DriveHeldRemotesAfterReps();
         }
 
         public override void OnLateUpdate() {

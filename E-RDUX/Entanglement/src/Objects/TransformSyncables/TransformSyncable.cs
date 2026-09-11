@@ -61,6 +61,15 @@ namespace Entanglement.Objects
         public const float pdDamping = 0.85f;        // PD damping ratio (1 = critical)
         public const float heldHardTrackAge = 0.04f; // Tiny dead-reckon window for held props (not free-body skate)
         public const float heldSnapDistance = 0.4f;  // Teleport if the held remote drifted this far
+        public const float heldHandMaxDistance = 1.5f; // Ignore hand anchors farther than this from the prop
+
+        // Fusion sticks grips to remote hands; we approximate that by parenting the last world
+        // pose into the holder's PlayerRep hand between packets (PlayerRep has no physics Hand).
+        public byte preferredHeldHand; // 0 = auto, 1 = left, 2 = right
+        int heldHandIndex;
+        Vector3 heldLocalPos;
+        Quaternion heldLocalRot = Quaternion.identity;
+        bool hasHeldHandPose;
 
         // Latest received network state, used to smoothly drive the object between packets
         public bool hasNetTarget = false;
@@ -223,9 +232,11 @@ namespace Entanglement.Objects
                 cachedRigAttached = parent && transform.GetComponentInParent<StressLevelZero.Rig.RigManager>();
             }
 
-            // Grip ownership must keep sending even if PhysX sleeps the body in-hand
+            // Grip ownership must keep sending even if PhysX sleeps the body in-hand.
+            // Always emit on the interest tick — HasChangedPositions can drop slow hand motion
+            // and leave remotes frozen mid-air beside the hand.
             if (cachedRigAttached || ownerQueue.Count > 0)
-                return HasChangedPositions();
+                return true;
 
             return rb ? !rb.IsSleeping() && HasChangedPositions() : HasChangedPositions();
         }
@@ -237,6 +248,9 @@ namespace Entanglement.Objects
 
             // Drop any buffered remote state the moment we own the object, it is stale now
             if (IsOwner()) hasNetTarget = false;
+
+            if (ownerQueue.Count == 0)
+                ClearHeldHandPose();
 
             if (!IsOwner()) SetHealth(float.PositiveInfinity);
             else SetHealth(objectHealth);
@@ -399,9 +413,10 @@ namespace Entanglement.Objects
                     if (rb && hasNetTarget && !rb.isKinematic && !IsPluggedIntoGun()) {
                         bool heldRemote = ownerQueue.Count > 0;
 
-                        // Held props hard-track (Fusion-like); never silence-freeze them mid-air
+                        // Held props are driven after PlayerRep hands update (Mod.OnFixedUpdate)
+                        // so they stick to the visible hand instead of a one-tick-stale puppet.
                         if (heldRemote) {
-                            HardTrackHeldRemote();
+                            // no-op here
                         }
                         else if (Time.time - netReceiveTime > remoteSilenceFreeze) {
                             hasNetTarget = false;
@@ -412,6 +427,9 @@ namespace Entanglement.Objects
                         else {
                             InterpolateRemote();
                         }
+                    }
+                    else if (IsPluggedIntoGun()) {
+                        ClearHeldHandPose();
                     }
                 }
             }
@@ -481,15 +499,19 @@ namespace Entanglement.Objects
             if (ownerQueue.Contains(userId))
                 return;
 
+            byte handedness = ResolveLocalHeldHand();
+
             if (Server.instance != null) {
                 EnqueueOwner(userId);
+                SetPreferredHeldHand(handedness);
             }
 
             TransformQueueMessageData queueData = new TransformQueueMessageData()
             {
                 userId = userId,
                 objectId = objectId,
-                isAdd = true
+                isAdd = true,
+                handedness = handedness
             };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
@@ -508,10 +530,32 @@ namespace Entanglement.Objects
             {
                 userId = userId,
                 objectId = objectId,
-                isAdd = false
+                isAdd = false,
+                handedness = 0
             };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+        }
+
+        public void CaptureLocalHeldHand() => SetPreferredHeldHand(ResolveLocalHeldHand());
+
+        // 1 = left, 2 = right, 0 = unknown (remote will pick nearest hand)
+        public byte ResolveLocalHeldHand() {
+            try {
+                if (IsHandHoldingObject(PlayerScripts.playerLeftHand))
+                    return 1;
+                if (IsHandHoldingObject(PlayerScripts.playerRightHand))
+                    return 2;
+            }
+            catch { }
+            return 0;
+        }
+
+        bool IsHandHoldingObject(Hand hand) {
+            if (!hand || !hand.m_CurrentAttachedObject)
+                return false;
+            Transform attachedRoot = hand.m_CurrentAttachedObject.transform.root;
+            return attachedRoot && attachedRoot == transform.root;
         }
 
         public IEnumerator WaitUntilValid(Action onFinish) {
@@ -545,6 +589,11 @@ namespace Entanglement.Objects
             netReceiveTime = Time.time;
             hasNetTarget = true;
 
+            if (ownerQueue.Count > 0)
+                RefreshHeldHandOffset(position, rotation);
+            else
+                ClearHeldHandPose();
+
             if (!rb) {
                 transform.position = position;
                 transform.rotation = rotation;
@@ -555,16 +604,112 @@ namespace Entanglement.Objects
                 transform.gameObject.SetActive(true);
         }
 
-        // Held guns/mags/props: MovePosition toward the owner's pose instead of soft PD.
-        // PD lag + silence-freeze is what made magazines hover beside hands.
-        protected void HardTrackHeldRemote() {
-            float age = Mathf.Min(Time.time - netReceiveTime, heldHardTrackAge);
-            Vector3 predictedPos = netPosition + netVelocity * age;
-            Quaternion predictedRot = netRotation;
+        public void SetPreferredHeldHand(byte handedness) {
+            preferredHeldHand = handedness;
+            // Force rebind on next packet / drive so eject→regrab picks the right hand
+            hasHeldHandPose = false;
+        }
 
-            float angSpeed = netAngularVelocity.magnitude;
-            if (angSpeed > 0.001f)
-                predictedRot = Quaternion.AngleAxis(angSpeed * age * 57.29578f, netAngularVelocity / angSpeed) * netRotation;
+        public void ClearHeldHandPose(bool clearPreferred = true) {
+            hasHeldHandPose = false;
+            heldHandIndex = 0;
+            heldLocalPos = Vector3.zero;
+            heldLocalRot = Quaternion.identity;
+            if (clearPreferred)
+                preferredHeldHand = 0;
+        }
+
+        public void RefreshHeldHandOffset(Vector3 worldPos, Quaternion worldRot) {
+            if (!PlayerRepresentation.representations.TryGetValue(staleOwner, out PlayerRepresentation rep) || rep == null)
+                return;
+
+            int handIdx = preferredHeldHand;
+            if (handIdx != 1 && handIdx != 2)
+                handIdx = PickNearestHand(rep, worldPos);
+
+            if (handIdx < 1 || handIdx > 2)
+                return;
+
+            Transform hand = rep.repTransforms[handIdx];
+            if (!hand)
+                return;
+
+            heldHandIndex = handIdx;
+            heldLocalPos = hand.InverseTransformPoint(worldPos);
+            heldLocalRot = Quaternion.Inverse(hand.rotation) * worldRot;
+            hasHeldHandPose = true;
+        }
+
+        static int PickNearestHand(PlayerRepresentation rep, Vector3 worldPos) {
+            float maxSqr = heldHandMaxDistance * heldHandMaxDistance;
+            float d1 = float.MaxValue;
+            float d2 = float.MaxValue;
+
+            if (rep.repTransforms[1])
+                d1 = (rep.repTransforms[1].position - worldPos).sqrMagnitude;
+            if (rep.repTransforms[2])
+                d2 = (rep.repTransforms[2].position - worldPos).sqrMagnitude;
+
+            if (d1 > maxSqr && d2 > maxSqr)
+                return 0;
+
+            return d1 <= d2 ? 1 : 2;
+        }
+
+        bool TryGetHeldHand(out Transform hand) {
+            hand = null;
+            if (!hasHeldHandPose || heldHandIndex < 1 || heldHandIndex > 2)
+                return false;
+            if (!PlayerRepresentation.representations.TryGetValue(staleOwner, out PlayerRepresentation rep) || rep == null)
+                return false;
+            hand = rep.repTransforms[heldHandIndex];
+            return hand;
+        }
+
+        // Called from Mod after PlayerRep IK so held props stick to the visible hands (Fusion grab feel)
+        public static void DriveHeldRemotesAfterReps() {
+            foreach (Syncable syncable in ObjectSync.syncedObjects.Values) {
+                TransformSyncable sync = syncable.TryCast<TransformSyncable>();
+                if (sync != null)
+                    sync.DriveHeldRemoteIfNeeded();
+            }
+        }
+
+        public void DriveHeldRemoteIfNeeded() {
+            if (!isValid || IsOwner() || !rb || rb.isKinematic)
+                return;
+            if (IsPluggedIntoGun()) {
+                ClearHeldHandPose();
+                return;
+            }
+            if (ownerQueue.Count == 0 || !hasNetTarget)
+                return;
+
+            HardTrackHeldRemote();
+        }
+
+        // Held guns/mags/props: follow the owner's PlayerRep hand when possible (Fusion-like),
+        // otherwise MovePosition toward the last world pose. Never silence-freeze while held.
+        protected void HardTrackHeldRemote() {
+            Vector3 predictedPos;
+            Quaternion predictedRot;
+
+            if (TryGetHeldHand(out Transform hand)) {
+                predictedPos = hand.TransformPoint(heldLocalPos);
+                predictedRot = hand.rotation * heldLocalRot;
+            }
+            else {
+                float age = Mathf.Min(Time.time - netReceiveTime, heldHardTrackAge);
+                predictedPos = netPosition + netVelocity * age;
+                predictedRot = netRotation;
+
+                float angSpeed = netAngularVelocity.magnitude;
+                if (angSpeed > 0.001f)
+                    predictedRot = Quaternion.AngleAxis(angSpeed * age * 57.29578f, netAngularVelocity / angSpeed) * netRotation;
+
+                // Opportunistically bind if we can see the holder's hands now
+                RefreshHeldHandOffset(predictedPos, predictedRot);
+            }
 
             Vector3 posError = predictedPos - rb.position;
             if (posError.sqrMagnitude > heldSnapDistance * heldSnapDistance) {
@@ -576,8 +721,15 @@ namespace Entanglement.Objects
                 rb.MoveRotation(predictedRot);
             }
 
-            rb.velocity = netVelocity;
-            rb.angularVelocity = netAngularVelocity;
+            // Hand-followed props shouldn't keep skating on stale world velocity
+            if (hasHeldHandPose) {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+            else {
+                rb.velocity = netVelocity;
+                rb.angularVelocity = netAngularVelocity;
+            }
 
             if (targetBody) {
                 targetBody.position = predictedPos;

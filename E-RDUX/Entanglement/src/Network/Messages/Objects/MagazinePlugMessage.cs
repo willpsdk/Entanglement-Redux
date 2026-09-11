@@ -77,6 +77,7 @@ namespace Entanglement.Network
                             // Stop free-body chase immediately so the mag doesn't hover at the
                             // last hand pose while the plug hierarchy takes over.
                             syncMag.hasNetTarget = false;
+                            syncMag.ClearHeldHandPose();
                             if (syncMag.rb && !syncMag.rb.isKinematic) {
                                 syncMag.rb.velocity = Vector3.zero;
                                 syncMag.rb.angularVelocity = Vector3.zero;
@@ -91,8 +92,10 @@ namespace Entanglement.Network
                         else {
                             syncMag._CachedPlug.ForceEject();
 
-                            // Seed the free-body target at the eject pose so remotes don't keep
-                            // the pre-reload float position until the next motion packet.
+                            // Keep preferred hand; force rebind so remotes don't keep the
+                            // pre-reload float pose (Fusion re-attaches the mag grip after eject).
+                            syncMag.ClearHeldHandPose(clearPreferred: false);
+
                             if (syncMag.rb) {
                                 syncMag.netPosition = syncMag.rb.position;
                                 syncMag.netRotation = syncMag.rb.rotation;
@@ -100,6 +103,7 @@ namespace Entanglement.Network
                                 syncMag.netAngularVelocity = Vector3.zero;
                                 syncMag.netReceiveTime = Time.time;
                                 syncMag.hasNetTarget = true;
+                                syncMag.RefreshHeldHandOffset(syncMag.netPosition, syncMag.netRotation);
                             }
 
 #if DEBUG

@@ -211,4 +211,4 @@ Live `PlayerRep` bodies are never treated as syncable props. Grabbing another pl
 
 ## Held item sync
 
-Props in a grip ownership queue hard-track on remotes (MovePosition) at ~45 Hz, never silence-freeze or rest-sleep mid-air, and detach uses the same magazine/pool body resolution as attach.
+Fusion attaches grips to remote player hands. Entanglement approximates that on BONEWORKS PlayerReps (no physics Hand): held props store a local offset to the holder's hand and hard-track that after each PlayerRep IK update (~45 Hz world corrections still refresh the offset). Props never silence-freeze or rest-sleep while gripped; mag plug insert/eject clears or rebinds hand pose; attach/detach share magazine/pool body resolution.
