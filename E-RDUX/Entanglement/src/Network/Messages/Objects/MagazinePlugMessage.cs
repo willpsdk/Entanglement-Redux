@@ -8,6 +8,7 @@ using Entanglement.Data;
 using Entanglement.Extensions;
 using Entanglement.Objects;
 using Entanglement.Patching;
+using Entanglement.Representation;
 
 using StressLevelZero.Pool;
 using StressLevelZero.Interaction;
@@ -104,6 +105,14 @@ namespace Entanglement.Network
                                 syncMag.netReceiveTime = Time.time;
                                 syncMag.hasNetTarget = true;
                                 syncMag.RefreshHeldHandOffset(syncMag.netPosition, syncMag.netRotation);
+                            }
+
+                            // Fusion MagazineEject: Grabber.Attach after ForceEject so the mag
+                            // sticks to the PlayerRep hand instead of floating beside it.
+                            byte hand = syncMag.preferredHeldHand;
+                            if ((hand == 1 || hand == 2) &&
+                                PlayerRepGrabber.TryGetGrabber(sender, out PlayerRepGrabber grabber)) {
+                                grabber.Attach(hand, syncMag.objectId, 0);
                             }
 
 #if DEBUG

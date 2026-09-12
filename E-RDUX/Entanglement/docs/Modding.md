@@ -211,4 +211,12 @@ Live `PlayerRep` bodies are never treated as syncable props. Grabbing another pl
 
 ## Held item sync
 
-Fusion attaches grips to remote player hands. Entanglement approximates that on BONEWORKS PlayerReps (no physics Hand): held props store a local offset to the holder's hand and hard-track that after each PlayerRep IK update (~45 Hz world corrections still refresh the offset). Props never silence-freeze or rest-sleep while gripped; mag plug insert/eject clears or rebinds hand pose; attach/detach share magazine/pool body resolution.
+Fusion attaches grips to remote player hands via `RigGrabber` / `Grip.TryAttach`. Entanglement now does the same on BONEWORKS PlayerReps:
+
+1. Stub kinematic `Hand` components on each PlayerRep hand IK target (`PlayerRepGrabber`)
+2. Reliable `PlayerRepGrab` / `PlayerRepRelease` messages call `Hand.AttachObject` / `DetachObject` on those stubs
+3. Mag eject re-Attaches like Fusion's MagazineEject
+4. Soft hand-relative hard-track remains the fallback if AttachObject fails on a stub Hand
+5. Held props never silence-freeze / rest-sleep mid-air; attach/detach share magazine/pool body resolution
+
+PlayerRep stub Hands are ignored by ownership patches so they cannot steal prop authority.

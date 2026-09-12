@@ -38,6 +38,11 @@ namespace Entanglement.Patching
     public static class GripAttachPatch
     {
         public static void Prefix(Hand __instance, GameObject objectToAttach) {
+            // PlayerRep stub Hands must never claim ownership — Fusion's RigGrabber attaches
+            // without stealing prop authority from the real holder.
+            if (PlayerRepGrabber.IsRemoteRepHand(__instance) || __instance.GetComponent<PlayerRepHandMarker>())
+                return;
+
             ObjectSync.OnGripAttached(objectToAttach);
         }
     }
@@ -46,6 +51,9 @@ namespace Entanglement.Patching
     public static class GripDetachPatch
     {
         public static void Prefix(Hand __instance, GameObject objectToDetach, bool restoreOriginalParent = true) {
+            if (PlayerRepGrabber.IsRemoteRepHand(__instance) || __instance.GetComponent<PlayerRepHandMarker>())
+                return;
+
             try { ObjectSync.OnGripDetached(__instance);
             }
             catch {

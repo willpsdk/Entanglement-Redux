@@ -438,6 +438,8 @@
     <Compile Include="src\Network\Messages\Attacks\PowerPunchMessage.cs" />
     <Compile Include="src\Network\Messages\Attacks\PlayerAttackMessage.cs" />
     <Compile Include="src\Network\Messages\Representation\PlayerRepSyncMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\PlayerRepGrabMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\PlayerRepReleaseMessage.cs" />
     <Compile Include="src\Network\Messages\Server\ShortIdMessage.cs" />
     <Compile Include="src\Network\Messages\Server\SpawnObjectMessage.cs" />
     <Compile Include="src\Data\Containers\DataCorruptionException.cs" />
@@ -473,6 +475,7 @@
     <Compile Include="src\Patching\Patches\ZombieArenaPatches.cs" />
     <Compile Include="src\Patching\Patches\ZonePatches.cs" />
     <Compile Include="src\Representation\PlayerRep.cs" />
+    <Compile Include="src\Representation\PlayerRepGrabber.cs" />
     <Compile Include="src\Network\SteamIntegration.cs" />
     <Compile Include="src\Network\NetworkSanity.cs" />
     <Compile Include="src\Network\ModDependency.cs" />

@@ -65,11 +65,14 @@ namespace Entanglement.Objects
 
         // Fusion sticks grips to remote hands; we approximate that by parenting the last world
         // pose into the holder's PlayerRep hand between packets (PlayerRep has no physics Hand).
+        // When PlayerRepGrabber successfully AttachObject's, remoteGripAttached is true and
+        // hard-track yields to the real grip joint (Fusion RigGrabber path).
         public byte preferredHeldHand; // 0 = auto, 1 = left, 2 = right
         int heldHandIndex;
         Vector3 heldLocalPos;
         Quaternion heldLocalRot = Quaternion.identity;
         bool hasHeldHandPose;
+        public bool remoteGripAttached;
 
         // Latest received network state, used to smoothly drive the object between packets
         public bool hasNetTarget = false;
@@ -500,6 +503,7 @@ namespace Entanglement.Objects
                 return;
 
             byte handedness = ResolveLocalHeldHand();
+            byte gripIndex = ResolveLocalGripIndex(handedness);
 
             if (Server.instance != null) {
                 EnqueueOwner(userId);
@@ -515,12 +519,20 @@ namespace Entanglement.Objects
             };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+
+            // Fusion PlayerRepGrab — remotes AttachObject this grip onto the PlayerRep stub Hand
+            if (handedness == 1 || handedness == 2)
+                PlayerRepGrabber.SendGrab(objectId, handedness, gripIndex);
         }
 
         public void OnValidDequeue() {
             long userId = SteamIntegration.currentUserId;
             if (!ownerQueue.Contains(userId))
                 return;
+
+            byte handedness = preferredHeldHand;
+            if (handedness != 1 && handedness != 2)
+                handedness = ResolveLocalHeldHand();
 
             if (Server.instance != null) {
                 DequeueOwner(userId);
@@ -535,9 +547,36 @@ namespace Entanglement.Objects
             };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+
+            if (handedness == 1 || handedness == 2)
+                PlayerRepGrabber.SendRelease(handedness);
+
+            remoteGripAttached = false;
+        }
+
+        byte ResolveLocalGripIndex(byte handedness) {
+            try {
+                Hand hand = null;
+                if (handedness == 1)
+                    hand = PlayerScripts.playerLeftHand;
+                else if (handedness == 2)
+                    hand = PlayerScripts.playerRightHand;
+                if (hand && hand.m_CurrentAttachedObject)
+                    return PlayerRepGrabber.ResolveLocalGripIndex(hand.m_CurrentAttachedObject, this);
+            }
+            catch { }
+            return 0;
         }
 
         public void CaptureLocalHeldHand() => SetPreferredHeldHand(ResolveLocalHeldHand());
+
+        public void SetRemoteGripAttached(bool attached) {
+            remoteGripAttached = attached;
+            if (!attached)
+                return;
+            // Grip joint owns the pose now — clear soft-follow offset so we don't fight it
+            hasHeldHandPose = false;
+        }
 
         // 1 = left, 2 = right, 0 = unknown (remote will pick nearest hand)
         public byte ResolveLocalHeldHand() {
@@ -615,6 +654,7 @@ namespace Entanglement.Objects
             heldHandIndex = 0;
             heldLocalPos = Vector3.zero;
             heldLocalRot = Quaternion.identity;
+            remoteGripAttached = false;
             if (clearPreferred)
                 preferredHeldHand = 0;
         }
@@ -683,6 +723,10 @@ namespace Entanglement.Objects
                 return;
             }
             if (ownerQueue.Count == 0 || !hasNetTarget)
+                return;
+
+            // Real remote grip joint is driving — don't MovePosition against it
+            if (remoteGripAttached)
                 return;
 
             HardTrackHeldRemote();

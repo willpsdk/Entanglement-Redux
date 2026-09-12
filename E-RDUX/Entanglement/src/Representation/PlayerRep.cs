@@ -47,6 +47,9 @@ namespace Entanglement.Representation
         public Transform[] repTransforms = new Transform[3];
         public Transform repRoot;
 
+        // Fusion-style remote grip host (stub Hands on IK targets)
+        public PlayerRepGrabber grabber;
+
         public GameObject repFord;
         public Material repHologram;
         public GameObject repCanvas;
@@ -269,6 +272,9 @@ namespace Entanglement.Representation
                 SetGrabCollisionIgnored(false);
             heldByLocalPlayer = false;
 
+            try { grabber?.DetachAll(); } catch { }
+            grabber = null;
+
             GameObject.Destroy(repFord);
             GameObject.Destroy(repCanvas);
             if (currentSkinObject) GameObject.Destroy(currentSkinObject);
@@ -344,6 +350,11 @@ namespace Entanglement.Representation
                 repTransforms[2] = repRoot.Find("Hand (right)");
 
                 colliders = repRoot.GetComponentsInChildren<Collider>();
+
+                // Stub kinematic Hands on the IK targets so remotes can Hand.AttachObject
+                // grips like Fusion's RigGrabber (PlayerRep has no physics RigManager).
+                try { grabber?.DetachAll(); } catch { }
+                grabber = PlayerRepGrabber.Create(this);
 
                 if (isCustomSkinned && currentSkinPath != null)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);

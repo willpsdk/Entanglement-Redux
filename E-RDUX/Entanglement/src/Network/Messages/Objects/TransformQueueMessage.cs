@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Entanglement.Data;
 using Entanglement.Extensions;
 using Entanglement.Objects;
+using Entanglement.Representation;
 
 namespace Entanglement.Network
 {
@@ -57,9 +58,28 @@ namespace Entanglement.Network
                     TransformSyncable held = syncable.TryCast<TransformSyncable>();
                     if (held)
                         held.SetPreferredHeldHand(handedness);
+
+                    // Late joiners / queue replay: AttachObject onto the PlayerRep stub Hand
+                    // (immediate grabs also arrive via PlayerRepGrab; this covers TransformQueue-only paths)
+                    if ((handedness == 1 || handedness == 2) && userId != SteamIntegration.currentUserId) {
+                        if (PlayerRepGrabber.TryGetGrabber(userId, out PlayerRepGrabber grabber))
+                            grabber.Attach(handedness, objectId, 0);
+                    }
                 }
                 else {
                     syncable.DequeueOwner(userId);
+
+                    if ((handedness == 1 || handedness == 2) && userId != SteamIntegration.currentUserId) {
+                        if (PlayerRepGrabber.TryGetGrabber(userId, out PlayerRepGrabber grabber))
+                            grabber.Detach(handedness);
+                    }
+                    else if (userId != SteamIntegration.currentUserId) {
+                        // Unknown hand on dequeue — drop both if this player was holding it
+                        if (PlayerRepGrabber.TryGetGrabber(userId, out PlayerRepGrabber grabber)) {
+                            grabber.Detach(1);
+                            grabber.Detach(2);
+                        }
+                    }
                 }
             }
 
