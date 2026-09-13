@@ -143,11 +143,8 @@ namespace Entanglement.Representation
 
                 sync.SetRemoteGripAttached(attached);
             }
-            catch (Exception e) {
-#if DEBUG
-                EntangleLogger.Warn($"PlayerRep grab attach failed: {e.Message}");
-#endif
-                // Leave hard-track fallback enabled
+            catch {
+                // Leave hard-track fallback enabled if stub Hand.AttachObject fails
                 sync.SetRemoteGripAttached(false);
             }
         }

@@ -837,7 +837,7 @@ namespace Entanglement.Objects
                     return;
                 }
 
-                float omega = 2f * Mathf.PI * pdFrequency;
+                float omega = 2f * 3.14159265f * pdFrequency;
                 float accelGain = omega * omega;
                 float dampGain = 2f * pdDamping * omega;
 
@@ -851,7 +851,7 @@ namespace Entanglement.Objects
                 if (float.IsInfinity(axis.x) || float.IsNaN(axis.x) || axis.sqrMagnitude < 0.0001f)
                     axis = Vector3.up;
                 if (angleDeg > 180f) angleDeg -= 360f;
-                Vector3 angleError = axis.normalized * (angleDeg * Mathf.Deg2Rad);
+                Vector3 angleError = axis.normalized * (angleDeg * 0.0174532924f);
                 Vector3 angVelError = netAngularVelocity - rb.angularVelocity;
                 // Torque ≈ I * (ω² θ + 2ζω ωerr); use mass as a stand-in for inertia magnitude
                 Vector3 torque = (angleError * accelGain + angVelError * dampGain) * rb.mass * 0.05f;

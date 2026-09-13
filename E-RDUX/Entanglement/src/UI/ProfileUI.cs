@@ -12,17 +12,11 @@ namespace Entanglement.UI
     public static class ProfileUI
     {
         static MenuCategory profileCategory;
-        static MenuElement nameElement;
-        static MenuElement statusElement;
+        static string lastNameText;
+        static string lastStatusText;
 
         public static void CreateUI(MenuCategory category) {
             profileCategory = category.CreateSubCategory("Profile", new Color(0.85f, 0.9f, 1f));
-
-            profileCategory.CreateFunctionElement($"You: {SteamIntegration.currentUserName}", Color.white, Refresh);
-            nameElement = profileCategory.elements[profileCategory.elements.Count - 1];
-
-            profileCategory.CreateFunctionElement(StatusText(), Color.white, Refresh);
-            statusElement = profileCategory.elements[profileCategory.elements.Count - 1];
 
             profileCategory.CreateFunctionElement("Refresh Status", Color.white, Refresh);
 
@@ -35,15 +29,23 @@ namespace Entanglement.UI
             });
 
             profileCategory.CreateFunctionElement($"Version {EntanglementMod.VersionString}", Color.grey, () => { });
+
+            Refresh();
         }
 
         public static void Refresh() {
             if (profileCategory == null) return;
 
-            if (nameElement != null)
-                nameElement.displayText = $"You: {SteamIntegration.currentUserName}";
-            if (statusElement != null)
-                statusElement.displayText = StatusText();
+            // BoneMenu displayText has no public setter — drop and recreate the status lines
+            if (!string.IsNullOrEmpty(lastNameText))
+                profileCategory.RemoveElement(lastNameText);
+            if (!string.IsNullOrEmpty(lastStatusText))
+                profileCategory.RemoveElement(lastStatusText);
+
+            lastNameText = $"You: {SteamIntegration.currentUserName}";
+            lastStatusText = StatusText();
+            profileCategory.CreateFunctionElement(lastNameText, Color.white, Refresh);
+            profileCategory.CreateFunctionElement(lastStatusText, Color.white, Refresh);
         }
 
         public static void Open() {
