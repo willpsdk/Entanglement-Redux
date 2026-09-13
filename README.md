@@ -1,63 +1,38 @@
 # Entanglement Redux
 
-A multiplayer mod for BONEWORKS. This is a continuation of the original Entanglement mod, rebuilt on Steamworks instead of the (now dead) Discord Game SDK, with a mostly rewritten networking and object sync layer.
+Multiplayer for BONEWORKS. Steam lobbies, other players in the room, and stuff you grab actually moving for everyone else.
 
-It is not affiliated with the original `boneworks-mp` project. It shares no code with it.
+This is a continuation of the original Entanglement mod. It is not the old `boneworks-mp` project and does not share code with it.
 
-## Status
+Still a work in progress. Things will break.
 
-This is a work in progress. Expect bugs. Current version is 2.0.0.
+## What you get
 
-## What it does
+- Host or join over Steam (public, friends-only, or private)
+- Other players, with hands and fingers
+- Guns, magazines, and other held stuff that stays in their hands
+- Story sync: buttons, keys, levers, valves, boxes, NPC deaths
+- Death and ragdolls
+- Custom items, maps, and playermodels sent between players. You approve downloads before they install
 
-- Steam-based lobbies and P2P networking (public, friends-only, or private)
-- Synced object physics with velocity-based dead reckoning, so held and thrown objects don't stutter or snap
-- Player representations (the models you see for other players) with interpolated movement and full hand/finger tracking
-- Story mode sync: buttons, keys, levers, valves, pull boxes, and NPC deaths/despawns all replicate across clients
-- Ragdoll death sync
-- Zone-aware culling that won't hide a player who's still standing in a zone with someone else
-- Automatic file sync — if someone's running a custom item or playermodel you don't have, you just get it from them, no manual downloading. A radial progress readout shows on your hand while a download's in flight, and you stay hidden from other players until yours finish
-- Built-in gamemodes (Deathmatch, Team Battle, Last Man Standing) with scoring, teams, elimination, and a BoneMenu scoreboard, plus an API so other mods can add their own
+Open the wrist circle menu for Profile, Lobby, Matchmaking, Players, Downloads, and Settings.
 
+## Install
 
-## Installing
+You need [MelonLoader](https://melonwiki.xyz/), [ModThatIsNotMod](https://boneworks.thunderstore.io/), and Steam running before you launch.
 
-You'll need:
+Put `EntanglementRedux.dll` and `ModThatIsNotMod.dll` in your `Mods` folder. Steamworks is bundled. If Steam still fails to start the mod, grab [Steamworks.NET 20.1.0](https://github.com/rlabrecque/Steamworks.NET/releases/tag/20.1.0), drop `Steamworks.NET.dll` into `BONEWORKS\MelonLoader\Managed`, and `steam_api64.dll` next to `BONEWORKS.exe`.
 
-- [MelonLoader](https://melonwiki.xyz/) installed on your BONEWORKS install
-- [ModThatIsNotMod](https://boneworks.thunderstore.io/) — required dependency, the mod won't load without it
-- Steam running before you launch the game
+## Building
 
-Drop `EntanglementRedux.dll` and `ModThatIsNotMod.dll` into your `Mods` folder. Both Steamworks.NET and `steam_api64.dll` are embedded in the mod and it tries to sort itself out on startup — `steam_api64.dll` gets extracted to `%AppData%/EntanglementMod/` and preloaded automatically.
+Open `E-RDUX/Entanglement.sln` in Visual Studio and point the references at your BONEWORKS MelonLoader `Managed` folder. The output is `EntanglementRedux.dll`.
 
-If Steam still fails to initialize on launch (check the MelonLoader console for a `steam_api64.dll` error), fall back to installing it manually:
+## Other mods
 
-1. Download [Steamworks.NET](https://github.com/rlabrecque/Steamworks.NET/releases/tag/20.1.0) and open the `x64` folder inside it
-2. Put `Steamworks.NET.dll` into `BONEWORKS\MelonLoader\Managed`
-3. Put `steam_api64.dll` into the `BONEWORKS` root folder (next to `BONEWORKS.exe`)
-
-## Building from source
-
-Open `Entanglement.sln` in Visual Studio. You'll need MelonLoader's `Managed` folder (the unhollowed game assemblies) referenced by the project — point the project at your own BONEWORKS install, or drop the DLLs into a `managed` folder next to the project.
-
-The build outputs `EntanglementRedux.dll`.
-
-## Modding
-
-Want your mod to sync over the network, or to add your own gamemode without touching this
-codebase? Both are supported:
-
-- [Modding.md](E-RDUX/Entanglement/docs/Modding.md) — how to hook a third-party mod into Entanglement's networking, send your own messages, and get your custom items/playermodels synced for free
-- [Gamemodes.md](E-RDUX/Entanglement/docs/Gamemodes.md) — how the gamemode framework works, and how to write your own using the built-in ones as reference
-
-## Contributing
-
-Bug reports and pull requests are welcome. If you're fixing something, a short description of what was broken and why your fix addresses it goes a long way — this codebase has a lot of history and it's easy to accidentally reintroduce something that was already fixed once.
+If you want your mod to send messages or files through Entanglement, see [Modding.md](E-RDUX/Entanglement/docs/Modding.md).
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
 
-## Credits
-
-Built on the original Entanglement by zCubed and Lakatrazz. Maintained by willpsdk & datgingeguy.
+Built on the original Entanglement by zCubed and Lakatrazz. Maintained by willpsdk and datgingeguy.
