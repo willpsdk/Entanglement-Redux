@@ -51,8 +51,14 @@ namespace Entanglement.Network
             ushort objectId = BitConverter.ToUInt16(message.messageData, index);
             index += sizeof(ushort);
 
+            bool applied = false;
+
             if (ObjectSync.TryGetSyncable(objectId, out Syncable syncable)) {
                 if (syncable is TransformSyncable) {
+                    // Owner-validated apply: host drops spoofed poses before they can be relayed
+                    if (!NetworkSanity.IsAuthorizedSyncSender(sender, syncable.staleOwner))
+                        return;
+
                     TransformSyncable syncObj = syncable.Cast<TransformSyncable>();
 
                     SimplifiedTransform simpleTransform = SimplifiedTransform.FromBytes(message.messageData.ToList().GetRange(index, SimplifiedTransform.size).ToArray());
@@ -73,10 +79,12 @@ namespace Entanglement.Network
                     }
 
                     syncObj.ApplyTransform(simpleTransform, velocity, angularVelocity);
+                    applied = true;
                 }
             }
 
-            if (Server.instance != null) {
+            // Only relay authorized poses — clients trust lobby-owner as the P2P sender after relay
+            if (applied && Server.instance != null) {
                 byte[] msgBytes = message.GetBytes();
                 Server.instance.BroadcastMessageExcept(NetworkChannel.Unreliable, msgBytes, sender);
             }

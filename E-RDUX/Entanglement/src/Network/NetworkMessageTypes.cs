@@ -53,6 +53,9 @@
             ItemSyncFileIncoming = 46,   // "Sending item X as file Y" - sent right before the P2P transfer starts
             PlayermodelSyncRequest = 47, // "I don't have your playermodel file, please send it"
             GamemodeState = 48,          // Host-authoritative round/score state, sent on change
-            GamemodeEvent = 49;          // One-off gamemode events (kill, capture, round start/end)
+            GamemodeEvent = 49,          // One-off gamemode events (kill, capture, round start/end)
+            MapSyncRequest = 50,         // "I don't have the custom map file the host loaded, please send it"
+            PlayerRepGrab = 51,          // Fusion-style remote Hand.AttachObject on a PlayerRep stub hand
+            PlayerRepRelease = 52;       // Fusion-style remote Hand.DetachObject
     }
 }

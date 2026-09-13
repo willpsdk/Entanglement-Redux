@@ -186,3 +186,37 @@ This is capped at 90 seconds—if a download gets stuck, the player appears anyw
 
 - **Making a gamemode?** Check out [Gamemodes.md](Gamemodes.md)
 - **Need more network message examples?** Look at `CustomItemSync.cs` or `FileTransfer.cs` for real implementations
+
+
+## Custom map sync
+
+When the host loads a Custom Maps map, clients missing the file are prompted to Accept/Deny a P2P download (circle menu or BoneMenu → File Sync). Maps never auto-install without consent.
+
+## Downloads permission (Fusion-style)
+
+When a synced file needs permission, Entanglement queues it and notifies you.
+Open the wrist **circle menu → Downloads**, then open the file's submenu to see
+what it is (name, size, type, sender) and **Accept** or **Decline**.
+
+## Entanglement menu (Fusion-style hub)
+
+Circle menu opens the full hub:
+**Profile · Lobby · Matchmaking · Players · Downloads · Settings**
+
+Gamemodes are not exposed in the menu (backend API remains for mods that register modes themselves).
+
+## Player grab physics
+
+Live `PlayerRep` bodies are never treated as syncable props. Grabbing another player keeps their pose under PlayerRep sync (step-clamped while you hold them, crouch Y damped) instead of stealing TransformSyncable ownership.
+
+## Held item sync
+
+Fusion attaches grips to remote player hands via `RigGrabber` / `Grip.TryAttach`. Entanglement now does the same on BONEWORKS PlayerReps:
+
+1. Stub kinematic `Hand` components on each PlayerRep hand IK target (`PlayerRepGrabber`)
+2. Reliable `PlayerRepGrab` / `PlayerRepRelease` messages call `Hand.AttachObject` / `DetachObject` on those stubs
+3. Mag eject re-Attaches like Fusion's MagazineEject
+4. Soft hand-relative hard-track remains the fallback if AttachObject fails on a stub Hand
+5. Held props never silence-freeze / rest-sleep mid-air; attach/detach share magazine/pool body resolution
+
+PlayerRep stub Hands are ignored by ownership patches so they cannot steal prop authority.

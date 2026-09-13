@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -183,8 +183,10 @@ namespace Entanglement.Objects
             MelonCoroutines.Start(OnGripValid(grip));
         }
 
-        // We wait two frames so custom gun magazines don't spawn regular ones at 0, 0, 0 too
+        // Wait a few frames so custom gun magazines don't spawn regular ones at 0,0,0,
+        // and so two-hand / throw handoffs settle before ownership is claimed.
         public static IEnumerator OnGripValid(GameObject grip) {
+            yield return null;
             yield return null;
             yield return null;
 
@@ -239,8 +241,14 @@ namespace Entanglement.Objects
                 if (!rb || rb.isKinematic)
                     continue;
 
-                if (TransformSyncable.cache.Get(rb.gameObject))
+                TransformSyncable existing = TransformSyncable.cache.Get(rb.gameObject);
+                if (existing) {
+                    // Fusion-style held lock: punching a held object must not steal ownership
+                    if (!existing.CanStealOwnership(SteamIntegration.currentUserId))
+                        continue;
+                    // Already synced and stealable - leave the current owner simulating
                     continue;
+                }
 
                 SyncUtilities.UpdateBodyAttached(rb, overrideRootName, spawnIndex, spawnTime);
                 SyncUtilities.UpdateBodyDetached(rb);
@@ -257,7 +265,11 @@ namespace Entanglement.Objects
 
             if (currentObject.IsBlacklisted()) return;
 
-            Rigidbody[] rigidbodies = currentObject.transform.GetJointedBodies();
+            // Same body resolution as attach — magazines resolve via GetChildBodies / pool path,
+            // so detach must not only use GetJointedBodies or ownership sticks / orphans float.
+            GetPooleeData(currentObject.transform, out Rigidbody[] rigidbodies, out _, out _, out _);
+            if (rigidbodies == null || rigidbodies.Length == 0)
+                rigidbodies = currentObject.transform.GetJointedBodies();
 
             // Two hand check
             Rigidbody otherRb = __instance.otherHand.GetHeldObject();
@@ -274,7 +286,9 @@ namespace Entanglement.Objects
 
             if (grip.IsBlacklisted()) return;
 
-            Rigidbody[] rigidbodies = grip.transform.GetJointedBodies();
+            GetPooleeData(grip.transform, out Rigidbody[] rigidbodies, out _, out _, out _);
+            if (rigidbodies == null || rigidbodies.Length == 0)
+                rigidbodies = grip.transform.GetJointedBodies();
 
             for (int i = 0; i < rigidbodies.Length; i++)
                 SyncUtilities.UpdateBodyDetached(rigidbodies[i]);

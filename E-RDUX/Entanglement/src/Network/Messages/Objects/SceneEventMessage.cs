@@ -23,7 +23,8 @@ namespace Entanglement.Network
     /// Syncs story mode interactions that live on static scene objects (buttons, key receivers).
     /// The interaction inputs are synced and the scene logic they trigger runs locally on every client.
     /// </summary>
-    [Net.SkipHandleOnLoading]
+        // Story beats can fire while a late joiner is still loading; RetryApply covers missing paths
+    // [Net.SkipHandleOnLoading] removed so button sequences are not dropped during load
     public class SceneEventMessageHandler : NetworkMessageHandler<SceneEventMessageData>
     {
         public override byte? MessageIndex => BuiltInMessageType.SceneEvent;

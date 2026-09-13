@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using Entanglement.Data;
 using Entanglement.Representation;
@@ -54,6 +54,11 @@ namespace Entanglement.Network
                 switch (attackType) {
                     case AttackType.Stabbing:
                         rep.repStabSFX.GunShot();
+                        break;
+                    case AttackType.Blunt:
+                        // No dedicated blunt SFX on the rep; stab clip is better than silence
+                        if (rep.repStabSFX)
+                            rep.repStabSFX.GunShot();
                         break;
                 }
             }

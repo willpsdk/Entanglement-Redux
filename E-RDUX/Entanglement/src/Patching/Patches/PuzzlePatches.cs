@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 using HarmonyLib;
@@ -10,6 +11,8 @@ using StressLevelZero.Pool;
 
 using Entanglement.Network;
 using Entanglement.Extensions;
+
+using MelonLoader;
 
 namespace Entanglement.Objects
 {
@@ -101,8 +104,11 @@ namespace Entanglement.Objects
             }
 
             Transform target = objectPath.GetFromFullPath();
-            if (!target)
+            if (!target) {
+                // Buttons in culled zones can take a moment to exist after a scene loads
+                MelonCoroutines.Start(RetryApply(type, arg, objectPath));
                 return;
+            }
 
             try {
                 switch (type) {
@@ -115,6 +121,8 @@ namespace Entanglement.Objects
                             return;
 
                         if (type == SceneEventType.ButtonPress) {
+                            // Keep pressed-state mirrored so sequence logic that reads _isPressed matches
+                            button._isPressed = true;
                             button.onPress?.Invoke();
 
                             if (!button._hasBeenPressed) {
@@ -122,8 +130,10 @@ namespace Entanglement.Objects
                                 button._hasBeenPressed = true;
                             }
                         }
-                        else
+                        else {
+                            button._isPressed = false;
                             button.onDepress?.Invoke();
+                        }
 
                         break;
                     }
@@ -180,7 +190,21 @@ namespace Entanglement.Objects
             }
         }
 
-        private static void ApplyNpcEvent(SceneEventType type, ushort pooleeId, string objectPath) {
+        
+        static System.Collections.IEnumerator RetryApply(SceneEventType type, ushort arg, string objectPath) {
+            for (int attempt = 0; attempt < 30; attempt++) {
+                yield return null;
+                if (!objectPath.GetFromFullPath())
+                    continue;
+
+                ApplyRemoteEvent(type, arg, objectPath);
+                yield break;
+            }
+
+            EntangleLogger.Warn($"Scene event {type} could not resolve path after retries: {objectPath}");
+        }
+
+private static void ApplyNpcEvent(SceneEventType type, ushort pooleeId, string objectPath) {
             Transform root = null;
 
             if (pooleeId != 0 && PooleeSyncable._PooleeLookup.TryGetValue(pooleeId, out PooleeSyncable poolee) && poolee)

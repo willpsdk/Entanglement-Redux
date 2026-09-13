@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,6 +28,7 @@ using StressLevelZero.VRMK;
 using StressLevelZero.Player;
 using StressLevelZero.SFX;
 using StressLevelZero.Combat;
+using StressLevelZero.Interaction;
 
 using ModThatIsNotMod;
 
@@ -45,6 +46,9 @@ namespace Entanglement.Representation
 
         public Transform[] repTransforms = new Transform[3];
         public Transform repRoot;
+
+        // Fusion-style remote grip host (stub Hands on IK targets)
+        public PlayerRepGrabber grabber;
 
         public GameObject repFord;
         public Material repHologram;
@@ -116,11 +120,22 @@ namespace Entanglement.Representation
         public Quaternion[] netRotations = new Quaternion[3];
         public Vector3[] netLimbVelocities = new Vector3[3];
 
-        public const float repFollowSharpness = 35f;   // Exponential smoothing rate for the root
-        public const float repLimbSharpness = 60f;      // Head/hands track much harder, they are what pushes other players
-        public const float repExtrapolationLimit = 0.2f; // Never predict further than this past the last packet
-        public const float repSnapDistance = 2f;        // Teleport instead of chasing when further than this
-        public const float repMaxPredictedSpeed = 25f;  // Caps dead reckoning speed so a teleport can't fling the rep
+        // Local grab of this remote player — hard-track + damp launches (Fusion-style locked body)
+        bool heldByLocalPlayer;
+        bool grabCollisionIgnored;
+        float heldReleaseUntil; // Brief post-release window that keeps Y extrapolation off
+
+        public const float repFollowSharpness = 28f;   // Exponential smoothing rate for the root
+        public const float repLimbSharpness = 48f;      // Head/hands track much harder, they are what pushes other players
+        public const float repExtrapolationLimit = 0.28f; // Never predict further than this past the last packet
+        public const float repSnapDistance = 2.5f;        // Teleport instead of chasing when further than this
+        public const float repMaxPredictedSpeed = 18f;  // Caps dead reckoning speed so a teleport can't fling the rep
+        public const float crouchVerticalDelta = 0.06f;   // Grounded ΔY above this without lateral motion = posture, not flight
+        public const float crouchLateralMax = 0.45f;
+        public const float heldMaxPlanarStep = 0.10f;   // Per FixedUpdate XZ chase while gripping (kills trail, no fling)
+        public const float heldMaxVerticalStep = 0.018f; // Crouch ΔY through a grab joint — keep tiny to stop launches
+        public const float heldReleaseCooldown = 0.18f;
+        public const float localHoldVerticalDamp = 2.5f; // Clamp our own PhysBody Y speed while jointed to a puppet
 
 
 #if DEBUG
@@ -253,12 +268,26 @@ namespace Entanglement.Representation
         }
 
         public void DeleteRepresentations() {
+            if (grabCollisionIgnored)
+                SetGrabCollisionIgnored(false);
+            heldByLocalPlayer = false;
+
+            try { grabber?.DetachAll(); } catch { }
+            grabber = null;
+
             GameObject.Destroy(repFord);
             GameObject.Destroy(repCanvas);
             if (currentSkinObject) GameObject.Destroy(currentSkinObject);
         }
 
         public void RecreateRepresentations() {
+            // Scene reloads rebuild the puppet without DeleteRepresentations — clear grab state so
+            // stale IgnoreCollision pairs / hard-track flags don't stick to the new hierarchy.
+            if (grabCollisionIgnored)
+                SetGrabCollisionIgnored(false);
+            heldByLocalPlayer = false;
+            heldReleaseUntil = 0f;
+
             // Catch errors with creating so it doesnt prevent others from being created
             try {
                 repCanvas = new GameObject("RepCanvas");
@@ -280,6 +309,11 @@ namespace Entanglement.Representation
                 repTalkingIcon = iconGo.AddComponent<Image>();
                 repTalkingIcon.sprite = GetSpeakerSprite();
                 repTalkingIcon.color = new Color(0.4f, 1f, 0.5f);
+                repTalkingIcon.preserveAspect = true;
+                repTalkingIcon.raycastTarget = false;
+                repTalkingIcon.type = Image.Type.Simple;
+                RectTransform iconRect = repTalkingIcon.rectTransform;
+                iconRect.sizeDelta = new Vector2(24f, 24f);
                 iconGo.SetActive(false);
 
                 // Fresh canvas starts with no indicator; forget any mid-speech state from before
@@ -316,6 +350,11 @@ namespace Entanglement.Representation
                 repTransforms[2] = repRoot.Find("Hand (right)");
 
                 colliders = repRoot.GetComponentsInChildren<Collider>();
+
+                // Stub kinematic Hands on the IK targets so remotes can Hand.AttachObject
+                // grips like Fusion's RigGrabber (PlayerRep has no physics RigManager).
+                try { grabber?.DetachAll(); } catch { }
+                grabber = PlayerRepGrabber.Create(this);
 
                 if (isCustomSkinned && currentSkinPath != null)
                     PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath);
@@ -423,14 +462,42 @@ namespace Entanglement.Representation
 
         // Feeds the rep new network data, velocities are estimated from consecutive packets for dead reckoning
         public void SetNetTargets(Vector3 rootPosition, Vector3[] positions, Quaternion[] rotations) {
+            if (!NetworkSanity.IsInWorld(rootPosition))
+                return;
+
+            for (int i = 0; i < positions.Length; i++) {
+                if (!NetworkSanity.IsInWorld(positions[i]) || !NetworkSanity.IsFinite(rotations[i]))
+                    return;
+            }
+
             float now = Time.time;
+            bool suppressVertical = heldByLocalPlayer || now < heldReleaseUntil;
 
             if (hasNetTarget) {
                 float packetDelta = Mathf.Clamp(now - netReceiveTime, 0.008f, 0.5f);
-                netRootVelocity = Vector3.ClampMagnitude((rootPosition - netRootPosition) / packetDelta, repMaxPredictedSpeed);
+                Vector3 delta = rootPosition - netRootPosition;
+                Vector3 rawVel = delta / packetDelta;
 
-                for (int r = 0; r < netPositions.Length; r++)
-                    netLimbVelocities[r] = Vector3.ClampMagnitude((positions[r] - netPositions[r]) / packetDelta, repMaxPredictedSpeed);
+                // Crouch / stand is mostly vertical with little lateral travel.
+                // Feeding that ΔY into dead reckoning is what launches mutual-grab couples.
+                float lateral = new Vector2(delta.x, delta.z).magnitude;
+                bool looksLikeCrouch = Mathf.Abs(delta.y) > crouchVerticalDelta && lateral < crouchLateralMax;
+                if ((isGrounded || suppressVertical) && looksLikeCrouch)
+                    rawVel.y = 0f;
+
+                // While gripping (or just after), never dead-reckon — leftover crouch/hand Δ would
+                // re-enable extrapolation for one packet and fling the jointed pair.
+                if (suppressVertical) {
+                    netRootVelocity = Vector3.zero;
+                    for (int r = 0; r < netLimbVelocities.Length; r++)
+                        netLimbVelocities[r] = Vector3.zero;
+                }
+                else {
+                    netRootVelocity = Vector3.ClampMagnitude(rawVel, repMaxPredictedSpeed);
+
+                    for (int r = 0; r < netPositions.Length; r++)
+                        netLimbVelocities[r] = Vector3.ClampMagnitude((positions[r] - netPositions[r]) / packetDelta, repMaxPredictedSpeed);
+                }
             }
             else {
                 netRootVelocity = Vector3.zero;
@@ -453,27 +520,119 @@ namespace Entanglement.Representation
         public void ApplyNetSmoothing(float dt) {
             if (!hasNetTarget || !repRoot) return;
 
-            float age = Mathf.Min(Time.time - netReceiveTime, repExtrapolationLimit);
+            UpdateLocalGrabState();
+
+            // While we are gripping this remote player, chase packets without extrapolation so the
+            // hand joint isn't pulling a body that trails a packet behind — but clamp per-tick
+            // steps (especially Y) so crouch pose snaps don't launch mutual-grab couples.
+            float age = heldByLocalPlayer ? 0f : Mathf.Min(Time.time - netReceiveTime, repExtrapolationLimit);
             Vector3 predictedRoot = netRootPosition + netRootVelocity * age;
 
-            float t = 1f - Mathf.Exp(-repFollowSharpness * dt);
-            float limbT = 1f - Mathf.Exp(-repLimbSharpness * dt);
-            if ((repRoot.position - predictedRoot).sqrMagnitude > repSnapDistance * repSnapDistance)
-                t = limbT = 1f;
+            if (heldByLocalPlayer) {
+                ApplyHeldStep(repRoot, predictedRoot, true);
+                ZeroRepRigidbodyVelocities();
+                DampLocalHoldVertical();
+            }
+            else {
+                float t = 1f - Mathf.Exp(-repFollowSharpness * dt);
+                float limbT = 1f - Mathf.Exp(-repLimbSharpness * dt);
+                if ((repRoot.position - predictedRoot).sqrMagnitude > repSnapDistance * repSnapDistance)
+                    t = limbT = 1f;
 
-            repRoot.position = Vector3.Lerp(repRoot.position, predictedRoot, t);
+                repRoot.position = Vector3.Lerp(repRoot.position, predictedRoot, t);
 
-            // Limbs dead reckon with their own velocity, root drift alone left fast hand
-            // motion a packet behind and made player-on-player pushes feel delayed
-            for (int r = 0; r < repTransforms.Length; r++) {
-                if (!repTransforms[r]) continue;
+                for (int r = 0; r < repTransforms.Length; r++) {
+                    if (!repTransforms[r]) continue;
 
-                repTransforms[r].position = Vector3.Lerp(repTransforms[r].position, netPositions[r] + netLimbVelocities[r] * age, limbT);
-                repTransforms[r].rotation = Quaternion.Slerp(repTransforms[r].rotation, netRotations[r], limbT);
+                    Vector3 limbTarget = netPositions[r] + netLimbVelocities[r] * age;
+                    repTransforms[r].position = Vector3.Lerp(repTransforms[r].position, limbTarget, limbT);
+                    repTransforms[r].rotation = Quaternion.Slerp(repTransforms[r].rotation, netRotations[r], limbT);
+                }
+            }
+
+            if (heldByLocalPlayer) {
+                for (int r = 0; r < repTransforms.Length; r++) {
+                    if (!repTransforms[r]) continue;
+                    ApplyHeldStep(repTransforms[r], netPositions[r], true);
+                    repTransforms[r].rotation = netRotations[r];
+                }
             }
 
             UpdateNametagPosition();
             UpdateTalkingIndicator();
+        }
+
+        // Chase the network pose in small FixedUpdate steps so grip joints never see a full
+        // crouch teleport in one physics tick.
+        void ApplyHeldStep(Transform target, Vector3 desired, bool clampVerticalHard) {
+            Vector3 delta = desired - target.position;
+            Vector3 planar = new Vector3(delta.x, 0f, delta.z);
+            float maxPlanar = heldMaxPlanarStep;
+            float maxY = clampVerticalHard ? heldMaxVerticalStep : heldMaxPlanarStep;
+
+            if (planar.sqrMagnitude > maxPlanar * maxPlanar)
+                planar = planar.normalized * maxPlanar;
+
+            float y = Mathf.Clamp(delta.y, -maxY, maxY);
+            target.position = target.position + planar + Vector3.up * y;
+        }
+
+        void ZeroRepRigidbodyVelocities() {
+            if (!repFord) return;
+            Rigidbody[] bodies = repFord.GetComponentsInChildren<Rigidbody>(true);
+            for (int i = 0; i < bodies.Length; i++) {
+                Rigidbody body = bodies[i];
+                if (!body || body.isKinematic) continue;
+                body.velocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+        }
+
+        void DampLocalHoldVertical() {
+            if (!PlayerScripts.playerPhysBody) return;
+            Rigidbody[] localBodies = PlayerScripts.playerPhysBody.GetComponentsInChildren<Rigidbody>(true);
+            for (int i = 0; i < localBodies.Length; i++) {
+                Rigidbody body = localBodies[i];
+                if (!body || body.isKinematic) continue;
+                Vector3 v = body.velocity;
+                if (Mathf.Abs(v.y) > localHoldVerticalDamp)
+                    v.y = Mathf.Sign(v.y) * localHoldVerticalDamp;
+                body.velocity = v;
+            }
+        }
+
+        void UpdateLocalGrabState() {
+            bool held = IsHeldByLocalHand(PlayerScripts.playerLeftHand) || IsHeldByLocalHand(PlayerScripts.playerRightHand);
+            if (held == heldByLocalPlayer && grabCollisionIgnored == held)
+                return;
+
+            if (heldByLocalPlayer && !held)
+                heldReleaseUntil = Time.time + heldReleaseCooldown;
+
+            heldByLocalPlayer = held;
+            SetGrabCollisionIgnored(held);
+        }
+
+        bool IsHeldByLocalHand(Hand hand) {
+            if (!hand || !hand.m_CurrentAttachedObject || !repFord)
+                return false;
+            Transform root = hand.m_CurrentAttachedObject.transform.root;
+            return root && root.name == $"PlayerRep.{playerId}";
+        }
+
+        void SetGrabCollisionIgnored(bool ignore) {
+            grabCollisionIgnored = ignore;
+            if (!PlayerScripts.playerPhysBody)
+                return;
+
+            // Soften PhysX fight between our body and the lagging puppet while jointed to it.
+            // Re-enabled when we let go. Fusion keeps player authority locked; we keep ownership
+            // locked via ObjectBlacklist and only damp contact here.
+            Rigidbody[] localBodies = PlayerScripts.playerPhysBody.GetComponentsInChildren<Rigidbody>(true);
+            for (int i = 0; i < localBodies.Length; i++) {
+                if (localBodies[i])
+                    IgnoreCollision(localBodies[i], ignore);
+            }
         }
 
         // Parks the nametag just above the head and turns it to face the camera. Split out so the
@@ -509,10 +668,17 @@ namespace Entanglement.Representation
             if (speakerSprite != null)
                 return speakerSprite;
 
+            // Procedural icon: Il2Cpp SetPixel + Rad2Deg paths have rendered as a blank white
+            // Image quad in-game, so we write raw Color32s and avoid Mathf.Rad2Deg.
             const int size = 64;
+            const float rad2deg = 57.29578f;
             Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            Color opaque = Color.white;
-            Color clear = new Color(1f, 1f, 1f, 0f);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+
+            Color32 opaque = new Color32(255, 255, 255, 255);
+            Color32 clear = new Color32(255, 255, 255, 0);
+            Color32[] pixels = new Color32[size * size];
             float cy = size / 2f;
 
             for (int y = 0; y < size; y++) {
@@ -526,26 +692,27 @@ namespace Entanglement.Representation
 
                     // Cone, widening to the right
                     if (x > 18 && x <= 32) {
-                        float t = (x - 18f) / 14f;
-                        if (Mathf.Abs(dy) <= Mathf.Lerp(9f, 22f, t))
+                        float tt = (x - 18f) / 14f;
+                        if (Mathf.Abs(dy) <= Mathf.Lerp(9f, 22f, tt))
                             fill = true;
                     }
 
-                    // Three sound-wave arcs fanning out from the cone mouth
+                    // Three sound-wave arcs
                     float wx = x - 36f;
                     if (!fill && wx > 0f) {
                         float dist = Mathf.Sqrt(wx * wx + dy * dy);
-                        float angle = Mathf.Abs(Mathf.Atan2(dy, wx)) * Mathf.Rad2Deg;
+                        float angle = Mathf.Abs(Mathf.Atan2(dy, wx)) * rad2deg;
                         if (angle <= 50f && (Mathf.Abs(dist - 10f) <= 2f || Mathf.Abs(dist - 17f) <= 2f || Mathf.Abs(dist - 24f) <= 2f))
                             fill = true;
                     }
 
-                    tex.SetPixel(x, y, fill ? opaque : clear);
+                    pixels[y * size + x] = fill ? opaque : clear;
                 }
             }
 
-            tex.Apply();
-            speakerSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f));
+            tex.SetPixels32(pixels);
+            tex.Apply(false, false);
+            speakerSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
             return speakerSprite;
         }
 

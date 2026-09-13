@@ -100,6 +100,7 @@ namespace Entanglement.Network
             SteamMatchmaking.SetLobbyData(SteamIntegration.lobby, "version", EntanglementMod.VersionString);
             SteamMatchmaking.SetLobbyData(SteamIntegration.lobby, "host_name", SteamIntegration.currentUserName);
             SteamMatchmaking.SetLobbyJoinable(SteamIntegration.lobby, !isLocked);
+            ModDependency.PublishHostRequirements();
 
             RegisterLobbyCallbacks();
 
@@ -300,10 +301,16 @@ namespace Entanglement.Network
                     continue;
 
                 foreach (long owner in syncable.ownerQueue) {
+                    byte handedness = 0;
+                    TransformSyncable held = syncable.TryCast<TransformSyncable>();
+                    if (held && owner == syncable.staleOwner)
+                        handedness = held.preferredHeldHand;
+
                     TransformQueueMessageData queueData = new TransformQueueMessageData() {
                         userId = owner,
                         objectId = syncable.objectId,
                         isAdd = true,
+                        handedness = handedness,
                     };
 
                     NetworkMessage queueMessage = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);

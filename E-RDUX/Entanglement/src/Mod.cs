@@ -32,14 +32,14 @@ namespace Entanglement {
     // We can compare with peers to see if they are on a supported version
     public struct EntanglementVersion {
         public const byte versionMajor = 0;
-        public const byte versionMinor = 4;
-        public const short versionPatch = 0;
+        public const byte versionMinor = 5;
+        public const short versionPatch = 7;
 
         // Patches don't matter too much when supporting old versions
         // Although we don't support anything newer than the current version, just in case
-        // 0.4.0 changed the TransformSync wire format (velocities) and added SceneEvent, so older peers are incompatible
+        // 0.5.x: physics authority + PlayerRep remote Grip.AttachObject + held hard-track fallback + map sync UI
         public const byte minVersionMajorSupported = 0;
-        public const byte minVersionMinorSupported = 4;
+        public const byte minVersionMinorSupported = 5;
     }
 
     public class EntanglementMod : MelonMod {
@@ -101,12 +101,14 @@ namespace Entanglement {
 
             Entanglement.Sync.CustomItemSync.Initialize();
             Entanglement.Sync.PlayermodelSync.Initialize();
+            Entanglement.Sync.CustomMapSync.Initialize();
             Entanglement.Gamemodes.GamemodeHandler.Initialize();
 
             PlayerRepresentation.LoadBundle();
             LoadingScreen.LoadBundle();
 
             EntanglementUI.CreateUI();
+            EntanglementRadial.Initialize();
 
             BanList.PullFromFile();
 
@@ -180,6 +182,9 @@ namespace Entanglement {
 
             // Updates the VRIK of all the players
             PlayerRepresentation.UpdatePlayerReps();
+
+            // Held props follow PlayerRep hands after IK (Fusion sticks grips to remote hands)
+            TransformSyncable.DriveHeldRemotesAfterReps();
         }
 
         public override void OnLateUpdate() {

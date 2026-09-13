@@ -17,10 +17,22 @@ namespace Entanglement.UI {
                 SyncPrefs.playermodelSyncEnabled.Value = value;
             });
 
+            syncCategory.CreateBoolElement("Sync Custom Maps", Color.white, SyncPrefs.mapSyncEnabled.Value, (value) => {
+                SyncPrefs.mapSyncEnabled.Value = value;
+            });
+
+            syncCategory.CreateBoolElement("Ask Before Download", Color.white, SyncPrefs.requireDownloadConsent.Value, (value) => {
+                SyncPrefs.requireDownloadConsent.Value = value;
+            });
+
             syncCategory.CreateIntElement("Max File Size (MB)", Color.white, SyncPrefs.maxSyncSizeKB.Value / 1024, (value) => {
                 SyncPrefs.maxSyncSizeKB.Value = value * 1024;
             },
             10, 1, 500, true);
+
+            syncCategory.CreateFunctionElement("Open Downloads Inbox", new Color(1f, 0.75f, 0.25f), () => {
+                EntanglementMenu.OpenDownloads();
+            });
         }
     }
 }

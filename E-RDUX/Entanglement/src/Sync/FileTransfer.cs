@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 
@@ -19,6 +19,7 @@ namespace Entanglement.Sync
         Custom2 = 3,
         Custom3 = 4,
         Custom4 = 5,
+        CustomMap = 6,
     }
 
     // One in-flight transfer, either sending our file out in chunks or reassembling one coming in
@@ -43,6 +44,9 @@ namespace Entanglement.Sync
 
         public float lastActivity;
 
+        // Outgoing sends wait a beat after Begin so Reliable announce messages can land first
+        public float sendReadyTime;
+
         // Last 25% milestone we logged, so progress lines don't spam every chunk
         public int lastLoggedProgress;
     }
@@ -54,11 +58,29 @@ namespace Entanglement.Sync
         public const int chunkSize = 16000;          // Comfortably under Steam's reliable message ceiling
         public const int chunksPerFrame = 4;          // ~64KB/frame/transfer, throttled so it can't hog a frame
         public const int maxFileBytes = 200 * 1024 * 1024; // 200MB hard ceiling, matches item/model realistic sizes
-        public const float timeoutSeconds = 60f;
+        public const float timeoutSeconds = 180f;
 
         static ushort nextId = 1;
         static readonly Dictionary<ushort, FileTransfer> outgoing = new Dictionary<ushort, FileTransfer>();
         static readonly Dictionary<ushort, FileTransfer> incoming = new Dictionary<ushort, FileTransfer>();
+
+        // Begins waiting for the player to Accept/Deny before chunks are kept
+        static readonly Dictionary<ushort, FileTransfer> pendingConsent = new Dictionary<ushort, FileTransfer>();
+
+        public static bool HasPendingConsent => pendingConsent.Count > 0;
+        public static int PendingConsentCount => pendingConsent.Count;
+
+        public static FileTransfer LargestPendingConsent() {
+            FileTransfer biggest = null;
+            foreach (FileTransfer t in pendingConsent.Values)
+                if (biggest == null || t.totalBytes > biggest.totalBytes)
+                    biggest = t;
+            return biggest;
+        }
+
+        public static List<FileTransfer> GetPendingConsentTransfers() {
+            return new List<FileTransfer>(pendingConsent.Values);
+        }
 
         // Read-only status for the download UI / join gate
         public static bool HasActiveDownloads => incoming.Count > 0;
@@ -114,6 +136,8 @@ namespace Entanglement.Sync
                 lastActivity = Time.time,
             };
 
+            // Give Reliable ItemSync announcements a moment to arrive before Transaction chunks
+            transfer.sendReadyTime = Time.time + 0.35f;
             outgoing[id] = transfer;
 
             FileTransferBeginData beginData = new FileTransferBeginData {
@@ -123,9 +147,10 @@ namespace Entanglement.Sync
                 fileName = transfer.fileName,
             };
 
+            // Begin goes Reliable so it is less likely to race ahead of category announcements
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.FileTransferBegin, beginData);
             if (message != null)
-                Node.activeNode?.SendMessage(peer, NetworkChannel.Transaction, message.GetBytes());
+                Node.activeNode?.SendMessage(peer, NetworkChannel.Reliable, message.GetBytes());
 
             EntangleLogger.Log($"[FileTransfer] Sending {transfer.fileName} ({bytes.Length / 1024}KB) to {peer}");
             return id;
@@ -163,6 +188,16 @@ namespace Entanglement.Sync
                 lastActivity = Time.time,
             };
 
+            bool needsConsent = SyncPrefs.requireDownloadConsent.Value
+                || data.category == FileTransferCategory.CustomMap;
+
+            if (needsConsent && !SyncPrefs.IsUserTrusted(sender)) {
+                pendingConsent[data.transferId] = transfer;
+                EntangleLogger.Log($"[FileTransfer] Waiting for consent to download {data.fileName} ({data.totalBytes / 1024}KB) from {sender}");
+                ModThatIsNotMod.Notifications.SendNotification($"Download needs permission:\n{data.fileName}\nCircle menu → Downloads → Accept or Decline", 6f);
+                return;
+            }
+
             incoming[data.transferId] = transfer;
 
             EntangleLogger.Log($"[FileTransfer] Downloading {data.fileName} ({data.totalBytes / 1024}KB) from {sender}...");
@@ -187,14 +222,22 @@ namespace Entanglement.Sync
         }
 
         internal static void OnChunkReceived(long sender, FileTransferChunkData data) {
-            if (!incoming.TryGetValue(data.transferId, out FileTransfer transfer) || transfer.peer != sender)
-                return;
+            FileTransfer transfer;
+            if (incoming.TryGetValue(data.transferId, out transfer)) {
+                if (transfer.peer != sender) return;
+            }
+            else if (pendingConsent.TryGetValue(data.transferId, out transfer)) {
+                if (transfer.peer != sender) return;
+                // Buffer bytes while the player decides; Accept moves the transfer into incoming
+            }
+            else return;
 
             transfer.lastActivity = Time.time;
 
             if (transfer.receivedBytes + data.chunk.Length > transfer.receiveBuffer.Length) {
                 EntangleLogger.Warn($"[FileTransfer] Chunk overrun for {transfer.fileName}, aborting transfer");
                 incoming.Remove(data.transferId);
+                pendingConsent.Remove(data.transferId);
                 transfer.onFailed?.Invoke(transfer);
                 return;
             }
@@ -205,6 +248,10 @@ namespace Entanglement.Sync
             LogProgress(transfer, transfer.receivedBytes);
 
             if (transfer.receivedBytes >= transfer.totalBytes) {
+                if (pendingConsent.ContainsKey(data.transferId)) {
+                    EntangleLogger.Log($"[FileTransfer] {transfer.fileName} fully buffered, still waiting for consent");
+                    return;
+                }
                 incoming.Remove(data.transferId);
                 EntangleLogger.Log($"[FileTransfer] Finished downloading {transfer.fileName} ({transfer.totalBytes / 1024}KB) from {sender}");
                 transfer.onComplete?.Invoke(transfer);
@@ -219,6 +266,10 @@ namespace Entanglement.Sync
 
                 foreach (var pair in outgoing) {
                     FileTransfer transfer = pair.Value;
+
+                    // Wait for Begin + item announce to land before pumping chunks
+                    if (Time.time < transfer.sendReadyTime)
+                        continue;
 
                     for (int i = 0; i < chunksPerFrame && transfer.sentBytes < transfer.totalBytes; i++) {
                         int remaining = transfer.totalBytes - transfer.sentBytes;
@@ -268,9 +319,47 @@ namespace Entanglement.Sync
             }
         }
 
+
+        public static bool AcceptPending(ushort transferId) {
+            if (!pendingConsent.TryGetValue(transferId, out FileTransfer transfer))
+                return false;
+
+            pendingConsent.Remove(transferId);
+            incoming[transferId] = transfer;
+            EntangleLogger.Log($"[FileTransfer] Accepted download {transfer.fileName} from {transfer.peer}");
+
+            if (transfer.receivedBytes >= transfer.totalBytes && transfer.totalBytes > 0) {
+                incoming.Remove(transferId);
+                EntangleLogger.Log($"[FileTransfer] Finished downloading {transfer.fileName} ({transfer.totalBytes / 1024}KB) from {transfer.peer}");
+                transfer.onComplete?.Invoke(transfer);
+            }
+            return true;
+        }
+
+        public static bool DenyPending(ushort transferId) {
+            if (!pendingConsent.TryGetValue(transferId, out FileTransfer transfer))
+                return false;
+
+            pendingConsent.Remove(transferId);
+            EntangleLogger.Log($"[FileTransfer] Denied download {transfer.fileName} from {transfer.peer}");
+            transfer.onFailed?.Invoke(transfer);
+            return true;
+        }
+
+        public static void AcceptAllPending() {
+            foreach (ushort id in new List<ushort>(pendingConsent.Keys))
+                AcceptPending(id);
+        }
+
+        public static void DenyAllPending() {
+            foreach (ushort id in new List<ushort>(pendingConsent.Keys))
+                DenyPending(id);
+        }
+
         public static void Clear() {
             outgoing.Clear();
             incoming.Clear();
+            pendingConsent.Clear();
         }
 
         public static void WriteReceivedFile(FileTransfer transfer, string destinationPath) {

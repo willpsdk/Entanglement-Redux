@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 using ModThatIsNotMod;
 
@@ -15,8 +15,17 @@ namespace Entanglement
             Notifications.SendNotification($"{username} has left the server!", 4f);
         }
 
-        public static void PlayerDisconnect(DisconnectReason reason) {
-            Notifications.SendNotification($"You were disconnected for reason {reason}.", 4f);
+        public static void PlayerDisconnect(DisconnectReason reason, string additionalReason = "") {
+            if (reason == DisconnectReason.MissingMods && !string.IsNullOrEmpty(additionalReason))
+                Notifications.SendNotification($"Missing required mods:\n{additionalReason}", 8f);
+            else if (!string.IsNullOrEmpty(additionalReason))
+                Notifications.SendNotification($"You were disconnected for reason {reason}:\n{additionalReason}", 6f);
+            else
+                Notifications.SendNotification($"You were disconnected for reason {reason}.", 4f);
+        }
+
+        public static void MissingMods(string missingMods) {
+            Notifications.SendNotification($"Cannot join lobby — missing required mods:\n{missingMods}", 8f);
         }
 
         public static void LobbyStarted() {

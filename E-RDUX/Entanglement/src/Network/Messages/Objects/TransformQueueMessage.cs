@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Entanglement.Data;
 using Entanglement.Extensions;
 using Entanglement.Objects;
+using Entanglement.Representation;
 
 namespace Entanglement.Network
 {
@@ -19,7 +20,8 @@ namespace Entanglement.Network
         {
             NetworkMessage message = new NetworkMessage();
 
-            message.messageData = new byte[sizeof(ushort) + sizeof(byte) * 2];
+            // userId + objectId + isAdd + handedness (0 unknown / 1 left / 2 right)
+            message.messageData = new byte[sizeof(ushort) + sizeof(byte) * 3];
 
             int index = 0;
             message.messageData[index++] = SteamIntegration.GetByteId(data.userId);
@@ -27,6 +29,7 @@ namespace Entanglement.Network
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.objectId), ref index);
 
             message.messageData[index++] = Convert.ToByte(data.isAdd);
+            message.messageData[index++] = data.handedness;
 
             return message;
         }
@@ -45,13 +48,38 @@ namespace Entanglement.Network
             if (ObjectSync.TryGetSyncable(objectId, out Syncable syncable)) {
                 bool isAdd = Convert.ToBoolean(message.messageData[index++]);
 
-                // Try to enqueue the user
+                // Optional trailing byte — older peers omit it
+                byte handedness = 0;
+                if (index < message.messageData.Length)
+                    handedness = message.messageData[index++];
+
                 if (isAdd) {
                     syncable.EnqueueOwner(userId);
+                    TransformSyncable held = syncable.TryCast<TransformSyncable>();
+                    if (held)
+                        held.SetPreferredHeldHand(handedness);
+
+                    // Late joiners / queue replay: AttachObject onto the PlayerRep stub Hand
+                    // (immediate grabs also arrive via PlayerRepGrab; this covers TransformQueue-only paths)
+                    if ((handedness == 1 || handedness == 2) && userId != SteamIntegration.currentUserId) {
+                        if (PlayerRepGrabber.TryGetGrabber(userId, out PlayerRepGrabber grabber))
+                            grabber.Attach(handedness, objectId, 0);
+                    }
                 }
-                // Remove the user from the queue
                 else {
                     syncable.DequeueOwner(userId);
+
+                    if ((handedness == 1 || handedness == 2) && userId != SteamIntegration.currentUserId) {
+                        if (PlayerRepGrabber.TryGetGrabber(userId, out PlayerRepGrabber grabber))
+                            grabber.Detach(handedness);
+                    }
+                    else if (userId != SteamIntegration.currentUserId) {
+                        // Unknown hand on dequeue — drop both if this player was holding it
+                        if (PlayerRepGrabber.TryGetGrabber(userId, out PlayerRepGrabber grabber)) {
+                            grabber.Detach(1);
+                            grabber.Detach(2);
+                        }
+                    }
                 }
             }
 
@@ -68,5 +96,6 @@ namespace Entanglement.Network
         public long userId;
         public ushort objectId;
         public bool isAdd;
+        public byte handedness; // 0 unknown, 1 left, 2 right — Fusion-like grip hand hint
     }
 }

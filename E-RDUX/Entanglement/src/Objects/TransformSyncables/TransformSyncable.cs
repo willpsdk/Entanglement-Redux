@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
@@ -52,11 +52,27 @@ namespace Entanglement.Objects
         public const float linearLimit = 0.005f;
 
         // Remote interpolation settings
-        public const float extrapolationLimit = 0.25f; // Never predict further than this past the last packet
-        public const float followSharpness = 24f;      // Exponential smoothing rate for the follow target
-        public const float velocityGain = 24f;         // Positional correction gain for joint-constrained bodies
-        public const float angularGain = 18f;          // Rotational correction gain for joint-constrained bodies
-        public const float snapDistance = 2f;          // Teleport instead of chasing when further than this
+        public const float extrapolationLimit = 0.3f; // Never predict further than this past the last packet
+        public const float followSharpness = 30f;      // Exponential smoothing rate for the follow target
+        public const float velocityGain = 28f;         // Positional correction gain for joint-constrained bodies
+        public const float angularGain = 22f;          // Rotational correction gain for joint-constrained bodies
+        public const float snapDistance = 2.75f;          // Teleport instead of chasing when further than this
+        public const float pdFrequency = 8f;         // PD spring frequency for free remote bodies
+        public const float pdDamping = 0.85f;        // PD damping ratio (1 = critical)
+        public const float heldHardTrackAge = 0.04f; // Tiny dead-reckon window for held props (not free-body skate)
+        public const float heldSnapDistance = 0.4f;  // Teleport if the held remote drifted this far
+        public const float heldHandMaxDistance = 1.5f; // Ignore hand anchors farther than this from the prop
+
+        // Fusion sticks grips to remote hands; we approximate that by parenting the last world
+        // pose into the holder's PlayerRep hand between packets (PlayerRep has no physics Hand).
+        // When PlayerRepGrabber successfully AttachObject's, remoteGripAttached is true and
+        // hard-track yields to the real grip joint (Fusion RigGrabber path).
+        public byte preferredHeldHand; // 0 = auto, 1 = left, 2 = right
+        int heldHandIndex;
+        Vector3 heldLocalPos;
+        Quaternion heldLocalRot = Quaternion.identity;
+        bool hasHeldHandPose;
+        public bool remoteGripAttached;
 
         // Latest received network state, used to smoothly drive the object between packets
         public bool hasNetTarget = false;
@@ -86,6 +102,9 @@ namespace Entanglement.Objects
         private TransformSyncMessageData cachedSyncData;
         private TransformSyncMessageData cachedRestData;
         private bool wasSleeping;
+        private float sleepAccum;
+        public const float sleepRestDelay = 0.35f;
+        public const float remoteSilenceFreeze = 0.55f;
         private float lastRestTime = -10f;
         private float nextSendTime;
 
@@ -94,12 +113,13 @@ namespace Entanglement.Objects
         // seconds between sends (0 = every step). The rest-state edge covers whatever a throttled
         // object misses, so a body that stops far away still lands its exact final pose.
         float InterestInterval() {
-            if (cachedRigAttached)
-                return 0f;
+            // Held props stay snappy; Fusion-quality hand follow needs higher than free-body rates
+            if (cachedRigAttached || ownerQueue.Count > 0)
+                return 1f / 45f;
 
             var reps = PlayerRepresentation.representations;
             if (reps.Count == 0)
-                return 0f;
+                return 1f / 20f;
 
             Vector3 pos = transform.position;
             float nearestSqr = float.MaxValue;
@@ -113,13 +133,18 @@ namespace Entanglement.Objects
                     nearestSqr = sqr;
             }
 
-            if (nearestSqr < 100f) return 0f;      // < 10m  full rate
-            if (nearestSqr < 400f) return 1f / 30f; // < 20m  30 Hz
-            if (nearestSqr < 900f) return 1f / 15f; // < 30m  15 Hz
-            return 1f / 8f;                         // beyond 8 Hz
+            if (nearestSqr < 100f) return 1f / 20f; // < 10m  20 Hz global ceiling
+            if (nearestSqr < 400f) return 1f / 15f; // < 20m  15 Hz
+            if (nearestSqr < 900f) return 1f / 10f; // < 30m  10 Hz
+            return 1f / 5f;                          // beyond 5 Hz
         }
 
         void SendRestState() {
+            // Never rest-freeze a held object mid-air — mags/guns sleep in-hand and would
+            // otherwise broadcast a floating reliable pose to everyone else.
+            if (ownerQueue.Count > 0 || IsPluggedIntoGun())
+                return;
+
             if (cachedRestData == null)
                 cachedRestData = new TransformSyncMessageData() { resting = true };
 
@@ -137,8 +162,19 @@ namespace Entanglement.Objects
             if (SteamIntegration.currentUserId == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside()))
                 return;
 
-            netPosition = simplifiedTransform.position;
-            netRotation = simplifiedTransform.rotation.ExpandQuat();
+            // Held remotes must keep chasing the owner — a rest packet is how floating mags stick
+            if (ownerQueue.Count > 0)
+                return;
+
+            Vector3 position = simplifiedTransform.position;
+            Quaternion rotation = simplifiedTransform.rotation.ExpandQuat();
+            Vector3 velocity = Vector3.zero;
+            Vector3 angularVelocity = Vector3.zero;
+            if (!NetworkSanity.SanitizePose(ref position, ref rotation, ref velocity, ref angularVelocity))
+                return;
+
+            netPosition = position;
+            netRotation = rotation;
             netVelocity = Vector3.zero;
             netAngularVelocity = Vector3.zero;
             hasNetTarget = false;
@@ -199,8 +235,11 @@ namespace Entanglement.Objects
                 cachedRigAttached = parent && transform.GetComponentInParent<StressLevelZero.Rig.RigManager>();
             }
 
-            if (cachedRigAttached)
-                return HasChangedPositions();
+            // Grip ownership must keep sending even if PhysX sleeps the body in-hand.
+            // Always emit on the interest tick — HasChangedPositions can drop slow hand motion
+            // and leave remotes frozen mid-air beside the hand.
+            if (cachedRigAttached || ownerQueue.Count > 0)
+                return true;
 
             return rb ? !rb.IsSleeping() && HasChangedPositions() : HasChangedPositions();
         }
@@ -212,6 +251,9 @@ namespace Entanglement.Objects
 
             // Drop any buffered remote state the moment we own the object, it is stale now
             if (IsOwner()) hasNetTarget = false;
+
+            if (ownerQueue.Count == 0)
+                ClearHeldHandPose();
 
             if (!IsOwner()) SetHealth(float.PositiveInfinity);
             else SetHealth(objectHealth);
@@ -270,7 +312,22 @@ namespace Entanglement.Objects
 
             DestroyJoint();
 
+            // Transient disables (zone cull, plug anims, pool flicker) must not drop held
+            // ownership — that freezes mags/guns mid-air until something else wakes them.
+            // Real release still goes through OnGripDetached → SendDequeue.
+            if (IsHeldByLocalHand())
+                return;
+
             SendDequeue();
+        }
+
+        bool IsHeldByLocalHand() {
+            try {
+                return _CachedBodies != null && _CachedBodies.IsHolding();
+            }
+            catch {
+                return false;
+            }
         }
 
         protected void UpdateStoredPositions() {
@@ -336,20 +393,47 @@ namespace Entanglement.Objects
                 JointCheck(); // Check for joint
 
                 if (IsOwner() && rb) {
-                    // One reliable rest state when the body falls asleep, so every machine
-                    // settles it in exactly the same pose and stops simulating it
+                    // Wait until sleep has stuck for a beat before sending rest, so brief
+                    // contact micro-sleeps don't spam reliable rest poses
                     bool sleeping = rb.IsSleeping();
-                    if (sleeping && !wasSleeping)
-                        SendRestState();
-                    wasSleeping = sleeping;
+                    if (sleeping && ownerQueue.Count == 0 && !IsPluggedIntoGun()) {
+                        sleepAccum += Time.fixedDeltaTime;
+                        if (!wasSleeping && sleepAccum >= sleepRestDelay) {
+                            SendRestState();
+                            wasSleeping = true;
+                        }
+                    }
+                    else {
+                        sleepAccum = 0f;
+                        wasSleeping = false;
+                    }
                 }
 
                 if (!IsOwner()) {
                     SetHealth(float.PositiveInfinity);
 
                     // A plugged magazine rides its gun's sync, driving it would fight the plug joint
-                    if (rb && hasNetTarget && !rb.isKinematic && !IsPluggedIntoGun())
-                        InterpolateRemote();
+                    if (rb && hasNetTarget && !rb.isKinematic && !IsPluggedIntoGun()) {
+                        bool heldRemote = ownerQueue.Count > 0;
+
+                        // Held props are driven after PlayerRep hands update (Mod.OnFixedUpdate)
+                        // so they stick to the visible hand instead of a one-tick-stale puppet.
+                        if (heldRemote) {
+                            // no-op here
+                        }
+                        else if (Time.time - netReceiveTime > remoteSilenceFreeze) {
+                            hasNetTarget = false;
+                            rb.velocity = Vector3.zero;
+                            rb.angularVelocity = Vector3.zero;
+                            rb.Sleep();
+                        }
+                        else {
+                            InterpolateRemote();
+                        }
+                    }
+                    else if (IsPluggedIntoGun()) {
+                        ClearHeldHandPose();
+                    }
                 }
             }
 
@@ -418,24 +502,37 @@ namespace Entanglement.Objects
             if (ownerQueue.Contains(userId))
                 return;
 
+            byte handedness = ResolveLocalHeldHand();
+            byte gripIndex = ResolveLocalGripIndex(handedness);
+
             if (Server.instance != null) {
                 EnqueueOwner(userId);
+                SetPreferredHeldHand(handedness);
             }
 
             TransformQueueMessageData queueData = new TransformQueueMessageData()
             {
                 userId = userId,
                 objectId = objectId,
-                isAdd = true
+                isAdd = true,
+                handedness = handedness
             };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+
+            // Fusion PlayerRepGrab — remotes AttachObject this grip onto the PlayerRep stub Hand
+            if (handedness == 1 || handedness == 2)
+                PlayerRepGrabber.SendGrab(objectId, handedness, gripIndex);
         }
 
         public void OnValidDequeue() {
             long userId = SteamIntegration.currentUserId;
             if (!ownerQueue.Contains(userId))
                 return;
+
+            byte handedness = preferredHeldHand;
+            if (handedness != 1 && handedness != 2)
+                handedness = ResolveLocalHeldHand();
 
             if (Server.instance != null) {
                 DequeueOwner(userId);
@@ -445,10 +542,59 @@ namespace Entanglement.Objects
             {
                 userId = userId,
                 objectId = objectId,
-                isAdd = false
+                isAdd = false,
+                handedness = 0
             };
             NetworkMessage message = NetworkMessage.CreateMessage(BuiltInMessageType.TransformQueue, queueData);
             Node.activeNode.BroadcastMessage(NetworkChannel.Object, message.GetBytes());
+
+            if (handedness == 1 || handedness == 2)
+                PlayerRepGrabber.SendRelease(handedness);
+
+            remoteGripAttached = false;
+        }
+
+        byte ResolveLocalGripIndex(byte handedness) {
+            try {
+                Hand hand = null;
+                if (handedness == 1)
+                    hand = PlayerScripts.playerLeftHand;
+                else if (handedness == 2)
+                    hand = PlayerScripts.playerRightHand;
+                if (hand && hand.m_CurrentAttachedObject)
+                    return PlayerRepGrabber.ResolveLocalGripIndex(hand.m_CurrentAttachedObject, this);
+            }
+            catch { }
+            return 0;
+        }
+
+        public void CaptureLocalHeldHand() => SetPreferredHeldHand(ResolveLocalHeldHand());
+
+        public void SetRemoteGripAttached(bool attached) {
+            remoteGripAttached = attached;
+            if (!attached)
+                return;
+            // Grip joint owns the pose now — clear soft-follow offset so we don't fight it
+            hasHeldHandPose = false;
+        }
+
+        // 1 = left, 2 = right, 0 = unknown (remote will pick nearest hand)
+        public byte ResolveLocalHeldHand() {
+            try {
+                if (IsHandHoldingObject(PlayerScripts.playerLeftHand))
+                    return 1;
+                if (IsHandHoldingObject(PlayerScripts.playerRightHand))
+                    return 2;
+            }
+            catch { }
+            return 0;
+        }
+
+        bool IsHandHoldingObject(Hand hand) {
+            if (!hand || !hand.m_CurrentAttachedObject)
+                return false;
+            Transform attachedRoot = hand.m_CurrentAttachedObject.transform.root;
+            return attachedRoot && attachedRoot == transform.root;
         }
 
         public IEnumerator WaitUntilValid(Action onFinish) {
@@ -464,23 +610,175 @@ namespace Entanglement.Objects
             if (SteamIntegration.currentUserId == staleOwner || (_CachedPlug && _CachedPlug.EnteringOrInside())) return;
 
             // A reliable rest pose is definitive; swallow unreliable stragglers that were
-            // still in flight, or a reordered stale packet would re-wake the object forever
-            if (Time.time - lastRestTime < 0.35f)
+            // still in flight, or a reordered stale packet would re-wake the object forever.
+            // Held props ignore this gate — they must keep updating even if a stale rest arrived.
+            if (ownerQueue.Count == 0 && Time.time - lastRestTime < 0.35f)
+                return;
+
+            Vector3 position = simplifiedTransform.position;
+            Quaternion rotation = simplifiedTransform.rotation.ExpandQuat();
+            if (!NetworkSanity.SanitizePose(ref position, ref rotation, ref velocity, ref angularVelocity))
                 return;
 
             // Buffer the state instead of snapping to it, InterpolateRemote drives the object smoothly every physics step
-            netPosition = simplifiedTransform.position;
-            netRotation = simplifiedTransform.rotation.ExpandQuat();
+            netPosition = position;
+            netRotation = rotation;
             netVelocity = velocity;
             netAngularVelocity = angularVelocity;
             netReceiveTime = Time.time;
             hasNetTarget = true;
 
-            if (!rb) simplifiedTransform.Apply(transform);
+            if (ownerQueue.Count > 0)
+                RefreshHeldHandOffset(position, rotation);
+            else
+                ClearHeldHandPose();
+
+            if (!rb) {
+                transform.position = position;
+                transform.rotation = rotation;
+            }
 
             // Only revive a directly-deactivated object; leave zone-culled ones (inactive ancestor) culled
             if (!transform.gameObject.activeSelf && Mathf.Abs(Time.realtimeSinceStartup - timeOfDisable) >= 2f)
                 transform.gameObject.SetActive(true);
+        }
+
+        public void SetPreferredHeldHand(byte handedness) {
+            preferredHeldHand = handedness;
+            // Force rebind on next packet / drive so eject→regrab picks the right hand
+            hasHeldHandPose = false;
+        }
+
+        public void ClearHeldHandPose(bool clearPreferred = true) {
+            hasHeldHandPose = false;
+            heldHandIndex = 0;
+            heldLocalPos = Vector3.zero;
+            heldLocalRot = Quaternion.identity;
+            remoteGripAttached = false;
+            if (clearPreferred)
+                preferredHeldHand = 0;
+        }
+
+        public void RefreshHeldHandOffset(Vector3 worldPos, Quaternion worldRot) {
+            if (!PlayerRepresentation.representations.TryGetValue(staleOwner, out PlayerRepresentation rep) || rep == null)
+                return;
+
+            int handIdx = preferredHeldHand;
+            if (handIdx != 1 && handIdx != 2)
+                handIdx = PickNearestHand(rep, worldPos);
+
+            if (handIdx < 1 || handIdx > 2)
+                return;
+
+            Transform hand = rep.repTransforms[handIdx];
+            if (!hand)
+                return;
+
+            heldHandIndex = handIdx;
+            heldLocalPos = hand.InverseTransformPoint(worldPos);
+            heldLocalRot = Quaternion.Inverse(hand.rotation) * worldRot;
+            hasHeldHandPose = true;
+        }
+
+        static int PickNearestHand(PlayerRepresentation rep, Vector3 worldPos) {
+            float maxSqr = heldHandMaxDistance * heldHandMaxDistance;
+            float d1 = float.MaxValue;
+            float d2 = float.MaxValue;
+
+            if (rep.repTransforms[1])
+                d1 = (rep.repTransforms[1].position - worldPos).sqrMagnitude;
+            if (rep.repTransforms[2])
+                d2 = (rep.repTransforms[2].position - worldPos).sqrMagnitude;
+
+            if (d1 > maxSqr && d2 > maxSqr)
+                return 0;
+
+            return d1 <= d2 ? 1 : 2;
+        }
+
+        bool TryGetHeldHand(out Transform hand) {
+            hand = null;
+            if (!hasHeldHandPose || heldHandIndex < 1 || heldHandIndex > 2)
+                return false;
+            if (!PlayerRepresentation.representations.TryGetValue(staleOwner, out PlayerRepresentation rep) || rep == null)
+                return false;
+            hand = rep.repTransforms[heldHandIndex];
+            return hand;
+        }
+
+        // Called from Mod after PlayerRep IK so held props stick to the visible hands (Fusion grab feel)
+        public static void DriveHeldRemotesAfterReps() {
+            foreach (Syncable syncable in ObjectSync.syncedObjects.Values) {
+                TransformSyncable sync = syncable.TryCast<TransformSyncable>();
+                if (sync != null)
+                    sync.DriveHeldRemoteIfNeeded();
+            }
+        }
+
+        public void DriveHeldRemoteIfNeeded() {
+            if (!isValid || IsOwner() || !rb || rb.isKinematic)
+                return;
+            if (IsPluggedIntoGun()) {
+                ClearHeldHandPose();
+                return;
+            }
+            if (ownerQueue.Count == 0 || !hasNetTarget)
+                return;
+
+            // Real remote grip joint is driving — don't MovePosition against it
+            if (remoteGripAttached)
+                return;
+
+            HardTrackHeldRemote();
+        }
+
+        // Held guns/mags/props: follow the owner's PlayerRep hand when possible (Fusion-like),
+        // otherwise MovePosition toward the last world pose. Never silence-freeze while held.
+        protected void HardTrackHeldRemote() {
+            Vector3 predictedPos;
+            Quaternion predictedRot;
+
+            if (TryGetHeldHand(out Transform hand)) {
+                predictedPos = hand.TransformPoint(heldLocalPos);
+                predictedRot = hand.rotation * heldLocalRot;
+            }
+            else {
+                float age = Mathf.Min(Time.time - netReceiveTime, heldHardTrackAge);
+                predictedPos = netPosition + netVelocity * age;
+                predictedRot = netRotation;
+
+                float angSpeed = netAngularVelocity.magnitude;
+                if (angSpeed > 0.001f)
+                    predictedRot = Quaternion.AngleAxis(angSpeed * age * 57.29578f, netAngularVelocity / angSpeed) * netRotation;
+
+                // Opportunistically bind if we can see the holder's hands now
+                RefreshHeldHandOffset(predictedPos, predictedRot);
+            }
+
+            Vector3 posError = predictedPos - rb.position;
+            if (posError.sqrMagnitude > heldSnapDistance * heldSnapDistance) {
+                rb.position = predictedPos;
+                rb.rotation = predictedRot;
+            }
+            else {
+                rb.MovePosition(predictedPos);
+                rb.MoveRotation(predictedRot);
+            }
+
+            // Hand-followed props shouldn't keep skating on stale world velocity
+            if (hasHeldHandPose) {
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+            else {
+                rb.velocity = netVelocity;
+                rb.angularVelocity = netAngularVelocity;
+            }
+
+            if (targetBody) {
+                targetBody.position = predictedPos;
+                targetBody.rotation = predictedRot;
+            }
         }
 
         protected void InterpolateRemote() {
@@ -522,20 +820,48 @@ namespace Entanglement.Objects
 
                 rb.angularVelocity = netAngularVelocity + correction;
             }
-            else if (targetBody) {
-                if ((targetBody.position - predictedPos).sqrMagnitude > snapDistance * snapDistance) {
-                    targetBody.position = predictedPos;
-                    targetBody.rotation = predictedRot;
+            else {
+                // Free bodies: PD forces toward the networked pose (Fusion-style). Feels heavier
+                // and more physical than a mega-stiff ConfigurableJoint follow target.
+                Vector3 posError = predictedPos - rb.position;
+
+                if (posError.sqrMagnitude > snapDistance * snapDistance) {
                     rb.position = predictedPos;
                     rb.rotation = predictedRot;
                     rb.velocity = netVelocity;
                     rb.angularVelocity = netAngularVelocity;
+                    if (targetBody) {
+                        targetBody.position = predictedPos;
+                        targetBody.rotation = predictedRot;
+                    }
                     return;
                 }
 
-                float t = 1f - Mathf.Exp(-followSharpness * dt);
-                targetBody.MovePosition(Vector3.Lerp(targetBody.position, predictedPos, t));
-                targetBody.MoveRotation(Quaternion.Slerp(targetBody.rotation, predictedRot, t));
+                float omega = 2f * 3.14159265f * pdFrequency;
+                float accelGain = omega * omega;
+                float dampGain = 2f * pdDamping * omega;
+
+                Vector3 velError = netVelocity - rb.velocity;
+                Vector3 force = (posError * accelGain + velError * dampGain) * rb.mass;
+                rb.AddForce(force, ForceMode.Force);
+
+                Quaternion qDelta = predictedRot * Quaternion.Inverse(rb.rotation);
+                if (qDelta.w < 0f) { qDelta.x = -qDelta.x; qDelta.y = -qDelta.y; qDelta.z = -qDelta.z; qDelta.w = -qDelta.w; }
+                qDelta.ToAngleAxis(out float angleDeg, out Vector3 axis);
+                if (float.IsInfinity(axis.x) || float.IsNaN(axis.x) || axis.sqrMagnitude < 0.0001f)
+                    axis = Vector3.up;
+                if (angleDeg > 180f) angleDeg -= 360f;
+                Vector3 angleError = axis.normalized * (angleDeg * 0.0174532924f);
+                Vector3 angVelError = netAngularVelocity - rb.angularVelocity;
+                // Torque ≈ I * (ω² θ + 2ζω ωerr); use mass as a stand-in for inertia magnitude
+                Vector3 torque = (angleError * accelGain + angVelError * dampGain) * rb.mass * 0.05f;
+                rb.AddTorque(torque, ForceMode.Force);
+
+                // Keep the follow target posed for anything still jointed to it, without MovePosition fighting PD
+                if (targetBody) {
+                    targetBody.position = predictedPos;
+                    targetBody.rotation = predictedRot;
+                }
             }
         }
 
@@ -600,8 +926,8 @@ namespace Entanglement.Objects
                     nextConstraintCheck = Time.time + 2f;
                 }
 
-                if (rb && !isWorldConstrained && !syncJoint)
-                    ReCreateJoint();
+                // Free bodies use PD forces in InterpolateRemote; the follow joint fights them
+                // if (rb && !isWorldConstrained && !syncJoint) ReCreateJoint();
 
                 // The scene gained/lost a joint (e.g. a door was broken off), swap drive modes
                 if (rb && isWorldConstrained && syncJoint)

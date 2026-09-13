@@ -360,10 +360,12 @@
     <Compile Include="src\Sync\SyncPrefs.cs" />
     <Compile Include="src\Sync\CustomItemSync.cs" />
     <Compile Include="src\Sync\PlayermodelSync.cs" />
+    <Compile Include="src\Sync\CustomMapSync.cs" />
     <Compile Include="src\Network\Messages\Sync\ItemSyncRequestMessage.cs" />
     <Compile Include="src\Network\Messages\Sync\ItemSyncUnavailableMessage.cs" />
     <Compile Include="src\Network\Messages\Sync\ItemSyncFileIncomingMessage.cs" />
     <Compile Include="src\Network\Messages\Sync\PlayermodelSyncRequestMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\MapSyncRequestMessage.cs" />
     <Compile Include="src\Compat\Playermodels\PlayerSkinLoader.cs" />
     <Compile Include="src\Data\Files\BanList.cs" />
     <Compile Include="src\Data\Files\EmbeddedResource.cs" />
@@ -436,6 +438,8 @@
     <Compile Include="src\Network\Messages\Attacks\PowerPunchMessage.cs" />
     <Compile Include="src\Network\Messages\Attacks\PlayerAttackMessage.cs" />
     <Compile Include="src\Network\Messages\Representation\PlayerRepSyncMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\PlayerRepGrabMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\PlayerRepReleaseMessage.cs" />
     <Compile Include="src\Network\Messages\Server\ShortIdMessage.cs" />
     <Compile Include="src\Network\Messages\Server\SpawnObjectMessage.cs" />
     <Compile Include="src\Data\Containers\DataCorruptionException.cs" />
@@ -471,7 +475,10 @@
     <Compile Include="src\Patching\Patches\ZombieArenaPatches.cs" />
     <Compile Include="src\Patching\Patches\ZonePatches.cs" />
     <Compile Include="src\Representation\PlayerRep.cs" />
+    <Compile Include="src\Representation\PlayerRepGrabber.cs" />
     <Compile Include="src\Network\SteamIntegration.cs" />
+    <Compile Include="src\Network\NetworkSanity.cs" />
+    <Compile Include="src\Network\ModDependency.cs" />
     <Compile Include="src\Network\Messages\Server\ClientReadyMessage.cs" />
     <Compile Include="src\Network\Messages\Server\ConnectionMessage.cs" />
     <Compile Include="src\Network\NetworkMessage.cs" />
@@ -489,6 +496,11 @@
     <Compile Include="src\UI\SyncUI.cs" />
     <Compile Include="src\UI\GamemodeUI.cs" />
     <Compile Include="src\UI\DownloadUI.cs" />
+    <Compile Include="src\UI\DownloadsUI.cs" />
+    <Compile Include="src\UI\EntanglementMenu.cs" />
+    <Compile Include="src\UI\SettingsUI.cs" />
+    <Compile Include="src\UI\ProfileUI.cs" />
+    <Compile Include="src\UI\EntanglementRadial.cs" />
     <Compile Include="src\Network\DownloadGate.cs" />
     <Compile Include="src\Gamemodes\EntanglementGamemode.cs" />
     <Compile Include="src\Gamemodes\GamemodeHandler.cs" />

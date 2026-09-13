@@ -28,6 +28,9 @@ namespace Entanglement.Extensions {
                 Syncable syncable = TransformSyncable.CreateSync(ownerId, rb, objectId);
 
                 syncable.EnqueueOwner(ownerId);
+                TransformSyncable held = syncable.TryCast<TransformSyncable>();
+                if (held)
+                    held.CaptureLocalHeldHand();
 
                 if (Server.instance == null)
                     callbackIndex = ObjectSync.QueueSyncable(syncable);

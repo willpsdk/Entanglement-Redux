@@ -8,6 +8,7 @@ using Entanglement.Data;
 using Entanglement.Extensions;
 using Entanglement.Objects;
 using Entanglement.Patching;
+using Entanglement.Representation;
 
 using StressLevelZero.Pool;
 using StressLevelZero.Interaction;
@@ -74,6 +75,15 @@ namespace Entanglement.Network
                         MagazineSocket magSocket = syncGun._CachedGun.magazineSocket;
 
                         if (isInsert) {
+                            // Stop free-body chase immediately so the mag doesn't hover at the
+                            // last hand pose while the plug hierarchy takes over.
+                            syncMag.hasNetTarget = false;
+                            syncMag.ClearHeldHandPose();
+                            if (syncMag.rb && !syncMag.rb.isKinematic) {
+                                syncMag.rb.velocity = Vector3.zero;
+                                syncMag.rb.angularVelocity = Vector3.zero;
+                            }
+
                             syncMag._CachedPlug.InsertPlug(magSocket);
 
 #if DEBUG
@@ -82,6 +92,28 @@ namespace Entanglement.Network
                         }
                         else {
                             syncMag._CachedPlug.ForceEject();
+
+                            // Keep preferred hand; force rebind so remotes don't keep the
+                            // pre-reload float pose (Fusion re-attaches the mag grip after eject).
+                            syncMag.ClearHeldHandPose(clearPreferred: false);
+
+                            if (syncMag.rb) {
+                                syncMag.netPosition = syncMag.rb.position;
+                                syncMag.netRotation = syncMag.rb.rotation;
+                                syncMag.netVelocity = Vector3.zero;
+                                syncMag.netAngularVelocity = Vector3.zero;
+                                syncMag.netReceiveTime = Time.time;
+                                syncMag.hasNetTarget = true;
+                                syncMag.RefreshHeldHandOffset(syncMag.netPosition, syncMag.netRotation);
+                            }
+
+                            // Fusion MagazineEject: Grabber.Attach after ForceEject so the mag
+                            // sticks to the PlayerRep hand instead of floating beside it.
+                            byte hand = syncMag.preferredHeldHand;
+                            if ((hand == 1 || hand == 2) &&
+                                PlayerRepGrabber.TryGetGrabber(sender, out PlayerRepGrabber grabber)) {
+                                grabber.Attach(hand, syncMag.objectId, 0);
+                            }
 
 #if DEBUG
                             EntangleLogger.Log("Trying to eject a magazine!");

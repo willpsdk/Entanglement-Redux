@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -39,7 +39,7 @@ namespace Entanglement.Network
 
             EntangleLogger.Log($"You were disconnected for reason {Enum.GetName(typeof(DisconnectReason), reason)}");
 
-            EntangleNotif.PlayerDisconnect((DisconnectReason)reason);
+            EntangleNotif.PlayerDisconnect((DisconnectReason)reason, additionalReason);
 
             if (additionalReason != string.Empty)
                 EntangleLogger.Log($"Additional reason: {additionalReason}");
@@ -57,6 +57,8 @@ namespace Entanglement.Network
         
         OutdatedClient = 100,
         OutdatedServer = 101,
+
+        MissingMods = 110,
     }
 
     public class DisconnectMessageData : NetworkMessageData {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Collections.Generic;
 
@@ -191,8 +191,10 @@ namespace Entanglement.Network {
             SteamFriends.SetRichPresence("steam_player_group_size", memberCount.ToString());
 
             // Keep the lobby browser entry up to date for the host
-            if (isHost)
+            if (isHost) {
                 SteamMatchmaking.SetLobbyData(lobby, "scene", ParseScene(targetScene));
+                ModDependency.PublishHostRequirements();
+            }
         }
 
         /// <summary>
