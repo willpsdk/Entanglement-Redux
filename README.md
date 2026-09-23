@@ -75,8 +75,12 @@ You no longer have to have the same mods for it to sync! It now downloads all mo
   
 > Your Lobby is automatically set to public! Change it via Entanglement → Lobby → Lobby Settings → Click on the middle right button that should say either Public, Friendsonly or Private. If your lobby is Public or Friendsonly people can join via your Discord Rich Presence if you have it enabled. If set to Friends Only only people on your Discord Friends list can join through Discord!
 
-  **Why am I getting Steamworks / SteamAPI Error on boot?**
->
+  **Why am I getting Steamworks / Steam_api64.dll Error on boot?**
+> Entanglement Redux is supposed to extract Steamworks.NET.DLL & SteamAPI.DLL but sometimes it fails to. You will have to do it manually. Here is how you do it!
+> - Download [Steamworks](https://github.com/rlabrecque/Steamworks.NET/releases/download/20.1.0/Steamworks.NET-Standalone_20.1.0.zip)
+> - Extract the Folder
+> - Place 'Steamworks.NET.DLL' into BONEWORKS\MelonLoader\Managed
+> - Place 'steam_api64.dll'
 
 
 
