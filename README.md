@@ -13,6 +13,7 @@ An alternative multiplayer mod for BONEWORKS - With many Improvements & Quality 
 - [Features](#features)
 - [Demo](#Demo)
 - [Installation](#installation)
+- [FAQ](#FAQ)
 - [Usage](#usage)
 - [Screenshots](#screenshots)
 - [Contributing](#contributing)
