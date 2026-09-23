@@ -72,7 +72,11 @@ You no longer have to have the same mods for it to sync! It now downloads all mo
   
 ##  FAQ
   **Why are Random people joining my lobby?** 
-> Your Lobby is automatically set to public! Change it via Entanglement → Lobby → Lobby Settings → Click on the middle right button that should say either Public, friendsonly or Private. If your lobby is Public or Friends Only people can join via your Discord Rich Presence if you have it enabled. If set to Friends Only only people on your Discord Friends list can join!
+  
+> Your Lobby is automatically set to public! Change it via Entanglement → Lobby → Lobby Settings → Click on the middle right button that should say either Public, Friendsonly or Private. If your lobby is Public or Friendsonly people can join via your Discord Rich Presence if you have it enabled. If set to Friends Only only people on your Discord Friends list can join through Discord!
+
+  **Why am I getting Steamworks / SteamAPI Error on boot?**
+>
 
 
 
