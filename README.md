@@ -47,30 +47,34 @@ We Support Discord Invites Too! - Entanglement Redux has full Discord Intergrati
 
 ![Radial UI Demo](https://github.com/willpsdk/Entanglement-Redux/blob/main/ReduxShowcase/discordinvite.gif)
 
+You no longer have to have the same mods for it to sync! It now downloads all mods each player has to your game so your able to join without manually installing mods.
+
+[Thudnerstore API Downloads](https://github.com/willpsdk/Entanglement-Redux/blob/main/ReduxShowcase/CustomPlayerPrev.gif)
+
 ---
-
-TD:DR FINISH THIS
-
-##  Installation
 
 ### Prerequisites
 
-- Requirement 1 (e.g. Node.js >= 18)
-- Requirement 2 (e.g. Python >= 3.10)
+- [MelonLoader](https://github.com/LavaGang/MelonLoader/releases)
+- [ModThatIsNotMod](https://old.thunderstore.io/c/boneworks/p/gnonme/ModThatIsNotMod/)
 
-### Steps
+##  Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/username/repo-name.git
+- Download the Latest MelonLoader Release for your OS
+- Open the MelonLoader installer and choose BONEWORKS & make sure the install version is 5.4
+- Download ModThatIsNotMod and place the DLL into the Mods folder
+- Download Entanglement Redux and place the DLL into the mods folder.
+- Make sure Steam is open then open BONEWORKS.
+- In BONEWORKS open the radial menu (circle menu with Scenes, Inventory ect) and click Entanglement
+- Go to Lobby and click Start Lobby
+- Invite Via Steam or on Discord press the + to the left of the text box and click "Invite to play Entanglement Redux"
+  
+##  FAQ
+  **Why are Random people joining my lobby?** → Your Lobby is automatically set to public! Change it via Entanglement → Lobby → Lobby Settings → Click on the middle right button that should say either Public, friendsonly or Private. If your lobby is Public or Friends Only people can join via your Discord Rich Presence if you have it enabled. If set to Friends Only only people on your Discord Friends list can join!
 
-# Move into the project directory
-cd repo-name
 
-# Install dependencies
-npm install
-```
 
+###
 ---
 
 ## 💻 Usage
