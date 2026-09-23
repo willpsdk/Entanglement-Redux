@@ -44,6 +44,7 @@ New UI Built into BONEWORKS's Radial Menu
 ![Radial UI Demo](https://github.com/willpsdk/Entanglement-Redux/blob/main/ReduxShowcase/newreduxui.gif)
 
 We Support Discord Invites Too! - Entanglement Redux has full Discord Intergration. Meaning your friends can join, invite through Discord!
+-
 ![Radial UI Demo](https://github.com/willpsdk/Entanglement-Redux/blob/main/ReduxShowcase/discordinvite.gif)
 
 ---
