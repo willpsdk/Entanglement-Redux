@@ -15,7 +15,6 @@ An alternative multiplayer mod for BONEWORKS - With many Improvements & Quality 
 - [Installation](#installation)
 - [FAQ](#FAQ)
 - [Usage](#usage)
-- [Screenshots](#screenshots)
 - [Contributing](#contributing)
 - [License](#license)
 - [Contact](#contact)
@@ -90,62 +89,7 @@ You no longer have to have the same mods for it to sync! It now downloads all mo
 
 
 ###
----
 
-## 💻 Usage
-
-Basic example:
-
-```bash
-npm start
-```
-
-Code example:
-
-```javascript
-import { doThing } from "your-package";
-
-doThing({
-  option: true,
-});
-```
-
-> **Tip:** Use blockquotes like this to highlight tips, notes, or warnings.
-
-> **⚠️ Warning:** Use this style to call out important caveats.
-
----
-
-## ⚙️ Configuration
-
-| Option    | Type      | Default   | Description                  |
-|-----------|-----------|-----------|-------------------------------|
-| `apiKey`  | `string`  | `null`    | Your API key                  |
-| `debug`   | `boolean` | `false`   | Enables verbose logging       |
-| `timeout` | `number`  | `5000`    | Request timeout in ms         |
-
----
-
-## 📸 Screenshots
-
-<!-- Use a table or side-by-side layout for multiple screenshots -->
-
-| Home Screen | Settings Screen |
-|:---:|:---:|
-| ![Screenshot 1](https://via.placeholder.com/400x250?text=Screenshot+1) | ![Screenshot 2](https://via.placeholder.com/400x250?text=Screenshot+2) |
-
-<!-- Or full-width single images -->
-<!-- ![Full Screenshot](path/to/screenshot.png) -->
-
----
-
-## 🗺️ Roadmap
-
-- [x] Core functionality
-- [x] Basic documentation
-- [ ] Add tests
-- [ ] Add CI/CD pipeline
-- [ ] Publish v2.0
 
 See the [open issues](https://github.com/username/repo-name/issues) for a full list of proposed features.
 
