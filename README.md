@@ -50,7 +50,7 @@ We Support Discord Invites Too! - Entanglement Redux has full Discord Intergrati
 
 You no longer have to have the same mods for it to sync! It now downloads all mods each player has to your game so your able to join without manually installing mods.
 
-[Thudnerstore API Downloads](https://github.com/willpsdk/Entanglement-Redux/blob/main/ReduxShowcase/CustomPlayerPrev.gif)
+![Thudnerstore API Downloads](https://github.com/willpsdk/Entanglement-Redux/blob/main/ReduxShowcase/CustomPlayerPrev.gif)
 
 ---
 
