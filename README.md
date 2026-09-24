@@ -114,5 +114,7 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 [Join](https://discord.gg/tRvsvjCX6M) the Discord :)
 (If you have any inquireys feel free to DM Me on Discord 'willpcctv')
 
+Created By zCubed & Lakatrazz
+Maintained by willpsdk & datgingeguy
 
 ---
