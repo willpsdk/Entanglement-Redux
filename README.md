@@ -87,12 +87,7 @@ You no longer have to have the same mods for it to sync! It now downloads all mo
 > - Click on downloads
 > - Click accept all or click on individual ones! Whatever you prefer :)
 
-
 ###
-
-
-See the [open issues](https://github.com/username/repo-name/issues) for a full list of proposed features.
-
 ---
 
 ## 🤝 Contributing
@@ -105,7 +100,6 @@ Contributions are welcome!
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct.
 
 ---
 
@@ -117,50 +111,7 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
 ## 📬 Contact
 
-**Your Name** — [@your_twitter](https://twitter.com/your_twitter) — your.email@example.com
-
-Project Link: [https://github.com/username/repo-name](https://github.com/username/repo-name)
+[Join](https://discord.gg/tRvsvjCX6M) the Discord :) (If you have any inquireys feel free to DM Me on Discord 'willpcctv')
+Project Link: [https://github.com/username/repo-name](https://github.com/willpsdk/Entanglement-Redux)
 
 ---
-
-## 🙏 Acknowledgments
-
-- [Resource or library you used](https://example.com)
-- [Inspiration](https://example.com)
-- [Icons / assets credit](https://example.com)
-
-<!--
-FORMATTING CHEAT SHEET (delete this section before publishing)
-
-# H1 Heading
-## H2 Heading
-### H3 Heading
-
-**Bold text**
-*Italic text*
-~~Strikethrough~~
-`inline code`
-
-- Bullet point
-  - Nested bullet
-1. Numbered list
-
-> Blockquote
-
-[Link text](https://example.com)
-![Image alt text](path/to/image.png)
-
-```
-code block
-```
-
-| Col 1 | Col 2 |
-|-------|-------|
-| A     | B     |
-
-Horizontal rule: ---
-
-Task list:
-- [x] Done
-- [ ] Not done
--->
