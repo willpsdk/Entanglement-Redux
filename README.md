@@ -47,7 +47,7 @@ We Support Discord Invites Too! - Entanglement Redux has full Discord Intergrati
 
 ![Radial UI Demo](https://github.com/willpsdk/Entanglement-Redux/blob/main/ReduxShowcase/discordinvite.gif)
 
-You no longer have to have the same mods for it to sync! It now downloads all mods each player has to your game so your able to join without manually installing mods.
+You no longer have to have the same mods for it to sync! It now downloads all mods each player has to your game so your able to join without manually installing mods. (Code Mods require a Restart. I hope to change this soon)
 
 ![Thudnerstore API Downloads](https://github.com/willpsdk/Entanglement-Redux/blob/main/ReduxShowcase/CustomPlayerPrev.gif)
 
@@ -82,7 +82,7 @@ You no longer have to have the same mods for it to sync! It now downloads all mo
 > - Place 'steam_api64.dll into the Root BONEWORKS folder where BONEWORKS.exe is!'
 
   **My Friend has Custom Content! How do I get it?**
-> Entanglement Redux will detect the Custom Playermodels, Custom Items, Custom Maps & Code Mods (these require a game restart). It will try to detect what mods are being used then Instruct the user to download them! Here is how to accept the Downloads:
+> Entanglement Redux will detect the Custom Playermodels, Custom Items, Custom Maps & Code Mods (Code Mods require a game restart). It will try to detect what mods are being used then Instruct the user to download them! Here is how to accept the Downloads:
 > - Open the Radial Menu and select Entanglement
 > - Click on downloads
 > - Click accept all or click on individual ones! Whatever you prefer :)
