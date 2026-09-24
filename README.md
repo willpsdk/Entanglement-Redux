@@ -56,7 +56,7 @@ You no longer have to have the same mods for it to sync! It now downloads all mo
 ### Prerequisites
 
 - [MelonLoader](https://github.com/LavaGang/MelonLoader/releases)
-- [ModThatIsNotMod](https://old.thunderstore.io/c/boneworks/p/gnonme/ModThatIsNotMod/)
+- [ModThatIsNotMod](https://old.thunderstore.io/package/download/gnonme/ModThatIsNotMod/0.3.6/)
 
 ##  Installation
 
