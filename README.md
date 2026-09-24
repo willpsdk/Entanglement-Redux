@@ -80,8 +80,13 @@ You no longer have to have the same mods for it to sync! It now downloads all mo
 > - Download [Steamworks](https://github.com/rlabrecque/Steamworks.NET/releases/download/20.1.0/Steamworks.NET-Standalone_20.1.0.zip)
 > - Extract the Folder
 > - Place 'Steamworks.NET.DLL' into BONEWORKS\MelonLoader\Managed
-> - Place 'steam_api64.dll'
+> - Place 'steam_api64.dll into the Root BONEWORKS folder where BONEWORKS.exe is!'
 
+  **My Friend has Custom Content! How do I get it?**
+> Entanglement Redux will detect the Custom Playermodels, Custom Items, Custom Maps & Code Mods (these require a game restart). It will try to detect what mods are being used then Instruct the user to download them! Here is how to accept the Downloads:
+> - Open the Radial Menu and select Entanglement
+> - Click on downloads
+> - Click accept all or click on individual ones! Whatever you prefer :)
 
 
 ###
