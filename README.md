@@ -111,7 +111,8 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
 ## 📬 Contact
 
-[Join](https://discord.gg/tRvsvjCX6M) the Discord :) (If you have any inquireys feel free to DM Me on Discord 'willpcctv')
-Project Link: [https://github.com/username/repo-name](https://github.com/willpsdk/Entanglement-Redux)
+[Join](https://discord.gg/tRvsvjCX6M) the Discord :)
+(If you have any inquireys feel free to DM Me on Discord 'willpcctv')
+
 
 ---
