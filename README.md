@@ -32,7 +32,7 @@ We utilize Steamworks.NET P2P Networking for the NetCode which means only Player
 ##  Features
 
 - **Heavily Improved Synchronisation & Item Sync** — Smoother Objects, NPC & Weapon Interactions between players.
-- **Thunderstore Mod Sharing** — Utilizing the amazing Thunderstore API, we are able to detect
+- **Thunderstore Mod Sharing** — Utilizing the amazing Thunderstore API, we are able to detect mods that the Host & Clients have allowing for both player have the same mods. Meaning nothing desyncs and players can share and play mods together without having to dive into the game files!
 - **Revamped Player Rep Collisions / Interactions** — We have fixed the Player Rep's weight issue, which previously stopped dynamicx§ props, elevators or platforms from moving like intended. Which was a issue in other Multiplayer Mods.
 - PCVR Only (This is for BONEWORKS Legacy 1.6) I assume Fusion will be updated to support 1.7 (when it eventually releases)
 
