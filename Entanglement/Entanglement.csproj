@@ -381,7 +381,6 @@
     <Compile Include="src\Data\Containers\PlayerScripts.cs" />
     <Compile Include="src\Data\LocalPlayer.cs" />
     <Compile Include="src\Compat\ShaderFix.cs" />
-    <Compile Include="src\UI\EntanglementBoneMenu.cs" />
     <Compile Include="src\Data\Containers\SimplifiedHand.cs" />
     <Compile Include="src\Data\Containers\SimplifiedQuaternion.cs" />
     <Compile Include="src\Data\Containers\SimplifiedTransform.cs" />

@@ -43,6 +43,7 @@ namespace Entanglement.Entities
             var prop = new NetworkProp();
             prop.Bind(sync);
             byObjectId[sync.objectId] = prop;
+            DebugLog.Entity("NetworkProp #" + sync.objectId + " owner=" + prop.OwnerId);
             return prop;
         }
 

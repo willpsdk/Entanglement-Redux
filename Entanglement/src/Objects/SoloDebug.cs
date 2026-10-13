@@ -10,7 +10,11 @@ using StressLevelZero.AI;
 using PuppetMasta;
 
 using Entanglement.Data;
+using Entanglement.Entities;
+using Entanglement.Gamemodes;
 using Entanglement.Network;
+using Entanglement.Network.Combat;
+using Entanglement.Network.Layers;
 using Entanglement.Representation;
 using Entanglement.Sync;
 using Entanglement.UI;
@@ -548,6 +552,155 @@ namespace Entanglement.Objects
             }
             catch { }
             return CorpseCleanup.FizzleNow(root, true) ? "Fizzling " + root.name + " the way a client's copy does." : "Could not fizzle " + root.name + ".";
+        }
+
+        // ---- new Fusion-shaped stack (solo) -------------------------------------------------------------
+
+        /// <summary>Spawns the dummy and checks PhysicsRigPuppet limbs + NetworkPlayer.</summary>
+        public static string PuppetCheck() {
+            string error = EnsureDummy();
+            if (error != null)
+                return error;
+
+            PlayerRepresentation dummy = PlayerRepresentation.debugRepresentation;
+            dummy.EnsureEnemyTarget();
+            NetworkPlayer.Register(dummy);
+
+            PhysicsRigPuppet phys = dummy.PhysicsPuppet;
+            bool net = NetworkPlayer.IsRegistered(dummy.playerId);
+            NetworkPlayer player;
+            bool hasPuppet = NetworkPlayer.TryGet(dummy.playerId, out player) && player != null && player.Puppet != null && player.Puppet.HasPuppet;
+
+            string detail = "dummy puppet="
+                + (phys != null && phys.IsValid ? "ok" : "FAIL")
+                + " pelvis=" + (phys != null && phys.Pelvis != null)
+                + " chest=" + (phys != null && phys.Chest != null)
+                + " hands=" + (phys != null && phys.LeftHand != null && phys.RightHand != null)
+                + " feet=" + (phys != null && phys.LeftFoot != null && phys.RightFoot != null)
+                + " proxy=" + (dummy.EnemyProxy != null)
+                + " NetworkPlayer=" + net
+                + " RigPuppet=" + hasPuppet;
+
+            EntangleLogger.Log("[SoloTest] " + detail);
+            DebugLog.DumpAll();
+            bool pass = phys != null && phys.IsValid && net && dummy.EnemyProxy != null;
+            return pass ? "PASS — " + detail : "FAIL — " + detail;
+        }
+
+        /// <summary>Counts NetworkEntity stack + registers a NetworkProp on the nearest synced body if any.</summary>
+        public static string EntityStackCheck() {
+            string error = EnsureDummy();
+            if (error != null)
+                return error;
+
+            NetworkPlayer.Register(PlayerRepresentation.debugRepresentation);
+
+            int props = NetworkProp.Count;
+            int npcs = NpcEntity.Count;
+            int players = NetworkPlayer.Count;
+            int entities = NetworkEntityManager.Count;
+
+            // Touch nearest TransformSyncable so NetworkProp registers (needs objectId).
+            int touched = 0;
+            try {
+                foreach (Syncable sync in ObjectSync.syncedObjects.Values) {
+                    TransformSyncable ts = sync as TransformSyncable;
+                    if (ts == null || ts.objectId == 0)
+                        continue;
+                    if (NetworkProp.Register(ts) != null)
+                        touched++;
+                    if (touched >= 5)
+                        break;
+                }
+            }
+            catch { }
+
+            string detail = "entities=" + entities + " players=" + players + " npcs=" + npcs
+                + " props=" + NetworkProp.Count + " (touched " + touched + " syncables)"
+                + " syncedObjects=" + ObjectSync.syncedObjects.Count;
+            EntangleLogger.Log("[SoloTest] EntityStack: " + detail);
+            bool pass = players >= 1;
+            return (pass ? "PASS — " : "FAIL — ") + detail
+                + (SteamIntegration.hasLobby ? "" : " (start a lobby to populate props/NPCs)");
+        }
+
+        /// <summary>Select / start / stop Deathmatch without a second player.</summary>
+        public static string GamemodeSolo() {
+            Gamemode mode = GamemodeManager.Find("Deathmatch");
+            if (mode == null && GamemodeManager.Gamemodes.Count > 0)
+                mode = GamemodeManager.Gamemodes[0];
+            if (mode == null)
+                return "FAIL — no gamemodes registered.";
+
+            GamemodeManager.Select(mode);
+            bool selected = GamemodeManager.Active != null && GamemodeManager.Active.IsSelected;
+            GamemodeManager.StartActive();
+            bool started = GamemodeManager.Active != null && GamemodeManager.Active.IsStarted;
+            bool canHit = NetworkCombat.CanAttack(1, 2);
+            GamemodeManager.Stop();
+            bool stopped = GamemodeManager.Active == null || !GamemodeManager.Active.IsStarted;
+            GamemodeManager.Deselect();
+            bool cleared = GamemodeManager.Active == null;
+
+            string detail = mode.Title + " selected=" + selected + " started=" + started
+                + " canAttack=" + canHit + " stopped=" + stopped + " cleared=" + cleared;
+            EntangleLogger.Log("[SoloTest] Gamemode: " + detail);
+            bool pass = selected && started && canHit && stopped && cleared;
+            return (pass ? "PASS — " : "FAIL — ") + detail;
+        }
+
+        /// <summary>Dummy enemy proxy + ImpactProperties on puppet parts (melee/gun target surface).</summary>
+        public static string CombatDummyCheck() {
+            string error = EnsureDummy();
+            if (error != null)
+                return error;
+
+            PlayerRepresentation dummy = PlayerRepresentation.debugRepresentation;
+            dummy.EnsureEnemyTarget();
+            PhysicsRigPuppet phys = dummy.PhysicsPuppet;
+
+            int impacts = 0;
+            void CountImpact(UnityEngine.Component c) {
+                if (c == null)
+                    return;
+                try {
+                    if (c.GetComponent<StressLevelZero.Combat.ImpactProperties>() != null)
+                        impacts++;
+                }
+                catch { }
+            }
+            if (phys != null) {
+                CountImpact(phys.Pelvis);
+                CountImpact(phys.Chest);
+                CountImpact(phys.LeftHand);
+                CountImpact(phys.RightHand);
+            }
+
+            bool can = NetworkCombat.CanAttack(SteamIntegration.currentUserId, dummy.playerId)
+                || !SteamIntegration.hasLobby;
+            string detail = "proxy=" + (dummy.EnemyProxy != null)
+                + " puppetValid=" + (phys != null && phys.IsValid)
+                + " impactProps=" + impacts
+                + " canAttackDummy=" + can
+                + " lobby=" + SteamIntegration.hasLobby;
+            EntangleLogger.Log("[SoloTest] CombatDummy: " + detail);
+            bool pass = dummy.EnemyProxy != null && phys != null && phys.IsValid && impacts >= 2;
+            return (pass ? "PASS — " : "FAIL — ") + detail
+                + " (punch/shoot the dummy to feel contact; damage needs a lobby peer path)";
+        }
+
+        /// <summary>Active + preferred transport (Steam / SteamVR Meta).</summary>
+        public static string TransportCheck() {
+            SteamNetworkLayer steam = NetworkLayerManager.Layer as SteamNetworkLayer;
+            uint appId = steam != null ? steam.ApplicationID : 0;
+            string detail = "active=" + NetworkLayerManager.ActiveTitle
+                + " preferred=" + NetworkPrefs.ResolvedLayerTitle()
+                + " appId=" + (appId == 0 ? "game/default" : appId.ToString())
+                + " available=" + (NetworkLayerManager.Layer != null && NetworkLayerManager.Layer.IsAvailable)
+                + " loggedIn=" + (NetworkLayerManager.Layer != null && NetworkLayerManager.Layer.IsLoggedIn);
+            EntangleLogger.Log("[SoloTest] Transport: " + detail);
+            DebugLog.TransportLog(detail);
+            return detail;
         }
 
         /// <summary>The nearest synced NPC is restarted the way a client restarts a pooled copy (RestartLikeHost).</summary>

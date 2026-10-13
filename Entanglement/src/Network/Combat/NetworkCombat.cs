@@ -47,6 +47,10 @@ namespace Entanglement.Network.Combat
                 return false;
 
             Node.activeNode.SendMessage(victimId, NetworkChannel.Attack, message.GetBytes());
+            DebugLog.CombatLog("SendPlayerAttack → " + victimId
+                + " type=" + attackType + " dmg=" + damage.ToString("F1")
+                + " part=" + bodyPart + " impulse=" + impulse.ToString("F1")
+                + (fromNpc ? " (npc)" : ""));
             return true;
         }
 

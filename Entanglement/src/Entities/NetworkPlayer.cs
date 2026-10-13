@@ -55,6 +55,8 @@ namespace Entanglement.Entities
 
         public static bool IsRegistered(long userId) => byUserId.ContainsKey(userId);
 
+        public static int Count => byUserId.Count;
+
         public static void Clear() {
             List<long> ids = new List<long>(byUserId.Keys);
             for (int i = 0; i < ids.Count; i++)
@@ -81,6 +83,8 @@ namespace Entanglement.Entities
                 Puppet = new RigPuppet();
             Puppet.Attach(rep);
             Puppet.CreatePuppet();
+            DebugLog.Entity("NetworkPlayer bound user=" + UserId + " entity=#" + entityId
+                + " puppet=" + (Puppet.HasPuppet ? "ok" : "pending"));
         }
 
         void Teardown() {

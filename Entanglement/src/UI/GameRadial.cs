@@ -751,6 +751,8 @@ namespace Entanglement.UI
                         : "Debug log off.", 4f);
                     ShowDebug();
                 }),
+                new Entry("Dump Status", () => DebugLog.DumpAll()),
+                new Entry("Debug Channels", ShowDebugChannels),
                 new Entry(PlayerRepresentation.RepresentationTestActive ? "Rep Test On" : "Representation Test", () => {
                     if (PlayerRepresentation.RepresentationTestActive)
                         PlayerRepresentation.StopRepresentationTest();
@@ -766,10 +768,40 @@ namespace Entanglement.UI
                     PlayerRepresentation.debugFrozen = !PlayerRepresentation.debugFrozen;
                     ShowDebug();
                 }),
-                new Entry("NPCs At Dummy", () => {
-                    GameNotify.Show(SoloDebug.SendNpcs(), 3f);
+                new Entry("Solo New Stack", ShowNewStackTests),
+                new Entry("Sync Tests", ShowSyncTests)
+            ), false);
+        }
+
+        static void ShowDebugChannels() {
+            Show(PageBack(ShowDebug,
+                new Entry(DebugLog.PrefEnabled("entities") ? "Entities On" : "Entities Off", () => {
+                    DebugLog.ToggleChannel("entities"); ShowDebugChannels();
                 }),
-                new Entry("Sync Tests", ShowSyncTests),
+                new Entry(DebugLog.PrefEnabled("puppet") ? "Puppet On" : "Puppet Off", () => {
+                    DebugLog.ToggleChannel("puppet"); ShowDebugChannels();
+                }),
+                new Entry(DebugLog.PrefEnabled("combat") ? "Combat On" : "Combat Off", () => {
+                    DebugLog.ToggleChannel("combat"); ShowDebugChannels();
+                }),
+                new Entry(DebugLog.PrefEnabled("gamemode") ? "Gamemode On" : "Gamemode Off", () => {
+                    DebugLog.ToggleChannel("gamemode"); ShowDebugChannels();
+                }),
+                new Entry(DebugLog.PrefEnabled("transport") ? "Transport On" : "Transport Off", () => {
+                    DebugLog.ToggleChannel("transport"); ShowDebugChannels();
+                })
+            ), false);
+        }
+
+        /// <summary>Solo checks for RigPuppet / NetworkEntity / gamemode / combat / transport.</summary>
+        static void ShowNewStackTests() {
+            Show(PageBack(ShowDebug,
+                new Entry("Puppet Check", () => GameNotify.Show(SoloDebug.PuppetCheck(), 6f)),
+                new Entry("Entity Stack", () => GameNotify.Show(SoloDebug.EntityStackCheck(), 6f)),
+                new Entry("Gamemode Solo", () => GameNotify.Show(SoloDebug.GamemodeSolo(), 6f)),
+                new Entry("Combat Dummy", () => GameNotify.Show(SoloDebug.CombatDummyCheck(), 6f)),
+                new Entry("Transport", () => GameNotify.Show(SoloDebug.TransportCheck(), 5f)),
+                new Entry("NPCs At Dummy", () => GameNotify.Show(SoloDebug.SendNpcs(), 3f)),
                 new Entry("Install Custom Content Dependencies", () => {
                     Thunderstore.InstallCustomContentDependencies();
                     PopUpMenuView menu = PopUpMenuView.instance;

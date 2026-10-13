@@ -143,8 +143,6 @@ namespace Entanglement {
 
             PDController.Initialize();
             GamemodeManager.LoadFromAssembly(entanglementAssembly);
-            try { EntanglementBoneMenu.Create(); }
-            catch (Exception e) { EntangleLogger.Warn("[BoneMenu] " + e.Message); }
 
             MelonCoroutines.Start(CoDeferredBoot());
 

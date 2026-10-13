@@ -29,6 +29,13 @@ namespace Entanglement.Network.Layers
             catch (Exception e) {
                 EntangleLogger.Error("[NetLayer] Initialize failed: " + e.Message);
             }
+            try {
+                SteamNetworkLayer steam = Layer as SteamNetworkLayer;
+                uint appId = steam != null ? steam.ApplicationID : 0;
+                DebugLog.TransportLog("Active=" + ActiveTitle + " preferred=" + PreferredLayerName
+                    + " appId=" + (appId == 0 ? "game/default" : appId.ToString()));
+            }
+            catch { }
         }
 
         public static string GetDefaultTitle() => "Steam";

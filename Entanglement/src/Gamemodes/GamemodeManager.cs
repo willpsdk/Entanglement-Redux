@@ -88,6 +88,7 @@ namespace Entanglement.Gamemodes
             try { Active.OnSelected(); }
             catch { }
             GameNotify.Show("Gamemode: " + Active.Title, 3f, GameNotify.Kind.Success, "Gamemode");
+            DebugLog.GamemodeLog("Selected " + Active.Id);
             OnGamemodeChanged?.Invoke(Active);
             BroadcastState();
         }
@@ -148,6 +149,7 @@ namespace Entanglement.Gamemodes
             try { Active.OnLevelReady(); }
             catch { }
             GameNotify.Show(Active.Title + " started!", 4f, GameNotify.Kind.Success, "Gamemode");
+            DebugLog.GamemodeLog("Started " + Active.Id);
             OnGamemodeStarted?.Invoke(Active);
             BroadcastState();
         }

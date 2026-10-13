@@ -37,7 +37,14 @@ namespace Entanglement.Entities
         public void CreatePuppet() {
             if (_rep == null)
                 return;
-            try { _rep.EnsureEnemyTarget(); }
+            try {
+                _rep.EnsureEnemyTarget();
+                DebugLog.PuppetLog("CreatePuppet user=" + _rep.playerId
+                    + " valid=" + HasPuppet
+                    + " chest=" + (Chest != null)
+                    + " hands=" + (LeftHand != null && RightHand != null)
+                    + " feet=" + (LeftFoot != null && RightFoot != null));
+            }
             catch (System.Exception e) {
                 EntangleLogger.Warn("[RigPuppet] CreatePuppet: " + e.Message);
             }
