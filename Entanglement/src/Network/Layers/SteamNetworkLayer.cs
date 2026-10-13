@@ -24,11 +24,11 @@ namespace Entanglement.Network.Layers
             EntangleLogger.Log("[NetLayer] Active transport: Steam (native Boneworks AppID)");
         }
 
-        public void Tick() {
+        public virtual void Tick() {
             // Steam callbacks pumped by SteamIntegration.Tick.
         }
 
-        public void Shutdown() {
+        public virtual void Shutdown() {
             // SteamAPI lifetime owned by SteamIntegration.Shutdown.
         }
 

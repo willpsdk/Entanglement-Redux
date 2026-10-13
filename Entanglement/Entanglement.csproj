@@ -430,6 +430,11 @@
     <Compile Include="src\Network\Layers\Proxy\ProxyMessageTypes.cs" />
     <Compile Include="src\Network\Layers\Proxy\ProxyNetworkLayer.cs" />
     <Compile Include="src\Network\Layers\Proxy\ProxySteamVRNetworkLayer.cs" />
+    <Compile Include="src\Representation\PhysicsRigPuppet.cs" />
+    <Compile Include="src\Network\Combat\NetworkCombat.cs" />
+    <Compile Include="src\Objects\OwnedEntity.cs" />
+    <Compile Include="src\Network\Layers\Proxy\ProxyCompanionHost.cs" />
+    <Compile Include="src\Patching\Patches\CombatPatches.cs" />
     <Compile Include="src\Network\Layers\NetworkLayerManager.cs" />
     <Compile Include="src\Network\Messages\Representation\PlayerRepGrabMessage.cs" />
     <Compile Include="src\Network\Messages\Gamemodes\GamemodeStateMessage.cs" />

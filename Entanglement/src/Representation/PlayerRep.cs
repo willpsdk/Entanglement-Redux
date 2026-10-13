@@ -1229,6 +1229,11 @@ namespace Entanglement.Representation
                 enemyTargetProxy = null;
             }
 
+            if (physicsPuppet != null) {
+                try { physicsPuppet.Destroy(); }
+                catch { }
+                physicsPuppet = null;
+            }
 
             if (enemyTarget) {
                 try { GameObject.Destroy(enemyTarget); }
@@ -1284,37 +1289,19 @@ namespace Entanglement.Representation
                 host.SetActive(false);
                 host.transform.position = repTransforms[0].position;
                 host.transform.rotation = Quaternion.Euler(0f, repTransforms[0].eulerAngles.y, 0f);
-                host.layer = ResolvePlayerHitLayer(local.gameObject.layer);
+                int hitLayer = ResolvePlayerHitLayer(local.gameObject.layer);
 
-                var body = host.AddComponent<Rigidbody>();
-                body.isKinematic = false;
-                body.useGravity = false;
-                // Fusion ideology: remotes are physical bodies you can shove / be shoved by.
-                // Full local rig mass bowling-balled players; clamp to a pelvis-like weight.
-                body.mass = PhysicalRepMass();
-                body.drag = 0.5f;
-                body.angularDrag = 0.5f;
-                body.constraints = RigidbodyConstraints.FreezeRotation;
-                body.detectCollisions = true;
-                body.interpolation = RigidbodyInterpolation.Interpolate;
-                body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-
+                // Full physics rig puppet (Fusion RigManager ideology on Boneworks PhysicsRig):
+                // pelvis/torso + PD hands — not a lone Ford capsule.
                 Vector3 skull = SkullOffset();
+                physicsPuppet = new PhysicsRigPuppet();
+                physicsPuppet.Build(host, PhysicalRepMass(), skull, HeadRadius, hitLayer);
 
-                var head = host.AddComponent<SphereCollider>();
-                head.isTrigger = false;
-                head.radius = HeadRadius;
-                head.center = skull;
-
-                var torso = host.AddComponent<CapsuleCollider>();
-                torso.isTrigger = false;
-                torso.radius = 0.18f;
-                torso.height = 1.3f;
-                torso.center = new Vector3(0f, -0.85f, skull.z);
-
-                Collider[] hits = new Collider[] { head, torso };
-                enemyHead = head;
-                enemyTorso = torso;
+                Rigidbody body = physicsPuppet.Pelvis;
+                Collider[] hits = new Collider[] { physicsPuppet.HeadCollider, physicsPuppet.TorsoCollider };
+                enemyHead = physicsPuppet.HeadCollider;
+                enemyTorso = physicsPuppet.TorsoCollider;
+                enemyTargetBody = body;
                 targetClearOfRig = 0;
 
                 var proxy = host.AddComponent<TriggerRefProxy>();
@@ -1331,8 +1318,12 @@ namespace Entanglement.Representation
                 EntangleLogger.Debug("[Rep] Proxy for " + IdText(playerId) + ": chest " + BoneName(local.chestTran) + " -> "
                     + BoneName(proxy.chestTran) + ", feet " + BoneName(local.feetTran) + " -> " + BoneName(proxy.feetTran));
 
-                proxy.lfHandRb = EnsureHandBody(repTransforms[1]);
-                proxy.rtHandRb = EnsureHandBody(repTransforms[2]);
+                proxy.lfHandRb = physicsPuppet.LeftHand
+                    ? physicsPuppet.LeftHand
+                    : EnsureHandBody(repTransforms[1]);
+                proxy.rtHandRb = physicsPuppet.RightHand
+                    ? physicsPuppet.RightHand
+                    : EnsureHandBody(repTransforms[2]);
 
                 if (IsTestDummy) {
                     try {
@@ -1385,6 +1376,8 @@ namespace Entanglement.Representation
 
             try {
                 Rigidbody body = enemyTargetBody;
+                if (body == null && physicsPuppet != null)
+                    body = enemyTargetBody = physicsPuppet.Pelvis;
                 if (body == null) {
                     body = enemyTarget.GetComponent<Rigidbody>();
                     enemyTargetBody = body;
@@ -1392,26 +1385,18 @@ namespace Entanglement.Representation
                 if (body == null)
                     return;
 
-                // Only soft-ignore during spawn overlap grace. After that, collide like Fusion's
-                // force-driven remote so punches/shoves transfer through Unity contacts.
                 SoftenLocalContact();
 
-                // Dead: out of the world, like a parked rep. It jumps back below once they are up.
-                if (deadHidden != null) {
+                bool parked = deadHidden != null;
+                if (parked) {
                     if ((body.position - ParkSpot).sqrMagnitude > 1f)
                         body.position = ParkSpot;
-                    body.velocity = Vector3.zero;
                     hasLastHead = false;
-                    return;
                 }
 
-                Vector3 target = repTransforms[0].position;
+                Vector3 target = parked ? ParkSpot : repTransforms[0].position;
                 Quaternion rot = Quaternion.Euler(0f, repTransforms[0].eulerAngles.y, 0f);
 
-                Vector3 error = target - body.position;
-
-                // Solved once per frame (a slow PC), the head moves on the first step of a frame and holds
-                // for the rest: its speed is the move over the time since it last moved, held between.
                 Vector3 headVel;
                 if (!hasLastHead)
                     headVel = repSavedVel;
@@ -1425,37 +1410,37 @@ namespace Entanglement.Representation
                 lastHeadTarget = target;
                 hasLastHead = true;
 
-                // Fusion-style PD on a dynamic body — never kinematic MovePosition for the rep.
-                if (body.isKinematic)
-                    body.isKinematic = false;
+                Vector3 leftTarget = repTransforms[1] ? repTransforms[1].position : target + Vector3.left * 0.3f;
+                Vector3 rightTarget = repTransforms[2] ? repTransforms[2].position : target + Vector3.right * 0.3f;
 
-                // Far off (teleport, respawn, a big hitch): jump there rather than fly through the world.
-                if (error.sqrMagnitude > 4f) {
-                    body.position = target;
-                    body.rotation = rot;
-                    body.velocity = Vector3.zero;
-                    body.angularVelocity = Vector3.zero;
-                    pelvisPD.Reset();
-                    return;
+                if (physicsPuppet != null && physicsPuppet.IsValid) {
+                    physicsPuppet.Drive(target, rot, headVel, leftTarget, rightTarget, pressingLocal, parked);
                 }
-
-                Vector3 force = pelvisPD.GetForce(body.position, body.velocity, target, headVel);
-                // Soften while pressing the local player so we shove instead of explode.
-                if (pressingLocal)
-                    force = Vector3.ClampMagnitude(force, ContactAccelCap);
-                else
-                    force = Vector3.ClampMagnitude(force, FreeAccelCap);
-                if (force.y < -RepMaxDownAccel)
-                    force.y = -RepMaxDownAccel;
-                body.AddForce(force, ForceMode.Acceleration);
-                body.MoveRotation(rot);
-
-                if (body.velocity.sqrMagnitude > RepSpeedLimit * RepSpeedLimit)
-                    body.velocity = body.velocity.normalized * RepSpeedLimit;
+                else {
+                    // Legacy single-capsule path if puppet failed to build.
+                    if (body.isKinematic)
+                        body.isKinematic = false;
+                    if ((target - body.position).sqrMagnitude > 4f) {
+                        body.position = target;
+                        body.rotation = rot;
+                        body.velocity = Vector3.zero;
+                        pelvisPD.Reset();
+                        return;
+                    }
+                    Vector3 force = pelvisPD.GetForce(body.position, body.velocity, target, headVel);
+                    force = Vector3.ClampMagnitude(force, pressingLocal ? ContactAccelCap : FreeAccelCap);
+                    if (force.y < -RepMaxDownAccel)
+                        force.y = -RepMaxDownAccel;
+                    body.AddForce(force, ForceMode.Acceleration);
+                    body.MoveRotation(rot);
+                    if (body.velocity.sqrMagnitude > RepSpeedLimit * RepSpeedLimit)
+                        body.velocity = body.velocity.normalized * RepSpeedLimit;
+                }
             }
             catch { }
         }
 
+        PhysicsRigPuppet physicsPuppet;
         Rigidbody enemyTargetBody;
         Collider enemyHead;
         Collider enemyTorso;

@@ -15,6 +15,10 @@ using Entanglement.Extensions;
 
 namespace Entanglement.Network
 {
+    /// <summary>
+    /// Visual gun FX only (projectile, muzzle, SFX). Player damage is unified through
+    /// <see cref="Combat.NetworkCombat"/> / PlayerAttack — never applied from this message.
+    /// </summary>
     [Net.SkipHandleOnLoading]
     public class GunShotMessageHandler : NetworkMessageHandler<GunShotMessageData> {
         public override byte? MessageIndex => BuiltInMessageType.GunShot;

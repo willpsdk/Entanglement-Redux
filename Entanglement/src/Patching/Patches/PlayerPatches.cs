@@ -14,6 +14,7 @@ using UnityEngine;
 
 using Entanglement.Representation;
 using Entanglement.Network;
+using Entanglement.Network.Combat;
 using Entanglement.Data;
 using Entanglement.Objects;
 using Entanglement.Extensions;
@@ -31,13 +32,13 @@ namespace Entanglement.Patching
         {
             if (!__instance.alive)
                 return false;
-            // Another player's bullet reaching us. Noted here: OnReceivedDamage takes an Attack (see
-            // NativeHook), and the game's damage receiver runs its own inlined copy of it anyway.
+            // Unified combat: remote GunShot FX must not apply its own damage. Victim damage
+            // arrives only through PlayerAttackMessage (same path as melee).
             if (SteamIntegration.hasLobby && RemoteShot.active) {
-                Entanglement.Managers.PlayerDeathManager.NoteHitByPlayer();
                 if (EntangleLogger.verbose)
-                    EntangleLogger.Debug("[PvP] another player's bullet reached you for " + damage.ToString("F2") + ": health "
-                        + __instance.curr_Health.ToString("F2") + " of " + __instance.max_Health.ToString("F2"));
+                    EntangleLogger.Debug("[PvP] blocked cosmetic remote bullet damage " + damage.ToString("F2")
+                        + " — waiting for PlayerAttack");
+                return false;
             }
             return true;
         }
@@ -91,16 +92,7 @@ namespace Entanglement.Patching
 
                     float damage = Mathf.Clamp(impulse / 2.5f, 2f, 40f);
                     byte part = ResolveBodyPart(c);
-                    NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PlayerAttack, new PlayerAttackMessageData() {
-                        attackType = AttackType.Blunt,
-                        attackDamage = damage,
-                        bodyPart = part,
-                        impulse = Mathf.Clamp(impulse, 0f, 80f),
-                    });
-
-                    byte[] msgBytes = message.GetBytes();
-
-                    Node.activeNode.SendMessage(id, NetworkChannel.Attack, msgBytes);
+                    NetworkCombat.SendPlayerAttack(id, AttackType.Blunt, damage, part, Mathf.Clamp(impulse, 0f, 80f));
                     return;
                 }
 

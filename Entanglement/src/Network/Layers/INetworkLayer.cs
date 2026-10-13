@@ -4,7 +4,8 @@ namespace Entanglement.Network.Layers
 {
     /// <summary>
     /// Fusion-style transport abstraction.
-    /// Steam (Boneworks), SteamVR (Meta Horizon Link AppID 250820), Proxy SteamVR (Quest → PC helper).
+    /// Steam (Boneworks), SteamVR/Meta (Horizon Link AppID 250820 + Quest companion host),
+    /// Proxy SteamVR (Quest client → that host). Meta never falls back to native Steam.
     /// </summary>
     public interface INetworkLayer
     {

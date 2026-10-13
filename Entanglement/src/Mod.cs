@@ -39,8 +39,8 @@ namespace Entanglement {
         public const byte minVersionMajorSupported = 2;
         public const byte minVersionMinorSupported = 1;
 
-        // 22: SteamVR (Meta Horizon Link) + Proxy SteamVR (Quest) transport layers.
-        public const byte protocolRevision = 22;
+        // 23: full physics puppet, Meta companion host, unified combat, OwnedEntity NPCs.
+        public const byte protocolRevision = 23;
 
         public static ulong BuildId {
             get {

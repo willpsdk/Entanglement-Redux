@@ -34,6 +34,7 @@ namespace Entanglement.Objects
         public static void OnCleanup() {
             // Grant numbers belong to this level's spawn ids (and this lobby's host).
             NpcOwnership.Clear();
+            OwnedEntity.Clear();
             TransformCollisionMessageHandler.Clear();
             HolsterSync.Clear();
             Entanglement.Patching.GunSlideSync.Clear();

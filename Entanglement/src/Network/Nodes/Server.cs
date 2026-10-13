@@ -50,6 +50,16 @@ namespace Entanglement.Network
                 return;
             }
 
+            // Quest Proxy SteamVR: ask the PC companion to open the Steam lobby side.
+            if (SteamIntegration.usesProxy) {
+                var proxy = Layers.NetworkLayerManager.Layer as Layers.Proxy.ProxyNetworkLayer;
+                if (proxy == null || !proxy.IsLoggedIn) {
+                    EntangleLogger.Error("Proxy SteamVR not connected — start Entanglement on PC (SteamVR/Meta) first.");
+                    return;
+                }
+                proxy.RequestStartServer();
+            }
+
             EntangleLogger.Log($"Started a new server instance!");
             activeNode = instance = new Server();
 
@@ -84,6 +94,14 @@ namespace Entanglement.Network
         private CallResult<LobbyCreated_t> lobbyCreatedResult;
 
         private Server() {
+            if (SteamIntegration.usesProxy) {
+                EntangleLogger.Log("Proxy host session — Steam lobby is owned by the PC companion.");
+                SteamIntegration.OnProxyLobbyChanged(true, true, SteamIntegration.currentUserId);
+                RegisterLobbyCallbacks();
+                EntangleNotif.LobbyStarted();
+                return;
+            }
+
             EntangleLogger.Log($"Creating a Steam lobby with a capacity of {maxPlayers} players!");
 
             lobbyCreatedResult = CallResult<LobbyCreated_t>.Create(OnLobbyCreated);

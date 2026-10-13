@@ -194,8 +194,10 @@ namespace Entanglement.Objects
             id = spawnId;
             rbCount = bodies;
             NewLife();
-            if (spawnId != 0)
+            if (spawnId != 0) {
                 _PooleeLookup[spawnId] = this;
+                OwnedEntity.Register(this);
+            }
             // Searched before it had an id: its behaviours were left off the hit list.
             if (searchedPuppet)
                 RegisterBehaviours();
@@ -205,6 +207,7 @@ namespace Entanglement.Objects
             if (ReferenceEquals(_Cache.Get(gameObject), this))
                 _Cache.Remove(gameObject);
             UnregisterBehaviours();
+            OwnedEntity.Unregister(this);
 
             // Only remove the entry if it still points at us, a duplicate id may have overwritten it
             if (_PooleeLookup.TryGetValue(id, out PooleeSyncable current) && current == this)
@@ -246,6 +249,8 @@ namespace Entanglement.Objects
                     continue;
                 sync.ForceOwner(ownerId, false);
             }
+            // Fusion NetworkEntity façade — keep PuppetMaster ownership view in sync.
+            OwnedEntity.Register(this)?.RefreshPuppet();
         }
 
         private PuppetMasta.PuppetMaster puppetMaster;

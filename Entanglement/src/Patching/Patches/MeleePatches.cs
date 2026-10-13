@@ -6,6 +6,7 @@ using StressLevelZero.Combat;
 using StabPoint = StressLevelZero.Combat.StabSlash.StabPoint;
 
 using Entanglement.Network;
+using Entanglement.Network.Combat;
 using Entanglement.Objects;
 using Entanglement.Gamemodes;
 
@@ -46,17 +47,12 @@ namespace Entanglement.Patching
                 if (!GamemodeManager.CanAttack(SteamIntegration.currentUserId, id))
                     return;
 
-                NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PlayerAttack, new PlayerAttackMessageData()
-                {
-                    attackType = AttackType.Stabbing,
-                    attackDamage = __instance.damage * surfaceProperties.FireResistance,
-                    bodyPart = 2, // chest default for stab; surface may not expose BodyPart
-                    impulse = Mathf.Clamp(stabForce, 0f, 80f),
-                });
-
-                byte[] msgBytes = message.GetBytes();
-
-                Node.activeNode.SendMessage(id, NetworkChannel.Attack, msgBytes);
+                NetworkCombat.SendPlayerAttack(
+                    id,
+                    AttackType.Stabbing,
+                    __instance.damage * surfaceProperties.FireResistance,
+                    2,
+                    Mathf.Clamp(stabForce, 0f, 80f));
             }
             catch { }
         }

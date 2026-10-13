@@ -22,6 +22,7 @@ namespace Entanglement.Network.Layers
         public static readonly string[] SelectableTitles = {
             "Steam",
             "SteamVR",
+            "Meta",
             "Proxy SteamVR",
         };
 
@@ -75,8 +76,15 @@ namespace Entanglement.Network.Layers
             }
 
             if (!Validate(layer, out string reason)) {
-                EntangleLogger.Warn("[NetLayer] " + layer.Title + " not valid (" + reason + "), falling back.");
-                layer = FallbackFrom(layer);
+                // Meta / SteamVR / Proxy must never silently become native Steam — that was the stub path.
+                if (IsSteamVRTitle(name) || IsProxyTitle(name)) {
+                    EntangleLogger.Error("[NetLayer] " + name + " unavailable (" + reason
+                        + "). Keeping " + layer.Title + " — will not fall back to Steam.");
+                }
+                else {
+                    EntangleLogger.Warn("[NetLayer] " + layer.Title + " not valid (" + reason + "), falling back.");
+                    layer = FallbackFrom(layer);
+                }
             }
 
             return layer;
@@ -91,7 +99,8 @@ namespace Entanglement.Network.Layers
                 || string.Equals(name, "Quest", StringComparison.OrdinalIgnoreCase))
                 return new ProxySteamVRNetworkLayer();
 
-            if (IsSteamVRTitle(name))
+            if (IsSteamVRTitle(name)
+                || string.Equals(name, "Meta", StringComparison.OrdinalIgnoreCase))
                 return new SteamVRNetworkLayer();
 
             if (string.Equals(name, "Steam", StringComparison.OrdinalIgnoreCase))
