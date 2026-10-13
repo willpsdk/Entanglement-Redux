@@ -10,6 +10,9 @@ using StressLevelZero.Pool;
 
 namespace Entanglement.Network
 {
+    /// <summary>
+    /// Power-punch FX only. Damage and shove impulse arrive via PlayerAttack (NetworkCombat).
+    /// </summary>
     [Net.SkipHandleOnLoading]
     public class PowerPunchMessageHandler : NetworkMessageHandler<PowerPunchMessageData>
     {
@@ -23,7 +26,6 @@ namespace Entanglement.Network
 
             int index = 0;
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.force.ToULong()), ref index);
-
             message.messageData = message.messageData.AddBytes(BitConverter.GetBytes(data.localPosition.ToULong()), ref index);
 
             return message;
@@ -35,25 +37,27 @@ namespace Entanglement.Network
                 throw new IndexOutOfRangeException();
 
             int index = 0;
-            Vector3 force = BitConverter.ToUInt64(message.messageData, index).ToVector3(); // Decode from ushort
+            Vector3 force = BitConverter.ToUInt64(message.messageData, index).ToVector3();
             index += sizeof(ulong);
 
-            PlayerScripts.playerPhysBody.AddImpulseForce(force); // Add force to player
+            // Impulse already applied by PlayerAttackMessage — this message is cosmetics.
+            if (!PlayerRepresentation.representations.ContainsKey(sender))
+                return;
 
-            // Play Effects
-            if (PlayerRepresentation.representations.ContainsKey(sender))
-            {
-                PlayerRepresentation rep = PlayerRepresentation.representations[sender];
-                Vector3 localPosition = BitConverter.ToUInt64(message.messageData, index).ToVector3();
-                Vector3 position = rep.repRoot.TransformPosition(localPosition);
-                Quaternion direction = Quaternion.LookRotation(force.normalized);
+            PlayerRepresentation rep = PlayerRepresentation.representations[sender];
+            Vector3 localPosition = BitConverter.ToUInt64(message.messageData, index).ToVector3();
+            Vector3 position = rep.repRoot.TransformPosition(localPosition);
+            Quaternion direction = force.sqrMagnitude > 0.01f
+                ? Quaternion.LookRotation(force.normalized)
+                : Quaternion.identity;
 
+            if (rep.repPowerPunchSFX) {
                 rep.repPowerPunchSFX.transform.position = position;
                 rep.repPowerPunchSFX.GravFire();
-
-                PoolSpawner.SpawnBlaster(PoolSpawner.BlasterType.Dust, position, direction);
-                PoolSpawner.SpawnSmoker(position, direction);
             }
+
+            PoolSpawner.SpawnBlaster(PoolSpawner.BlasterType.Dust, position, direction);
+            PoolSpawner.SpawnSmoker(position, direction);
         }
     }
 

@@ -1410,32 +1410,40 @@ namespace Entanglement.Representation
                 lastHeadTarget = target;
                 hasLastHead = true;
 
-                Vector3 leftTarget = repTransforms[1] ? repTransforms[1].position : target + Vector3.left * 0.3f;
-                Vector3 rightTarget = repTransforms[2] ? repTransforms[2].position : target + Vector3.right * 0.3f;
-
-                if (physicsPuppet != null && physicsPuppet.IsValid) {
-                    physicsPuppet.Drive(target, rot, headVel, leftTarget, rightTarget, pressingLocal, parked);
-                }
-                else {
-                    // Legacy single-capsule path if puppet failed to build.
-                    if (body.isKinematic)
-                        body.isKinematic = false;
-                    if ((target - body.position).sqrMagnitude > 4f) {
-                        body.position = target;
-                        body.rotation = rot;
-                        body.velocity = Vector3.zero;
-                        pelvisPD.Reset();
-                        return;
+                Vector3 leftHand = repTransforms[1] ? repTransforms[1].position : target + Vector3.left * 0.3f;
+                Vector3 rightHand = repTransforms[2] ? repTransforms[2].position : target + Vector3.right * 0.3f;
+                // Feet from visual Ford when present; otherwise under the pelvis.
+                Vector3 leftFoot = target + new Vector3(-0.12f, -1.55f, 0f);
+                Vector3 rightFoot = target + new Vector3(0.12f, -1.55f, 0f);
+                try {
+                    if (repRoot) {
+                        Transform lNamed = FindDeep(repRoot, "Foot (left)");
+                        Transform rNamed = FindDeep(repRoot, "Foot (right)");
+                        if (!lNamed) lNamed = FindDeep(repRoot, "heel.L");
+                        if (!rNamed) rNamed = FindDeep(repRoot, "heel.R");
+                        if (lNamed) leftFoot = lNamed.position;
+                        if (rNamed) rightFoot = rNamed.position;
+                        else {
+                            Transform lf = FindDeep(repRoot, "Foot");
+                            if (lf) {
+                                leftFoot = lf.position;
+                                rightFoot = lf.position + Vector3.right * 0.2f;
+                            }
+                        }
                     }
-                    Vector3 force = pelvisPD.GetForce(body.position, body.velocity, target, headVel);
-                    force = Vector3.ClampMagnitude(force, pressingLocal ? ContactAccelCap : FreeAccelCap);
-                    if (force.y < -RepMaxDownAccel)
-                        force.y = -RepMaxDownAccel;
-                    body.AddForce(force, ForceMode.Acceleration);
-                    body.MoveRotation(rot);
-                    if (body.velocity.sqrMagnitude > RepSpeedLimit * RepSpeedLimit)
-                        body.velocity = body.velocity.normalized * RepSpeedLimit;
                 }
+                catch { }
+
+                if (physicsPuppet == null || !physicsPuppet.IsValid) {
+                    EntangleLogger.Warn("[Rep] PhysicsRigPuppet missing for " + IdText(playerId) + " — rebuilding");
+                    enemyTargetReady = false;
+                    EnsureEnemyTarget();
+                    return;
+                }
+
+                physicsPuppet.Drive(target, rot, headVel, leftHand, rightHand, leftFoot, rightFoot, pressingLocal, parked);
+                if (!parked && repRoot)
+                    physicsPuppet.FollowVisual(repRoot, 0.4f);
             }
             catch { }
         }

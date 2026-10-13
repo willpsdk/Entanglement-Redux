@@ -7,15 +7,16 @@ using Entanglement.Data;
 namespace Entanglement.Representation
 {
     /// <summary>
-    /// Boneworks stand-in for Fusion's RigManager physics puppet: multiple dynamic PD-driven
-    /// segments (pelvis/torso, hands) instead of a single Ford + capsule. Visual Ford stays
-    /// kinematic for IK; physical presence is these bodies.
+    /// Full Boneworks physics puppet (Fusion RigManager ideology): dynamic PD pelvis, hands, and
+    /// feet in world space. Visual Ford is kinematic IK and soft-follows the pelvis.
     /// </summary>
     public sealed class PhysicsRigPuppet
     {
         public Rigidbody Pelvis { get; private set; }
         public Rigidbody LeftHand { get; private set; }
         public Rigidbody RightHand { get; private set; }
+        public Rigidbody LeftFoot { get; private set; }
+        public Rigidbody RightFoot { get; private set; }
         public Collider HeadCollider { get; private set; }
         public Collider TorsoCollider { get; private set; }
         public GameObject Root { get; private set; }
@@ -23,34 +24,24 @@ namespace Entanglement.Representation
         readonly PDController pelvisPD = new PDController();
         readonly PDController leftHandPD = new PDController();
         readonly PDController rightHandPD = new PDController();
+        readonly PDController leftFootPD = new PDController();
+        readonly PDController rightFootPD = new PDController();
 
         const float FreeAccelCap = 120f;
         const float ContactAccelCap = 36f;
-        const float HandAccelCap = 180f;
+        const float LimbAccelCap = 180f;
         const float SpeedLimit = 12f;
-        const float HandSpeedLimit = 18f;
+        const float LimbSpeedLimit = 18f;
         const float MaxDownAccel = 19.6f;
         const float SnapDistanceSqr = 4f;
 
-        public bool IsValid => Root && Pelvis;
+        public bool IsValid => Root && Pelvis && LeftHand && RightHand;
 
         public void Build(GameObject host, float mass, Vector3 skullOffset, float headRadius, int layer) {
             Root = host;
             host.layer = layer;
 
-            Pelvis = host.GetComponent<Rigidbody>();
-            if (!Pelvis)
-                Pelvis = host.AddComponent<Rigidbody>();
-
-            Pelvis.isKinematic = false;
-            Pelvis.useGravity = false;
-            Pelvis.mass = mass;
-            Pelvis.drag = 0.5f;
-            Pelvis.angularDrag = 0.5f;
-            Pelvis.constraints = RigidbodyConstraints.FreezeRotation;
-            Pelvis.detectCollisions = true;
-            Pelvis.interpolation = RigidbodyInterpolation.Interpolate;
-            Pelvis.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            Pelvis = ConfigureBody(host, mass, freezeRotation: true);
 
             SphereCollider head = host.GetComponent<SphereCollider>();
             if (!head)
@@ -69,63 +60,94 @@ namespace Entanglement.Representation
             torso.center = new Vector3(0f, -0.85f, skullOffset.z);
             TorsoCollider = torso;
 
-            LeftHand = EnsureHandBody(host.transform, "PhysHand.L", mass * 0.08f);
-            RightHand = EnsureHandBody(host.transform, "PhysHand.R", mass * 0.08f);
+            // World-space limbs (not parented) so PD targets are absolute like Fusion's physics rig.
+            LeftHand = SpawnLimb("PhysHand.L", host.transform.position, mass * 0.08f, 0.07f, layer);
+            RightHand = SpawnLimb("PhysHand.R", host.transform.position, mass * 0.08f, 0.07f, layer);
+            LeftFoot = SpawnLimb("PhysFoot.L", host.transform.position, mass * 0.1f, 0.08f, layer);
+            RightFoot = SpawnLimb("PhysFoot.R", host.transform.position, mass * 0.1f, 0.08f, layer);
+
+            IgnoreSelfCollisions();
         }
 
-        static Rigidbody EnsureHandBody(Transform parent, string name, float mass) {
-            Transform existing = parent.Find(name);
-            GameObject go = existing ? existing.gameObject : new GameObject(name);
-            if (!existing)
-                go.transform.SetParent(parent, false);
-
+        static Rigidbody ConfigureBody(GameObject go, float mass, bool freezeRotation) {
             Rigidbody rb = go.GetComponent<Rigidbody>();
             if (!rb)
                 rb = go.AddComponent<Rigidbody>();
             rb.isKinematic = false;
             rb.useGravity = false;
-            rb.mass = Mathf.Clamp(mass, 1.5f, 6f);
-            rb.drag = 1f;
-            rb.angularDrag = 1f;
+            rb.mass = mass;
+            rb.drag = 0.5f;
+            rb.angularDrag = 0.5f;
+            rb.constraints = freezeRotation ? RigidbodyConstraints.FreezeRotation : RigidbodyConstraints.None;
             rb.detectCollisions = true;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-
-            SphereCollider col = go.GetComponent<SphereCollider>();
-            if (!col)
-                col = go.AddComponent<SphereCollider>();
-            col.isTrigger = false;
-            col.radius = 0.07f;
             return rb;
+        }
+
+        static Rigidbody SpawnLimb(string name, Vector3 at, float mass, float radius, int layer) {
+            GameObject go = new GameObject(name);
+            go.layer = layer;
+            go.transform.position = at;
+            Rigidbody rb = ConfigureBody(go, Mathf.Clamp(mass, 1.2f, 8f), freezeRotation: true);
+            rb.drag = 1f;
+            rb.angularDrag = 1f;
+            SphereCollider col = go.AddComponent<SphereCollider>();
+            col.isTrigger = false;
+            col.radius = radius;
+            return rb;
+        }
+
+        void IgnoreSelfCollisions() {
+            Collider[] parts = {
+                HeadCollider, TorsoCollider,
+                LeftHand ? LeftHand.GetComponent<Collider>() : null,
+                RightHand ? RightHand.GetComponent<Collider>() : null,
+                LeftFoot ? LeftFoot.GetComponent<Collider>() : null,
+                RightFoot ? RightFoot.GetComponent<Collider>() : null,
+            };
+            for (int i = 0; i < parts.Length; i++) {
+                if (!parts[i])
+                    continue;
+                for (int j = i + 1; j < parts.Length; j++) {
+                    if (!parts[j])
+                        continue;
+                    try { Physics.IgnoreCollision(parts[i], parts[j], true); }
+                    catch { }
+                }
+            }
         }
 
         public void Drive(
             Vector3 pelvisTarget, Quaternion pelvisRot, Vector3 pelvisVel,
             Vector3 leftHandTarget, Vector3 rightHandTarget,
+            Vector3 leftFootTarget, Vector3 rightFootTarget,
             bool softContact, bool parked)
         {
             if (!IsValid)
                 return;
 
             if (parked) {
-                Park(Pelvis);
-                Park(LeftHand);
-                Park(RightHand);
-                pelvisPD.Reset();
-                leftHandPD.Reset();
-                rightHandPD.Reset();
+                ParkAll();
                 return;
             }
 
-            DriveBody(Pelvis, pelvisPD, pelvisTarget, pelvisRot, pelvisVel,
-                softContact ? ContactAccelCap : FreeAccelCap, SpeedLimit, true);
+            float pelvisCap = softContact ? ContactAccelCap : FreeAccelCap;
+            DriveBody(Pelvis, pelvisPD, pelvisTarget, pelvisRot, pelvisVel, pelvisCap, SpeedLimit, true);
+            DriveBody(LeftHand, leftHandPD, leftHandTarget, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
+            DriveBody(RightHand, rightHandPD, rightHandTarget, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
+            DriveBody(LeftFoot, leftFootPD, leftFootTarget, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
+            DriveBody(RightFoot, rightFootPD, rightFootTarget, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
+        }
 
-            if (LeftHand)
-                DriveBody(LeftHand, leftHandPD, leftHandTarget, Quaternion.identity, Vector3.zero,
-                    HandAccelCap, HandSpeedLimit, false);
-            if (RightHand)
-                DriveBody(RightHand, rightHandPD, rightHandTarget, Quaternion.identity, Vector3.zero,
-                    HandAccelCap, HandSpeedLimit, false);
+        /// <summary>Soft-follow visual Ford root to the physical pelvis (IK bones stay relative).</summary>
+        public void FollowVisual(Transform visualRoot, float blend = 0.35f) {
+            if (!Pelvis || !visualRoot)
+                return;
+            Vector3 at = Pelvis.position;
+            Quaternion yaw = Quaternion.Euler(0f, Pelvis.rotation.eulerAngles.y, 0f);
+            visualRoot.position = Vector3.Lerp(visualRoot.position, at, blend);
+            visualRoot.rotation = Quaternion.Slerp(visualRoot.rotation, yaw, blend);
         }
 
         void DriveBody(Rigidbody body, PDController pd, Vector3 target, Quaternion rot,
@@ -160,6 +182,19 @@ namespace Entanglement.Representation
                 body.velocity = body.velocity.normalized * speedLimit;
         }
 
+        void ParkAll() {
+            Park(Pelvis);
+            Park(LeftHand);
+            Park(RightHand);
+            Park(LeftFoot);
+            Park(RightFoot);
+            pelvisPD.Reset();
+            leftHandPD.Reset();
+            rightHandPD.Reset();
+            leftFootPD.Reset();
+            rightFootPD.Reset();
+        }
+
         static void Park(Rigidbody body) {
             if (!body)
                 return;
@@ -168,15 +203,26 @@ namespace Entanglement.Representation
         }
 
         public void Destroy() {
-            pelvisPD.Reset();
-            leftHandPD.Reset();
-            rightHandPD.Reset();
+            ParkAll();
+            DestroyLimb(LeftHand);
+            DestroyLimb(RightHand);
+            DestroyLimb(LeftFoot);
+            DestroyLimb(RightFoot);
             Pelvis = null;
             LeftHand = null;
             RightHand = null;
+            LeftFoot = null;
+            RightFoot = null;
             HeadCollider = null;
             TorsoCollider = null;
             Root = null;
+        }
+
+        static void DestroyLimb(Rigidbody rb) {
+            if (!rb)
+                return;
+            try { UnityEngine.Object.Destroy(rb.gameObject); }
+            catch { }
         }
     }
 }

@@ -2,9 +2,11 @@
 
 using UnityEngine;
 
+using StressLevelZero.Combat;
 using StressLevelZero.Interaction;
 
 using Entanglement.Network;
+using Entanglement.Network.Combat;
 using Entanglement.Representation;
 using Entanglement.Extensions;
 using Entanglement.Gamemodes;
@@ -32,8 +34,6 @@ namespace Entanglement.Patching
                 return;
 
             ContactPoint contact = collision.GetContact(0);
-            // Any collider on the PowerPuncher counts (old hardcode was only "col_mainBody (1)").
-            // Hit target is already verified as PlayerRep — including the force-driven hit body.
             Collider striker = contact.thisCollider;
             if (!striker || !striker.transform.IsChildOf(__instance.transform))
                 return;
@@ -48,15 +48,22 @@ namespace Entanglement.Patching
             if (force == Vector3.zero)
                 return;
 
-            NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PowerPunch, new PowerPunchMessageData()
-            {
-                force = force,
-                localPosition = PlayerRepresentation.syncedRoot.InverseTransformPosition(__instance.transform.position)
-            });
+            float damage = Mathf.Clamp(force.magnitude * 0.35f, 8f, 55f);
+            float impulse = Mathf.Clamp(force.magnitude, 5f, 100f);
 
-            byte[] msgBytes = message.GetBytes();
+            // Unified combat path (same as punch/gun/stab).
+            NetworkCombat.SendPlayerAttack(id, AttackType.Blunt, damage, 2, impulse);
 
-            Node.activeNode.SendMessage(id, NetworkChannel.Attack, msgBytes);
+            // FX-only follow-up (dust / SFX) — no second damage.
+            if (PlayerRepresentation.syncedRoot) {
+                NetworkMessage fx = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PowerPunch, new PowerPunchMessageData()
+                {
+                    force = force,
+                    localPosition = PlayerRepresentation.syncedRoot.InverseTransformPosition(__instance.transform.position)
+                });
+                if (fx != null)
+                    Node.activeNode.SendMessage(id, NetworkChannel.Attack, fx.GetBytes());
+            }
         }
     }
 }

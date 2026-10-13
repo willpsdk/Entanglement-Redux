@@ -29,10 +29,10 @@ namespace Entanglement.Patching
                     if (cachedTransform && !cachedTransform.IsOwner()) return;
                 }
 
-                // A blade in an NPC someone else runs: ask for it, so the stab counts and it fights us.
-                PooleeSyncable npc = PooleeSyncable.SyncedNpcOf(surfaceProperties.transform);
-                if (npc) {
-                    npc.ClaimFight();
+                // A blade in an NPC someone else runs: claim OwnedEntity so PuppetMaster fights us.
+                OwnedEntity entity = OwnedEntity.OfTransform(surfaceProperties.transform);
+                if (entity != null) {
+                    entity.ClaimFight();
                     return;
                 }
 

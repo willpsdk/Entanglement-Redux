@@ -1244,6 +1244,9 @@ namespace Entanglement.Objects
             }
         }
 
+
+        /// <summary>Fusion-style owned entity for this poolee (creates if missing).</summary>
+        public OwnedEntity Entity => OwnedEntity.Of(this);
         void CacheDefaults() {
             if (cachedDefaults || !Live(puppetMaster))
                 return;

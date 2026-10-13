@@ -683,9 +683,16 @@ namespace Entanglement.UI
         static string TransportLabel() {
             string active = Entanglement.Network.Layers.NetworkLayerManager.ActiveTitle;
             string preferred = Entanglement.Network.Layers.NetworkPrefs.ResolvedLayerTitle();
-            if (!string.Equals(active, preferred, StringComparison.OrdinalIgnoreCase))
-                return "Net: " + active + " → " + preferred;
-            return "Net: " + active;
+            string label = !string.Equals(active, preferred, StringComparison.OrdinalIgnoreCase)
+                ? "Net: " + active + " → " + preferred
+                : "Net: " + active;
+            try {
+                int peers = Entanglement.Network.Layers.Proxy.ProxyCompanionHost.PeerCount;
+                if (peers > 0)
+                    label += " +Q" + peers;
+            }
+            catch { }
+            return label;
         }
 
         static int bannedPage;

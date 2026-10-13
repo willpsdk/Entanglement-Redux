@@ -39,8 +39,8 @@ namespace Entanglement {
         public const byte minVersionMajorSupported = 2;
         public const byte minVersionMinorSupported = 1;
 
-        // 23: full physics puppet, Meta companion host, unified combat, OwnedEntity NPCs.
-        public const byte protocolRevision = 23;
+        // 24: finished puppet/companion/combat/OwnedEntity (no half-baked stubs).
+        public const byte protocolRevision = 24;
 
         public static ulong BuildId {
             get {

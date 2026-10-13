@@ -162,24 +162,24 @@ namespace Entanglement.Patching
 
         static unsafe bool RunsHere(IntPtr behaviour, IntPtr hit) {
             PooleeSyncable npc = PooleeSyncable.OfBehaviour(behaviour);
-            // Not synced: as before, other players' bullet copies only show their shot.
+            // Not synced: remote GunShot FX must not damage NPCs either.
             if (npc == null)
                 return !RemoteShot.active;
             if (!HitLayout.Ok)
                 return true;
 
+            OwnedEntity entity = OwnedEntity.Of(npc);
             HitSource.Side side = RemoteShot.active ? HitSource.Side.Remote : HitSource.current;
             if (side == HitSource.Side.Unknown)
                 side = HitSource.SideOf(*(IntPtr*)((byte*)hit + HitLayout.attack + HitLayout.proxy));
 
-            // Someone else runs it: ours goes to them, and nothing lands on this copy.
-            if (!npc.RunsHere) {
+            // Someone else owns the entity: forward and skip local PuppetMaster damage.
+            if (entity == null || !entity.RunsLocally) {
                 if (side == HitSource.Side.Local)
                     npc.ForwardAttack(hit);
                 return false;
             }
 
-            // Another player's hit, seen on our copy of their gun or weapon: their game sends it.
             return side != HitSource.Side.Remote;
         }
 

@@ -1,16 +1,13 @@
 using System;
 using System.Collections.Generic;
 
-using UnityEngine;
-
 using PuppetMasta;
 
 namespace Entanglement.Objects
 {
     /// <summary>
-    /// Fusion NetworkEntity ideology for Boneworks NPCs: one owned entity per synced Poolee,
-    /// with explicit owner id and PuppetMaster handle. PooleeSyncable remains the sync engine;
-    /// this is the ownership/puppet façade gameplay and combat talk to.
+    /// Fusion NetworkEntity for Boneworks NPCs. Ownership, PuppetMaster, and run-locality
+    /// go through here — PooleeSyncable is the sync engine underneath.
     /// </summary>
     public sealed class OwnedEntity
     {
@@ -19,11 +16,24 @@ namespace Entanglement.Objects
         public ushort EntityId { get; private set; }
         public PooleeSyncable Poolee { get; private set; }
         public PuppetMaster PuppetMaster { get; private set; }
+
         public long OwnerId => Poolee != null ? Poolee.CurrentOwner() : 0L;
-        public bool IsOwner => OwnerId != 0L && OwnerId == Network.SteamIntegration.currentUserId;
+
+        public bool IsOwner {
+            get {
+                long owner = OwnerId;
+                return owner != 0L && owner == Network.SteamIntegration.currentUserId;
+            }
+        }
+
         public bool IsRegistered => Poolee != null && EntityId != 0;
 
+        /// <summary>Owner (or solo) simulates AI + PuppetMaster; others follow pose.</summary>
+        public bool RunsLocally => Poolee != null && Poolee.RunsHere;
+
         public static IEnumerable<OwnedEntity> All => byId.Values;
+
+        public static int Count => byId.Count;
 
         public static void Clear() => byId.Clear();
 
@@ -63,6 +73,14 @@ namespace Entanglement.Objects
             return TryGet(poolee, out entity) ? entity : Register(poolee);
         }
 
+        /// <summary>Lookup by any transform under the NPC (combat / grips).</summary>
+        public static OwnedEntity OfTransform(UnityEngine.Transform t) {
+            if (!t)
+                return null;
+            PooleeSyncable poolee = PooleeSyncable.SyncedNpcOf(t);
+            return poolee != null ? Of(poolee) : null;
+        }
+
         void Bind(PooleeSyncable poolee) {
             Poolee = poolee;
             EntityId = poolee.id;
@@ -79,24 +97,55 @@ namespace Entanglement.Objects
             catch { }
         }
 
-        /// <summary>Owner machine simulates AI + PuppetMaster muscles; others follow pose.</summary>
-        public bool RunsLocally => Poolee != null && Poolee.RunsHere;
+        public void SetOwner(long newOwner) {
+            if (Poolee == null)
+                return;
+            Poolee.SetOwner(newOwner);
+            RefreshPuppet();
+        }
+
+        public void ClaimFight() {
+            Poolee?.ClaimFight();
+        }
 
         public void TakeOwnership(long newOwner, bool fighting = false) {
             if (Poolee == null)
                 return;
             try {
                 if (Network.Node.isServer) {
-                    Poolee.SetOwner(newOwner);
-                    // Host rebroadcasts via existing NpcOwner path when fighting/claiming.
+                    SetOwner(newOwner);
                     if (fighting)
-                        Poolee.ClaimFight();
+                        ClaimFight();
                 }
                 else if (fighting)
-                    Poolee.ClaimFight();
+                    ClaimFight();
             }
             catch (Exception e) {
                 EntangleLogger.Warn("[OwnedEntity] TakeOwnership: " + e.Message);
+            }
+        }
+
+        /// <summary>PuppetMaster state for debug / gamemodes.</summary>
+        public PuppetMaster.State PuppetState {
+            get {
+                try {
+                    return PuppetMaster != null ? PuppetMaster.state : PuppetMaster.State.Dead;
+                }
+                catch {
+                    return PuppetMaster.State.Dead;
+                }
+            }
+        }
+
+        public bool IsAlive {
+            get {
+                try {
+                    return PuppetMaster != null && PuppetMaster.state == PuppetMaster.State.Alive
+                        && Poolee != null && !Poolee.DeclaredDead;
+                }
+                catch {
+                    return false;
+                }
             }
         }
     }

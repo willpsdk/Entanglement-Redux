@@ -631,7 +631,11 @@ namespace Entanglement.Network {
                 catch (Exception e) { EntangleLogger.Warn("[Join] Ghost sweep: " + e.Message); }
             }
 
-            if (hasLobby)
+            // When Quest peers tunnel through this PC, the companion owns Steam P2P drain.
+            if (Entanglement.Network.Layers.Proxy.ProxyCompanionHost.OwnsSteamDrain)
+                return;
+
+            if (hasLobby || usesProxy)
                 Node.activeNode?.ReceiveMessages();
         }
 
