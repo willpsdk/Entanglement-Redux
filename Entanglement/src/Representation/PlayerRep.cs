@@ -545,6 +545,7 @@ namespace Entanglement.Representation
                 if (!previewOnly) {
                     CentreHeadColliders();
                     NoSpeculativeContacts();
+                    SilenceKinematicModelPhysics();
                     DescribeModelColliders();
                 }
 
@@ -576,8 +577,10 @@ namespace Entanglement.Representation
                 step = "hands";
                 if (previewOnly)
                     DisableColliders();
-                else
+                else {
                     try { EnsureEnemyTarget(); } catch { }
+                    SilenceKinematicModelPhysics();
+                }
 
                 if (isCustomSkinned && currentSkinPath != null && loadingSkinPath == null)
                     try { PlayerSkinLoader.ApplyPlayermodel(this, currentSkinPath); } catch { }
@@ -1422,31 +1425,31 @@ namespace Entanglement.Representation
                 lastHeadTarget = target;
                 hasLastHead = true;
 
+                // Fusion-style PD on a dynamic body — never kinematic MovePosition for the rep.
+                if (body.isKinematic)
+                    body.isKinematic = false;
+
                 // Far off (teleport, respawn, a big hitch): jump there rather than fly through the world.
-                // Fusion does the same stability teleport when error explodes.
                 if (error.sqrMagnitude > 4f) {
                     body.position = target;
                     body.rotation = rot;
                     body.velocity = Vector3.zero;
                     body.angularVelocity = Vector3.zero;
+                    pelvisPD.Reset();
                     return;
                 }
 
-                // Steered by forces (FollowDrive / Fusion PD ideology): stays dynamic so walls, doors,
-                // and the local player can resist and shove back.
-                Vector3 accel = Entanglement.Objects.FollowDrive.Acceleration(body.position, body.velocity, target, headVel, Time.fixedDeltaTime);
-                // A fall or crouch is followed at most this hard downward, so it never dives under the floor.
-                if (accel.y < -RepMaxDownAccel)
-                    accel.y = -RepMaxDownAccel;
-                // While pressing into the local player, soften the chase so we shove instead of explode.
+                Vector3 force = pelvisPD.GetForce(body.position, body.velocity, target, headVel);
+                // Soften while pressing the local player so we shove instead of explode.
                 if (pressingLocal)
-                    accel = Vector3.ClampMagnitude(accel, ContactAccelCap);
+                    force = Vector3.ClampMagnitude(force, ContactAccelCap);
                 else
-                    accel = Vector3.ClampMagnitude(accel, FreeAccelCap);
-                body.AddForce(accel, ForceMode.Acceleration);
+                    force = Vector3.ClampMagnitude(force, FreeAccelCap);
+                if (force.y < -RepMaxDownAccel)
+                    force.y = -RepMaxDownAccel;
+                body.AddForce(force, ForceMode.Acceleration);
                 body.MoveRotation(rot);
 
-                // Cap runaway velocity (Fusion SpeedLimit ideology, milder for a player body).
                 if (body.velocity.sqrMagnitude > RepSpeedLimit * RepSpeedLimit)
                     body.velocity = body.velocity.normalized * RepSpeedLimit;
             }
@@ -1460,9 +1463,10 @@ namespace Entanglement.Representation
         bool localContactIgnored;
         bool pressingLocal;
         float contactCheckAt;
+        readonly Entanglement.Data.PDController pelvisPD = new Entanglement.Data.PDController();
 
-        const float FreeAccelCap = 80f;
-        const float ContactAccelCap = 28f;
+        const float FreeAccelCap = 120f;
+        const float ContactAccelCap = 36f;
         const float RepSpeedLimit = 12f;
         const float ContactCheckEvery = 0.05f;
 
@@ -1694,6 +1698,30 @@ namespace Entanglement.Representation
                 }
                 if (changed > 0)
                     EntangleLogger.Debug("[Rep] " + changed + " model bodies switched to discrete contacts");
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Visual/IK model must not act as kinematic physics (doors/lifts break). Physical presence
+        /// is the PD-driven hit body only. Grips still work via Interaction components.
+        /// </summary>
+        void SilenceKinematicModelPhysics() {
+            try {
+                Rigidbody[] bodies = repRoot.GetComponentsInChildren<Rigidbody>(true);
+                int silenced = 0;
+                for (int i = 0; i < bodies.Length; i++) {
+                    Rigidbody rb = bodies[i];
+                    if (!rb || !rb.isKinematic)
+                        continue;
+                    if (enemyTarget && rb.transform.IsChildOf(enemyTarget.transform))
+                        continue;
+                    rb.detectCollisions = false;
+                    silenced++;
+                }
+                if (silenced > 0)
+                    EntangleLogger.Debug("[Rep] " + IdText(playerId) + ": silenced " + silenced
+                        + " kinematic model bodies (PD hit body owns physics)");
             }
             catch { }
         }

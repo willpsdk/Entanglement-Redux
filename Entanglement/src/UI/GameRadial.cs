@@ -8,6 +8,7 @@ using Entanglement.Objects;
 using Entanglement.Representation;
 using Entanglement.Sync;
 using Entanglement.Voice;
+using Entanglement.Gamemodes;
 using Steamworks;
 
 using StressLevelZero.UI;
@@ -158,13 +159,41 @@ namespace Entanglement.UI
                 new Entry("Server Browser", ShowServers),
                 new Entry("Players", ShowPlayers),
                 new Entry("Downloads", ShowDownloads),
+                new Entry("Gamemodes", ShowGamemodes),
                 new Entry("Voice", ShowVoice),
-                new Entry(VoiceManager.micEnabled ? "Mic On" : "Mic Off", () => {
-                    VoiceManager.micEnabled = !VoiceManager.micEnabled;
-                    ShowHub();
-                }),
                 new Entry("Settings", ShowSettings)
             ));
+        }
+
+        static void ShowGamemodes() {
+            var entries = new List<Entry>();
+            string active = GamemodeManager.Active != null
+                ? GamemodeManager.Active.Title + (GamemodeManager.Active.IsStarted ? " (live)" : " (selected)")
+                : "Sandbox";
+            entries.Add(new Entry(active, null, true));
+
+            for (int i = 0; i < GamemodeManager.Gamemodes.Count; i++) {
+                Gamemode mode = GamemodeManager.Gamemodes[i];
+                entries.Add(new Entry(mode.Title, () => {
+                    GamemodeManager.Select(mode);
+                    ShowGamemodes();
+                }));
+            }
+
+            entries.Add(new Entry("Start Mode", () => {
+                GamemodeManager.StartActive();
+                ShowGamemodes();
+            }));
+            entries.Add(new Entry("Stop Mode", () => {
+                GamemodeManager.Stop();
+                ShowGamemodes();
+            }));
+            entries.Add(new Entry("Clear", () => {
+                GamemodeManager.Deselect();
+                ShowGamemodes();
+            }));
+
+            Show(PageBack(ShowHub, entries.ToArray()), false);
         }
 
         static void ShowLobby() {

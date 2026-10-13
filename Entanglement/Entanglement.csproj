@@ -376,11 +376,15 @@
     <Compile Include="src\Data\Files\GameSDK.cs" />
     <Compile Include="src\Data\Files\PersistentData.cs" />
     <Compile Include="src\Data\Containers\PhysicsData.cs" />
+    <Compile Include="src\Data\Containers\PDController.cs" />
     <Compile Include="src\Data\Containers\PlayerScripts.cs" />
     <Compile Include="src\Data\Containers\SimplifiedHand.cs" />
     <Compile Include="src\Data\Containers\SimplifiedQuaternion.cs" />
     <Compile Include="src\Data\Containers\SimplifiedTransform.cs" />
     <Compile Include="src\Data\Containers\SpawnableData.cs" />
+    <Compile Include="src\Gamemodes\Gamemode.cs" />
+    <Compile Include="src\Gamemodes\GamemodeManager.cs" />
+    <Compile Include="src\Gamemodes\BuiltIn\DeathmatchGamemode.cs" />
     <Compile Include="src\Data\Validation\ChecksumTool.cs" />
     <Compile Include="src\EntangleLogger.cs" />
     <Compile Include="src\DebugLog.cs" />

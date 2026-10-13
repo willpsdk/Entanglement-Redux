@@ -17,6 +17,7 @@ using Entanglement.Network;
 using Entanglement.Data;
 using Entanglement.Objects;
 using Entanglement.Extensions;
+using Entanglement.Gamemodes;
 
 using MelonLoader;
 
@@ -85,11 +86,16 @@ namespace Entanglement.Patching
                     if (playerName.Length < 2)
                         throw new IndexOutOfRangeException();
                     long id = long.Parse(playerName[1]);
-                    // Stronger, less flat mapping — physical contact now carries shove; damage should match.
+                    if (!GamemodeManager.CanAttack(SteamIntegration.currentUserId, id))
+                        return;
+
                     float damage = Mathf.Clamp(impulse / 2.5f, 2f, 40f);
+                    byte part = ResolveBodyPart(c);
                     NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PlayerAttack, new PlayerAttackMessageData() {
                         attackType = AttackType.Blunt,
                         attackDamage = damage,
+                        bodyPart = part,
+                        impulse = Mathf.Clamp(impulse, 0f, 80f),
                     });
 
                     byte[] msgBytes = message.GetBytes();
@@ -106,6 +112,36 @@ namespace Entanglement.Patching
                 ObjectSync.OnBodyPunched(c.gameObject);
             }
             catch (Exception e) { Entanglement.Patching.PatchGuard.Report("PlayerPatches.Postfix", e); }
+        }
+
+        static byte ResolveBodyPart(Collision c) {
+            try {
+                if (c == null || !c.collider)
+                    return 0;
+                string n = c.collider.name ?? "";
+                string path = c.collider.transform ? c.collider.transform.name : "";
+                string s = (n + " " + path).ToLowerInvariant();
+                // PlayerDamageReceiver.BodyPart flags
+                if (s.Contains("head") || s.Contains("skull") || s.Contains("jaw"))
+                    return 1; // Head
+                if (s.Contains("chest") || s.Contains("spine") || s.Contains("torso"))
+                    return 2; // Chest
+                if (s.Contains("pelvis") || s.Contains("hip"))
+                    return 4; // Pelvis
+                if (s.Contains("left") && (s.Contains("arm") || s.Contains("hand") || s.Contains("shoulder")))
+                    return 8;
+                if (s.Contains("left") && (s.Contains("leg") || s.Contains("foot") || s.Contains("thigh")))
+                    return 16;
+                if (s.Contains("right") && (s.Contains("arm") || s.Contains("hand") || s.Contains("shoulder")))
+                    return 32;
+                if (s.Contains("right") && (s.Contains("leg") || s.Contains("foot") || s.Contains("thigh")))
+                    return 64;
+                // Force-driven hit capsule/sphere → chest
+                if (s.Contains("playerrep"))
+                    return 2;
+            }
+            catch { }
+            return 2;
         }
     }
 

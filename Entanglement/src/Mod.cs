@@ -19,6 +19,8 @@ using Entanglement.Compat;
 using Entanglement.Extensions;
 using Entanglement.Modularity;
 using Entanglement.Managers;
+using Entanglement.Gamemodes;
+using Entanglement.Data;
 
 using ModThatIsNotMod;
 
@@ -35,9 +37,8 @@ namespace Entanglement {
         public const byte minVersionMajorSupported = 2;
         public const byte minVersionMinorSupported = 1;
 
-        // 19: NPC swings on other players (PlayerAttack flags), claw bound by id, turrets run where they see,
-        // followers steered by forces and holding their pose.
-        public const byte protocolRevision = 19;
+        // 20: Fusion-style PD physics for props/reps, richer PvP (body part + impulse), gamemode gate.
+        public const byte protocolRevision = 20;
 
         public static ulong BuildId {
             get {
@@ -134,6 +135,9 @@ namespace Entanglement {
             Entanglement.Sync.CustomItemSync.Initialize();
             Entanglement.Sync.PlayermodelSync.Initialize();
 
+            PDController.Initialize();
+            GamemodeManager.LoadFromAssembly(entanglementAssembly);
+
             MelonCoroutines.Start(CoDeferredBoot());
 
             BanList.PullFromFile();
@@ -227,6 +231,7 @@ namespace Entanglement {
                 SafeTick("GameNotify", GameNotify.Tick);
                 SafeTick("UpdateCheck", UpdateCheck.Tick);
             }
+            SafeTick("GamemodeManager", GamemodeManager.Tick);
             SafeTick("SyncPlayerReps", PlayerRepresentation.SyncPlayerReps);
             SafeTick("GripRadius", Entanglement.Patching.GripRadiusPatch.Flush);
             SafeTick("UpdatePlayerReps.Frame", PlayerRepresentation.UpdatePlayerRepsPerFrame);
@@ -265,6 +270,9 @@ namespace Entanglement {
             if (SteamIntegration.isInvalid) return;
 
             Entanglement.Network.NetStats.MarkFixed();
+
+            // PD gains must refresh before any Drive/InterpolateRemote this step.
+            SafeTick("PDController", PDController.OnFixedUpdate);
 
             SafeTick("ModuleHandler.Fixed", ModuleHandler.FixedUpdate);
 
@@ -356,6 +364,7 @@ namespace Entanglement {
             GameRadial.OnSceneWasInitialized();
             DownloadUI.OnSceneWasInitialized();
             GameNotify.OnSceneWasInitialized();
+            GamemodeManager.OnSceneLoad();
 
             foreach (var rep in PlayerRepresentation.representations.Values)
                 rep.RecreateRepresentations();

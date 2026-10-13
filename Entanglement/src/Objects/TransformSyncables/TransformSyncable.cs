@@ -104,6 +104,9 @@ namespace Entanglement.Objects
 
         public bool followKinematic;
 
+        // Fusion-style PD for remote dynamic bodies (not kinematic MovePosition).
+        PDController pd = new PDController();
+
         // Moved by joints the owner's own script drives (the boss claw). Here nothing drives them, so
         // their joints stay relaxed and the owner's last pose is held, even while it sits still.
         public bool holdPose;
@@ -599,13 +602,15 @@ namespace Entanglement.Objects
 
                 if (!IsOwner()) {
                     // A plugged magazine rides its gun's sync, driving it would fight the plug joint.
-                    // A body the game keeps kinematic (a holster pin, a script-moved part) stays that
-                    // way and is moved, not steered.
+                    // Prefer PD physics. Only if the game itself keeps the body kinematic (holster pin)
+                    // do we fall back to MovePosition — we never make reps/props kinematic for sync.
                     if (hasNetTarget && Has(rb) && !IsPluggedIntoGun() && !IdleReleased()) {
                         if (!rb.isKinematic)
                             InterpolateRemote();
                         else if (followKinematic)
                             FollowKinematic();
+                        else
+                            pd.Reset();
                     }
                 }
 
@@ -843,10 +848,8 @@ namespace Entanglement.Objects
         }
 
         /// <summary>
-        /// Steers this copy toward the owner's pose with forces (FollowDrive). The body stays dynamic:
-        /// walls stop it, it rests on the floor and shoves what it touches, instead of being dragged
-        /// through everything. Far off, it is moved there. Once it sits still on a still pose it is
-        /// left asleep until the owner says something new or something knocks it.
+        /// Steers this copy with a Fusion-style PD controller. Body stays dynamic: walls stop it,
+        /// it rests, and it shoves. Far off → teleport recovery. Silent/settled → sleep.
         /// </summary>
         protected void InterpolateRemote() {
             // Pulling a magazine out of a gun someone else holds: the gun was steered toward its owner's
@@ -854,6 +857,7 @@ namespace Entanglement.Objects
             // and nothing happened on the holder's side. For as long as a hand here has the mag, the gun
             // is held where it is (gravity cancelled, motion damped) and the grip wins.
             if (Has(_CachedGun) && GripBeatsGun()) {
+                pd.Reset();
                 Vector3 hold = FastMath.Sub(default(Vector3), Physics.gravity);
                 rb.AddForce(hold, ForceMode.Acceleration);
                 rb.velocity = FastMath.Mul(rb.velocity, 0.5f);
@@ -865,6 +869,7 @@ namespace Entanglement.Objects
                 if (netReceiveTime <= restAt && rb.IsSleeping())
                     return;
                 heldAtRest = false;
+                pd.Reset();
             }
 
             float since = Time.time - netReceiveTime;
@@ -880,8 +885,8 @@ namespace Entanglement.Objects
                 targetVel = default(Vector3);
                 targetAngVel = default(Vector3);
             }
-            else {
-                // Dead reckon from the last packet so the object keeps moving between updates
+            else if (since <= 0.6f) {
+                // Dead reckon (Fusion prediction cap ~0.6s)
                 float age = Math.Min(since, extrapolationLimit);
                 predictedPos = FastMath.AddScaled(netPosition, netVelocity, age);
                 float angSpeed = FastMath.Mag(netAngularVelocity);
@@ -889,7 +894,7 @@ namespace Entanglement.Objects
                     predictedRot = FastMath.Mul(FastMath.AngleAxis(angSpeed * age * 57.29578f, netAngularVelocity), netRotation);
             }
 
-            if (!FollowDrive.Sane(predictedPos))
+            if (!PDController.IsInBounds(predictedPos))
                 return;
 
             Vector3 position = rb.position;
@@ -906,6 +911,7 @@ namespace Entanglement.Objects
                 rb.rotation = predictedRot;
                 rb.velocity = targetVel;
                 rb.angularVelocity = targetAngVel;
+                pd.Reset();
                 return;
             }
 
@@ -917,10 +923,15 @@ namespace Entanglement.Objects
                 rb.Sleep();
                 heldAtRest = true;
                 restAt = Time.time;
+                pd.Reset();
                 return;
             }
 
-            FollowDrive.Steer(rb, position, rotation, velocity, angularVelocity, predictedPos, predictedRot, targetVel, targetAngVel, Time.fixedDeltaTime);
+            // Gravity already baked into owner's pose — cancel it so PD doesn't sag under the target.
+            if (rb.useGravity)
+                rb.AddForce(-Physics.gravity, ForceMode.Acceleration);
+
+            pd.Drive(rb, predictedPos, predictedRot, targetVel, targetAngVel, true);
             CountDriven();
         }
 

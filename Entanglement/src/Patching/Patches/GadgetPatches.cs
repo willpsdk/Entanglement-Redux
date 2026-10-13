@@ -7,6 +7,7 @@ using StressLevelZero.Interaction;
 using Entanglement.Network;
 using Entanglement.Representation;
 using Entanglement.Extensions;
+using Entanglement.Gamemodes;
 
 using HarmonyLib;
 
@@ -27,6 +28,8 @@ namespace Entanglement.Patching
             if (playerName.Length < 2)
                 throw new IndexOutOfRangeException();
             long id = long.Parse(playerName[1]);
+            if (!GamemodeManager.CanAttack(SteamIntegration.currentUserId, id))
+                return;
 
             ContactPoint contact = collision.GetContact(0);
             // Any collider on the PowerPuncher counts (old hardcode was only "col_mainBody (1)").
