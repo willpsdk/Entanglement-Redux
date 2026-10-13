@@ -156,7 +156,7 @@ namespace Entanglement.Data
             else
                 axis.Normalize();
 
-            float angleRad = angleDeg * Mathf.Deg2Rad;
+            float angleRad = angleDeg * ((float)System.Math.PI / 180f);
             Vector3 torque = rotationKsg * axis * angleRad + rotationKdg * (lastAngularVelocity - angularVelocity);
             torque += (targetAngVel - lastAngularVelocity) / lastFixedDelta;
             lastAngularVelocity = targetAngVel;

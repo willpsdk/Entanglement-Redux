@@ -143,6 +143,8 @@ namespace Entanglement {
 
             PDController.Initialize();
             GamemodeManager.LoadFromAssembly(entanglementAssembly);
+            try { MenuGamemode.OnInitialize(); }
+            catch (Exception e) { EntangleLogger.Warn("[MenuGamemode] " + e.Message); }
 
             MelonCoroutines.Start(CoDeferredBoot());
 
@@ -429,7 +431,15 @@ namespace Entanglement {
             }
         }
 
-        public override void BONEWORKS_OnLoadingScreen() {
+        /// <summary>
+        /// MelonLoader 0.5.7 dropped <c>BONEWORKS_OnLoadingScreen</c>; run the same
+        /// teardown from <see cref="OnSceneWasUnloaded"/> (Fusion-style scene exit cleanup).
+        /// </summary>
+        public override void OnSceneWasUnloaded(int buildIndex, string sceneName) {
+            RunLoadingScreenCleanup();
+        }
+
+        void RunLoadingScreenCleanup() {
             if (SteamIntegration.isInvalid) return;
 
             Application.backgroundLoadingPriority = UnityEngine.ThreadPriority.High;
@@ -475,7 +485,6 @@ namespace Entanglement {
             TransformSyncBatcher.Clear();
             Server.instance?.replayedUsers.Clear();
             // Do not Clear file transfers here - downloads must survive door/level loads.
-
         }
 
         public override void OnApplicationQuit() {

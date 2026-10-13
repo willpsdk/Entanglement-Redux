@@ -10,7 +10,8 @@ namespace Entanglement.UI
 {
     /// <summary>
     /// Fusion <c>MenuGamemode</c> for Boneworks radial — overview, browse list,
-    /// Select / Exit (host), Ready / Started status. No BoneMenu category.
+    /// Select / Exit (host), Ready / Started status. Mirrors BONELAB Fusion's
+    /// page_Overview + grid_GamemodeSelection (no Fusion MenuPage prefab on Boneworks).
     /// </summary>
     public static class MenuGamemode
     {
@@ -19,11 +20,25 @@ namespace Entanglement.UI
 
         static Action _backToHub;
         static int browsePage;
+        static bool hooked;
 
         /// <summary>Solo-test / browse helper — Fusion list highlight without committing.</summary>
         public static void Highlight(Gamemode mode) => SelectedGamemode = mode;
 
+        public static void OnInitialize() {
+            if (hooked)
+                return;
+            hooked = true;
+            GamemodeManager.OnGamemodeChanged += _ => { };
+            GamemodeManager.OnGamemodeStarted += _ => { };
+            GamemodeManager.OnGamemodeStopped += _ => { };
+            GamemodeManager.OnGamemodeReady += () => { };
+            GamemodeManager.OnGamemodeUnready += () => { };
+            GamemodeManager.OnStartTimerChanged += _ => { };
+        }
+
         public static void Show(Action backToHub) {
+            OnInitialize();
             _backToHub = backToHub ?? (() => { });
             SelectedGamemode = null;
             browsePage = 0;

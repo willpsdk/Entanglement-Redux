@@ -9,7 +9,9 @@ using HarmonyLib;
 using MelonLoader;
 
 using Entanglement.Network;
+using Entanglement.Extensions;
 
+using UnityEngine;
 using UnityEngine.EventSystems;
 
 using StressLevelZero.Arena;

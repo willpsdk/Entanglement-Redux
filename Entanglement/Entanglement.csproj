@@ -51,6 +51,10 @@
       <HintPath>$(BoneworksMelonLoader)\Managed\Il2Cppmscorlib.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Il2CppSystem.Core">
+      <HintPath>$(BoneworksMelonLoader)\Managed\Il2CppSystem.Core.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="MelonLoader">
       <HintPath>$(BoneworksMelonLoader)\MelonLoader.dll</HintPath>
       <Private>False</Private>
@@ -585,6 +589,7 @@
     <Compile Include="src\UI\Notification.cs" />
     <Compile Include="src\UI\GameNotify.cs" />
     <Compile Include="src\UI\MenuGamemode.cs" />
+    <Compile Include="src\UI\MenuNotifications.cs" />
     <Compile Include="src\UI\GameRadial.cs" />
     <Compile Include="src\UpdateCheck.cs" />
   </ItemGroup>

@@ -52,6 +52,13 @@ namespace Entanglement.UI
 
         public static void ClearInbox() => inbox.Clear();
 
+        /// <summary>Fusion MenuNotifications remove after accept/decline.</summary>
+        public static void RemoveFromInbox(Notification notification) {
+            if (notification == null)
+                return;
+            inbox.Remove(notification);
+        }
+
         public static void Tick() {
             float now = Time.unscaledTime;
 
@@ -164,38 +171,57 @@ namespace Entanglement.UI
             if (!current.ShowPopup)
                 return;
 
-            string shown = FormatPopup(current);
-            DeliverPopup(shown, current.PopupLength);
+            DeliverPopup(current, current.PopupLength);
         }
 
-        static string FormatPopup(Notification n) {
-            // Boneworks PopupText is one line — title + body like Fusion headTitles.
-            string body = (n.Message ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
-            string title = (n.Title ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
-            string line;
-            if (string.IsNullOrEmpty(title) || title == "Entanglement")
-                line = body;
-            else if (string.IsNullOrEmpty(body))
-                line = title;
-            else
-                line = title + " — " + body;
+        static void FormatPopup(Notification n, out string title, out string body) {
+            // Fusion headTitles: title + subtitle separately (CUSTOMDISPLAY).
+            body = (n.Message ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+            title = (n.Title ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+            if (string.IsNullOrEmpty(title))
+                title = "Entanglement";
 
             string prefix = Prefix(n.Type);
-            if (!string.IsNullOrEmpty(prefix))
-                line = prefix + line;
+            if (!string.IsNullOrEmpty(prefix) && !title.StartsWith("["))
+                title = prefix + title;
 
-            if (line.Length > 90)
-                line = line.Substring(0, 87) + "...";
-            return line;
+            if (title.Length > 40)
+                title = title.Substring(0, 37) + "...";
+            if (body.Length > 80)
+                body = body.Substring(0, 77) + "...";
         }
 
-        static void DeliverPopup(string shown, float seconds) {
-            // 1) Native PopupText (closest to Fusion / BONELAB headTitles)
+        static string FormatPopupLine(Notification n) {
+            string title, body;
+            FormatPopup(n, out title, out body);
+            if (string.IsNullOrEmpty(body) || body == title)
+                return title;
+            if (title == "Entanglement" || title == Prefix(n.Type) + "Entanglement")
+                return string.IsNullOrEmpty(Prefix(n.Type)) ? body : Prefix(n.Type) + body;
+            return title + " — " + body;
+        }
+
+        static void DeliverPopup(Notification n, float seconds) {
+            string title, body;
+            FormatPopup(n, out title, out body);
+            string line = FormatPopupLine(n);
+
+            // 1) Native PopupText — Fusion title line
             try {
                 if (popup == null)
                     popup = UnityEngine.Object.FindObjectOfType<PopupText>();
                 if (popup != null) {
-                    popup.Show(shown);
+                    popup.Show(string.IsNullOrEmpty(body) ? title : title + " — " + body);
+                    // Subtitle as Fusion subtitle when available
+                    try {
+                        if (!string.IsNullOrEmpty(body) && body != title) {
+                            if (subtitles == null)
+                                subtitles = UnityEngine.Object.FindObjectOfType<UI_Subtitle_Control>();
+                            if (subtitles != null)
+                                subtitles.AddSubtitles(body, Mathf.Max(DefaultDuration, seconds), AudioSync.SubtitlePlacement.Top);
+                        }
+                    }
+                    catch { subtitles = null; }
                     return;
                 }
             }
@@ -203,12 +229,19 @@ namespace Entanglement.UI
                 popup = null;
             }
 
-            // 2) Subtitle banner
+            // 2) Subtitle banner (title then body — Fusion headTitles pair)
             try {
                 if (subtitles == null)
                     subtitles = UnityEngine.Object.FindObjectOfType<UI_Subtitle_Control>();
                 if (subtitles != null) {
-                    subtitles.AddSubtitles(shown, Mathf.Max(DefaultDuration, seconds), AudioSync.SubtitlePlacement.Top);
+                    float hold = Mathf.Max(DefaultDuration, seconds);
+                    if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(body) && body != title) {
+                        subtitles.AddSubtitles(title, hold, AudioSync.SubtitlePlacement.Top);
+                        subtitles.AddSubtitles(body, hold, AudioSync.SubtitlePlacement.Top);
+                    }
+                    else {
+                        subtitles.AddSubtitles(line, hold, AudioSync.SubtitlePlacement.Top);
+                    }
                     return;
                 }
             }
@@ -219,10 +252,10 @@ namespace Entanglement.UI
 
             // 3) ModThatIsNotMod / BoneMenu notification toast
             try {
-                Notifications.SendNotification(shown, seconds);
+                Notifications.SendNotification(line, seconds);
             }
             catch {
-                EntangleLogger.Log("[Notify] " + shown);
+                EntangleLogger.Log("[Notify] " + line);
             }
         }
 

@@ -165,65 +165,8 @@ namespace Entanglement.UI
             ));
         }
 
-        static void ShowNotifications() {
-            // Fusion MenuNotifications — count, clear, replay / accept / decline.
-            var entries = new List<Entry>();
-            int count = GameNotify.Inbox.Count;
-            entries.Add(new Entry(
-                count <= 0 ? "No notifications" : (count == 1 ? "1 notification" : count + " notifications"),
-                null, true));
-            entries.Add(new Entry("Clear All", () => {
-                GameNotify.ClearInbox();
-                GameNotify.CancelAll();
-                ShowNotifications();
-            }));
-
-            int shown = 0;
-            for (int i = 0; i < GameNotify.Inbox.Count && shown < 4; i++) {
-                Notification item = GameNotify.Inbox[i];
-                if (item == null)
-                    continue;
-                string label = !string.IsNullOrEmpty(item.Title) ? item.Title : item.Message;
-                if (string.IsNullOrEmpty(label))
-                    continue;
-                if (label.Length > 28)
-                    label = label.Substring(0, 25) + "...";
-
-                if (item.HasAction) {
-                    Notification captured = item;
-                    entries.Add(new Entry("OK: " + label, () => {
-                        try { captured.OnAccepted?.Invoke(); }
-                        catch { }
-                        ShowNotifications();
-                    }, true));
-                    if (captured.OnDeclined != null) {
-                        entries.Add(new Entry("No: " + label, () => {
-                            try { captured.OnDeclined?.Invoke(); }
-                            catch { }
-                            ShowNotifications();
-                        }, true));
-                    }
-                }
-                else {
-                    Notification replay = item;
-                    entries.Add(new Entry(label, () => {
-                        GameNotify.Send(new Notification {
-                            Title = replay.Title,
-                            Message = replay.Message,
-                            Type = replay.Type,
-                            PopupLength = 4f,
-                            ShowPopup = true,
-                            SaveToMenu = false,
-                        });
-                    }, true));
-                }
-                shown++;
-            }
-
-            string layer = Entanglement.Network.Layers.NetworkLayerManager.ActiveTitle;
-            entries.Add(new Entry("Net: " + layer, null, true));
-            Show(PageBack(ShowHub, entries.ToArray()), false);
-        }
+        /// <summary>Fusion MenuNotifications (radial).</summary>
+        static void ShowNotifications() => MenuNotifications.Show(ShowHub);
 
         /// <summary>Fusion MenuGamemode overview (radial).</summary>
         static void ShowGamemodes() => MenuGamemode.Show(ShowHub);

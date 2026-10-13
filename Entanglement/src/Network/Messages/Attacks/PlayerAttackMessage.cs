@@ -125,7 +125,7 @@ namespace Entanglement.Network
             Entanglement.Managers.PlayerDeathManager.CheckLethality();
             OnDamageReceived?.Invoke(sender, finalDamage);
 
-            if (PlayerRepresentation.nxt.ContainsKey(sender)) {
+            if (PlayerRepresentation.representations.ContainsKey(sender)) {
                 PlayerRepresentation rep = PlayerRepresentation.representations[sender];
                 if (attackType == AttackType.Stabbing && rep.repStabSFX)
                     rep.repStabSFX.GunShot();

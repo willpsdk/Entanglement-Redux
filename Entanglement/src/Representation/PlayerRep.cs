@@ -39,6 +39,9 @@ namespace Entanglement.Representation
 
         public static Dictionary<long, PlayerRepresentation> representations = new Dictionary<long, PlayerRepresentation>();
 
+        /// <summary>Alias used across the codebase (same dictionary as <see cref="representations"/>).</summary>
+        public static Dictionary<long, PlayerRepresentation> reps { get { return representations; } set { representations = value; } }
+
         public static Transform[] syncedPoints = new Transform[3];
         public static Transform syncedRoot;
 
