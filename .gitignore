@@ -1,1 +1,4 @@
 .refs/
+
+# Local BONEWORKS MelonLoader refs (game Managed assemblies — do not commit)
+refs/MelonLoader/

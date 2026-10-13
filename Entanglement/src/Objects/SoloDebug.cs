@@ -624,7 +624,7 @@ namespace Entanglement.Objects
                 + (SteamIntegration.hasLobby ? "" : " (start a lobby to populate props/NPCs)");
         }
 
-        /// <summary>Fusion MenuGamemode flow solo: browse highlight → Select → Ready/Start → Exit.</summary>
+        /// <summary>Fusion MenuGamemode flow solo: highlight → Select → Ready → Start → Exit.</summary>
         public static string GamemodeSolo() {
             Gamemode mode = GamemodeManager.Find("Deathmatch");
             if (mode == null && GamemodeManager.Gamemodes.Count > 0)
@@ -632,18 +632,8 @@ namespace Entanglement.Objects
             if (mode == null)
                 return "FAIL — no gamemodes registered.";
 
-            MenuGamemode.Show(() => { });
-            // Browse highlight (Fusion SelectedGamemode) then Select.
-            typeof(MenuGamemode).GetProperty("SelectedGamemode")
-                ?.SetValue(null, mode, null);
-            // Property has private set — select through manager directly after simulating browse.
-            try {
-                var prop = typeof(MenuGamemode).GetProperty("SelectedGamemode");
-                var setter = prop?.GetSetMethod(true);
-                setter?.Invoke(null, new object[] { mode });
-            }
-            catch { }
-
+            MenuGamemode.Highlight(mode);
+            bool highlighted = ReferenceEquals(MenuGamemode.SelectedGamemode, mode);
             GamemodeManager.Select(mode);
             bool selected = GamemodeManager.Active != null && GamemodeManager.Active.IsSelected;
             GamemodeManager.Ready();
@@ -658,10 +648,11 @@ namespace Entanglement.Objects
 
             string detail = mode.Title
                 + " modes=" + GamemodeManager.Gamemodes.Count
+                + " highlighted=" + highlighted
                 + " selected=" + selected + " ready=" + ready + " started=" + started
                 + " canAttack=" + canHit + " stopped=" + stopped + " cleared=" + cleared;
             EntangleLogger.Log("[SoloTest] Gamemode: " + detail);
-            bool pass = selected && ready && started && canHit && stopped && cleared;
+            bool pass = highlighted && selected && ready && started && canHit && stopped && cleared;
             return (pass ? "PASS — " : "FAIL — ") + detail;
         }
 
