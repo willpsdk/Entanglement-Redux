@@ -1286,13 +1286,15 @@ namespace Entanglement.Representation
                 var body = host.AddComponent<Rigidbody>();
                 body.isKinematic = false;
                 body.useGravity = false;
-                body.mass = LocalPlayerMass();
-                body.drag = 0f;
-                body.angularDrag = 0f;
+                // Fusion ideology: remotes are physical bodies you can shove / be shoved by.
+                // Full local rig mass bowling-balled players; clamp to a pelvis-like weight.
+                body.mass = PhysicalRepMass();
+                body.drag = 0.5f;
+                body.angularDrag = 0.5f;
                 body.constraints = RigidbodyConstraints.FreezeRotation;
                 body.detectCollisions = true;
                 body.interpolation = RigidbodyInterpolation.Interpolate;
-                body.collisionDetectionMode = CollisionDetectionMode.Discrete;
+                body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
                 Vector3 skull = SkullOffset();
 
@@ -1351,15 +1353,8 @@ namespace Entanglement.Representation
                     MarkHittable(colliders[i].gameObject);
                 }
 
-                if (PlayerScripts.playerPhysBody) {
-                    Collider[] localCols = PlayerScripts.playerPhysBody.GetComponentsInChildren<Collider>(true);
-                    for (int i = 0; i < localCols.Length; i++) {
-                        if (!localCols[i])
-                            continue;
-                        for (int h = 0; h < hits.Length; h++)
-                            Physics.IgnoreCollision(hits[h], localCols[i], true);
-                    }
-                }
+                // Intentionally collide with the local player (shove / melee body contact).
+                // Spawn-overlap grace still soft-ignores briefly via SoftenLocalContact.
 
                 var extra = new Collider[colliders.Length + hits.Length];
                 Array.Copy(colliders, extra, colliders.Length);
@@ -1394,7 +1389,9 @@ namespace Entanglement.Representation
                 if (body == null)
                     return;
 
-                KeepTargetOffLocal();
+                // Only soft-ignore during spawn overlap grace. After that, collide like Fusion's
+                // force-driven remote so punches/shoves transfer through Unity contacts.
+                SoftenLocalContact();
 
                 // Dead: out of the world, like a parked rep. It jumps back below once they are up.
                 if (deadHidden != null) {
@@ -1426,22 +1423,32 @@ namespace Entanglement.Representation
                 hasLastHead = true;
 
                 // Far off (teleport, respawn, a big hitch): jump there rather than fly through the world.
+                // Fusion does the same stability teleport when error explodes.
                 if (error.sqrMagnitude > 4f) {
                     body.position = target;
                     body.rotation = rot;
                     body.velocity = Vector3.zero;
+                    body.angularVelocity = Vector3.zero;
                     return;
                 }
 
-                // Steered by forces like every other followed body (FollowDrive): an NPC's swing or
-                // a thrown prop pushes it and it springs back to the player's head, rather than
-                // ploughing through at a set velocity.
+                // Steered by forces (FollowDrive / Fusion PD ideology): stays dynamic so walls, doors,
+                // and the local player can resist and shove back.
                 Vector3 accel = Entanglement.Objects.FollowDrive.Acceleration(body.position, body.velocity, target, headVel, Time.fixedDeltaTime);
                 // A fall or crouch is followed at most this hard downward, so it never dives under the floor.
                 if (accel.y < -RepMaxDownAccel)
                     accel.y = -RepMaxDownAccel;
+                // While pressing into the local player, soften the chase so we shove instead of explode.
+                if (pressingLocal)
+                    accel = Vector3.ClampMagnitude(accel, ContactAccelCap);
+                else
+                    accel = Vector3.ClampMagnitude(accel, FreeAccelCap);
                 body.AddForce(accel, ForceMode.Acceleration);
                 body.MoveRotation(rot);
+
+                // Cap runaway velocity (Fusion SpeedLimit ideology, milder for a player body).
+                if (body.velocity.sqrMagnitude > RepSpeedLimit * RepSpeedLimit)
+                    body.velocity = body.velocity.normalized * RepSpeedLimit;
             }
             catch { }
         }
@@ -1450,19 +1457,29 @@ namespace Entanglement.Representation
         Collider enemyHead;
         Collider enemyTorso;
         int targetClearOfRig;
-        float targetClearAt;
+        bool localContactIgnored;
+        bool pressingLocal;
+        float contactCheckAt;
 
-        // The target body is as heavy as a player and chases their head, so touching us it shoves us
-        // around. Built mid-load it can miss our new rig, so this is kept up rather than done once.
-        void KeepTargetOffLocal() {
+        const float FreeAccelCap = 80f;
+        const float ContactAccelCap = 28f;
+        const float RepSpeedLimit = 12f;
+        const float ContactCheckEvery = 0.05f;
+
+        /// <summary>
+        /// Fusion-style: remotes collide with you. Only ignore during spawn-overlap grace so you don't
+        /// launch each other when joining on top of someone.
+        /// </summary>
+        void SoftenLocalContact() {
+            bool wantIgnore = overlapIgnored || (Time.time < heldReleaseUntil);
             int rig = LocalRigId();
             if (rig == 0)
                 return;
-            if (rig == targetClearOfRig && Time.realtimeSinceStartup < targetClearAt)
+
+            if (rig == targetClearOfRig && wantIgnore == localContactIgnored && Time.realtimeSinceStartup < contactCheckAt)
                 return;
-            bool changed = rig != targetClearOfRig;
             targetClearOfRig = rig;
-            targetClearAt = Time.realtimeSinceStartup + SolidRecheck;
+            contactCheckAt = Time.realtimeSinceStartup + ContactCheckEvery;
 
             Collider[] local;
             try {
@@ -1483,14 +1500,26 @@ namespace Entanglement.Representation
                 for (int l = 0; l < local.Length; l++) {
                     Collider theirs = local[l];
                     try {
-                        if (theirs && theirs.enabled && (changed || !theirs.isTrigger))
-                            Physics.IgnoreCollision(mine, theirs, true);
+                        if (theirs && theirs.enabled && !theirs.isTrigger)
+                            Physics.IgnoreCollision(mine, theirs, wantIgnore);
                     }
                     catch { }
                 }
             }
-            if (changed)
-                EntangleLogger.Debug("[Rep] " + IdText(playerId) + ": NPC target body kept clear of your rig");
+
+            if (wantIgnore != localContactIgnored) {
+                localContactIgnored = wantIgnore;
+                EntangleLogger.Debug("[Rep] " + IdText(playerId) + ": local contact "
+                    + (wantIgnore ? "soft (spawn grace)" : "solid (shove/melee on)"));
+            }
+
+            // Cheap proximity test for accel softening without allocating contact arrays every step.
+            pressingLocal = false;
+            if (!wantIgnore && syncedRoot) {
+                Vector3 delta = enemyTarget.transform.position - syncedRoot.position;
+                delta.y *= 0.35f;
+                pressingLocal = delta.sqrMagnitude < 1.1f * 1.1f;
+            }
         }
         Vector3 lastHeadTarget;
         Vector3 lastHeadVel;
@@ -1585,8 +1614,11 @@ namespace Entanglement.Representation
         }
 
         const float RepMaxDownAccel = 19.6f;   // twice gravity: enough to follow a crouch or a fall
+        const float RepMassMin = 28f;
+        const float RepMassMax = 55f;
+        const float RepMassShare = 0.4f;       // fraction of full local rig mass — pelvis-like, not bowling ball
 
-        // The rep weighs what the local player's body weighs, read from the rig, not made up.
+        // Full local rig mass (all phys bodies). Used as a reference only.
         static float LocalPlayerMass() {
             float mass = 0f;
             try {
@@ -1605,6 +1637,11 @@ namespace Entanglement.Representation
                 return 75f;
             }
             return mass;
+        }
+
+        /// <summary>Mass for the force-driven remote body. Clamped so shove works without ragdoll launches.</summary>
+        static float PhysicalRepMass() {
+            return Mathf.Clamp(LocalPlayerMass() * RepMassShare, RepMassMin, RepMassMax);
         }
 
         void CentreHeadColliders() {
@@ -1973,6 +2010,19 @@ namespace Entanglement.Representation
             float ride = RideOffset(predictedRoot, dt);
             predictedRoot.y += ride;
             Vector3 rideLift = new Vector3(0f, ride, 0f);
+
+            // Local grab: clamp steps so network pose doesn't rip the joint apart (Fusion grab ideology).
+            if (heldByLocalPlayer) {
+                ApplyHeldStep(repRoot, predictedRoot, true);
+                for (int r = 0; r < repTransforms.Length; r++) {
+                    if (!repTransforms[r]) continue;
+                    ApplyHeldStep(repTransforms[r], netPositions[r] + netLimbVelocities[r] * age + rideLift, r == 0);
+                    repTransforms[r].rotation = Quaternion.Slerp(repTransforms[r].rotation, netRotations[r], 1f - Mathf.Exp(-repLimbSharpness * dt));
+                }
+                UpdateNametagPosition();
+                UpdateTalkingIndicator();
+                return;
+            }
 
             float t = 1f - Mathf.Exp(-repFollowSharpness * dt);
             float limbT = 1f - Mathf.Exp(-repLimbSharpness * dt);
@@ -2493,11 +2543,21 @@ namespace Entanglement.Representation
             foreach (PlayerRepresentation rep in representations.Values) {
                 if (rep == null)
                     continue;
+                // Wire the existing grab helpers (were dead code). Holding a rep softens net fight.
+                try { rep.UpdateLocalGrabState(); }
+                catch { }
+                if (rep.heldByLocalPlayer) {
+                    try { rep.DampLocalHoldVertical(); }
+                    catch { }
+                }
                 rep.DriveEnemyTarget();
             }
 
-            if (debugRepresentation != null)
+            if (debugRepresentation != null) {
+                try { debugRepresentation.UpdateLocalGrabState(); }
+                catch { }
                 debugRepresentation.DriveEnemyTarget();
+            }
         }
 
         public static void PresentPlayerReps() {

@@ -29,12 +29,17 @@ namespace Entanglement.Patching
             long id = long.Parse(playerName[1]);
 
             ContactPoint contact = collision.GetContact(0);
-            // TODO: Remove this hardcode, just tired of trying to make this goddamn thing work
-            if (contact.thisCollider.name != "col_mainBody (1)")
+            // Any collider on the PowerPuncher counts (old hardcode was only "col_mainBody (1)").
+            // Hit target is already verified as PlayerRep — including the force-driven hit body.
+            Collider striker = contact.thisCollider;
+            if (!striker || !striker.transform.IsChildOf(__instance.transform))
                 return;
-            float dot = Vector3.Dot(collision.relativeVelocity.normalized, __instance.transform.TransformDirection(__instance.forward));
+            Vector3 relative = collision.relativeVelocity;
+            if (relative.sqrMagnitude < 0.01f)
+                return;
+            float dot = Vector3.Dot(relative.normalized, __instance.transform.TransformDirection(__instance.forward));
             dot = Mathf.Min(0f, dot);
-            Vector3 force = collision.relativeVelocity * dot * __instance._triggerStartTime;
+            Vector3 force = relative * dot * __instance._triggerStartTime;
             force = Vector3.ClampMagnitude(force, 30f) * 7f;
 
             if (force == Vector3.zero)

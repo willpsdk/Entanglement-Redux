@@ -85,9 +85,11 @@ namespace Entanglement.Patching
                     if (playerName.Length < 2)
                         throw new IndexOutOfRangeException();
                     long id = long.Parse(playerName[1]);
+                    // Stronger, less flat mapping — physical contact now carries shove; damage should match.
+                    float damage = Mathf.Clamp(impulse / 2.5f, 2f, 40f);
                     NetworkMessage message = NetworkMessage.CreateMessage((byte)BuiltInMessageType.PlayerAttack, new PlayerAttackMessageData() {
                         attackType = AttackType.Blunt,
-                        attackDamage = Math.Max(1f, (ushort)(impulse / 5f)),
+                        attackDamage = damage,
                     });
 
                     byte[] msgBytes = message.GetBytes();

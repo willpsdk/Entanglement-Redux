@@ -191,8 +191,8 @@ namespace Entanglement.Objects
 
         // Something a rep stands on or rides that moves by itself: a lift moved by script, or a body
         // sliding on a joint like the cart or the claw's arm. A rep's pose lags a little behind it, so
-        // colliding just shoves and shakes it. A hinged door or anything that swings is not one: a rep
-        // that ignored those walked straight through closed doors.
+        // colliding just shoves and shakes it. A hinged / kinematic door is NOT a platform: treating
+        // every isKinematic body as one made reps walk straight through closed doors.
         public static bool IsPlatform(Rigidbody body) {
             int key = body.GetInstanceID();
             bool platform;
@@ -217,10 +217,21 @@ namespace Entanglement.Objects
         const int MaxChain = 8;
 
         static bool HeldToWorld(Rigidbody body, int depth, bool slidingOnly) {
-            if (body.isKinematic)
-                return true;
             if (depth >= MaxChain)
                 return false;
+
+            if (body.isKinematic) {
+                // Loose-prop path: kinematic means world-held (never adopt as a free syncable).
+                if (!slidingOnly)
+                    return true;
+
+                // Platform path (Fusion ideology): kinematic alone is not enough. Doors, panels, and
+                // other static-ish kinematics must stay solid so remotes can body-block against them.
+                // Only scripted movers (lifts) or sliding/fixed world mounts count as platforms.
+                if (IsScriptedPlatform(body))
+                    return true;
+                // Fall through to joint checks below.
+            }
 
             Joint[] joints = body.GetComponents<Joint>();
             for (int j = 0; j < joints.Length; j++) {
@@ -229,6 +240,7 @@ namespace Entanglement.Objects
                     continue;
                 Rigidbody anchor = joint.connectedBody;
                 if (anchor == null || anchor.isKinematic) {
+                    // HingeJoint-to-world (doors) must NOT match here when slidingOnly.
                     if (!slidingOnly || Slides(joint) || (anchor != null && joint.TryCast<FixedJoint>() != null))
                         return true;
                     continue;
@@ -238,6 +250,25 @@ namespace Entanglement.Objects
                 if (HeldToWorld(anchor, depth + 1, slidingOnly))
                     return true;
             }
+            return false;
+        }
+
+        /// <summary>Level movers that should ignore lagging reps (lifts), not ordinary doors.</summary>
+        static bool IsScriptedPlatform(Rigidbody body) {
+            try {
+                Transform t = body.transform;
+                if (t.GetComponentInParent<ElevatorPowerable>() != null)
+                    return true;
+                if (t.GetComponentInParent<elevator_controller>() != null)
+                    return true;
+                if (t.GetComponentInParent<PressureElevator>() != null)
+                    return true;
+                if (t.GetComponentInParent<GrabbyElevator>() != null)
+                    return true;
+                if (t.GetComponentInParent<ZombieElevator>() != null)
+                    return true;
+            }
+            catch { }
             return false;
         }
 
