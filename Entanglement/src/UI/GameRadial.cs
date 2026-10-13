@@ -166,23 +166,60 @@ namespace Entanglement.UI
         }
 
         static void ShowNotifications() {
+            // Fusion MenuNotifications — count, clear, replay / accept / decline.
             var entries = new List<Entry>();
+            int count = GameNotify.Inbox.Count;
+            entries.Add(new Entry(
+                count <= 0 ? "No notifications" : (count == 1 ? "1 notification" : count + " notifications"),
+                null, true));
             entries.Add(new Entry("Clear All", () => {
                 GameNotify.ClearInbox();
+                GameNotify.CancelAll();
                 ShowNotifications();
             }));
-            var inbox = GameNotify.Inbox;
+
             int shown = 0;
-            for (int i = 0; i < inbox.Count && shown < 5; i++) {
-                GameNotify.InboxItem item = inbox[i];
-                string label = item.text;
+            for (int i = 0; i < GameNotify.Inbox.Count && shown < 4; i++) {
+                Notification item = GameNotify.Inbox[i];
+                if (item == null)
+                    continue;
+                string label = !string.IsNullOrEmpty(item.Title) ? item.Title : item.Message;
+                if (string.IsNullOrEmpty(label))
+                    continue;
                 if (label.Length > 28)
                     label = label.Substring(0, 25) + "...";
-                entries.Add(new Entry(label, () => GameNotify.Show(item.text, 4f, item.kind, null, false), true));
+
+                if (item.HasAction) {
+                    Notification captured = item;
+                    entries.Add(new Entry("OK: " + label, () => {
+                        try { captured.OnAccepted?.Invoke(); }
+                        catch { }
+                        ShowNotifications();
+                    }, true));
+                    if (captured.OnDeclined != null) {
+                        entries.Add(new Entry("No: " + label, () => {
+                            try { captured.OnDeclined?.Invoke(); }
+                            catch { }
+                            ShowNotifications();
+                        }, true));
+                    }
+                }
+                else {
+                    Notification replay = item;
+                    entries.Add(new Entry(label, () => {
+                        GameNotify.Send(new Notification {
+                            Title = replay.Title,
+                            Message = replay.Message,
+                            Type = replay.Type,
+                            PopupLength = 4f,
+                            ShowPopup = true,
+                            SaveToMenu = false,
+                        });
+                    }, true));
+                }
                 shown++;
             }
-            if (shown == 0)
-                entries.Add(new Entry("No notifications", null, true));
+
             string layer = Entanglement.Network.Layers.NetworkLayerManager.ActiveTitle;
             entries.Add(new Entry("Net: " + layer, null, true));
             Show(PageBack(ShowHub, entries.ToArray()), false);

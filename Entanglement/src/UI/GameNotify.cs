@@ -10,8 +10,8 @@ using UnityEngine;
 namespace Entanglement.UI
 {
     /// <summary>
-    /// Fusion-inspired notify queue for BONEWORKS: typed toasts, cancel-by-tag, Prefer native
-    /// PopupText / subtitles over BoneMenu Notifications. Radial remains the settings shell.
+    /// Fusion Notifier for BONEWORKS: sequential popup queue, cancel-by-tag, radial inbox.
+    /// Prefers native PopupText / subtitles (BONELAB TutorialRig.headTitles equivalent).
     /// </summary>
     public static class GameNotify
     {
@@ -22,62 +22,74 @@ namespace Entanglement.UI
             Success = 3,
         }
 
+        public const float DefaultDuration = 2f;
+
         static UI_Subtitle_Control subtitles;
         static PopupText popup;
         static int framesUntilReady;
         static bool ready;
-        static readonly List<Pending> queued = new List<Pending>();
-        static readonly List<Pending> live = new List<Pending>();
-        static readonly List<InboxItem> inbox = new List<InboxItem>();
+
+        static readonly List<Notification> queued = new List<Notification>();
+        static Notification current;
+        static float currentUntil;
+        static readonly List<Notification> inbox = new List<Notification>();
         const int InboxCap = 32;
 
-        public struct InboxItem {
-            public string text;
-            public Kind kind;
-            public string tag;
-            public float at;
-        }
-
         /// <summary>Fusion-style persistent notification inbox (radial → Notifications).</summary>
-        public static List<InboxItem> Inbox => inbox;
+        public static IReadOnlyList<Notification> Inbox => inbox;
 
-        struct Pending {
-            public string text;
-            public float seconds;
-            public Kind kind;
-            public string tag;
-            public float showUntil;
-            public bool saveToInbox;
-        }
+        public static Notification Current => current;
 
         public static void OnSceneWasInitialized() {
             subtitles = null;
             popup = null;
             ready = false;
             framesUntilReady = 90;
-            live.Clear();
+            // Don't wipe inbox across scenes — Fusion keeps menu notifications.
+            current = null;
+            currentUntil = 0f;
         }
 
         public static void ClearInbox() => inbox.Clear();
 
         public static void Tick() {
             float now = Time.unscaledTime;
-            for (int i = live.Count - 1; i >= 0; i--) {
-                if (now >= live[i].showUntil)
-                    live.RemoveAt(i);
+
+            if (!ready) {
+                if (framesUntilReady > 0)
+                    framesUntilReady--;
+                if (framesUntilReady <= 0)
+                    ready = true;
             }
 
-            if (ready || framesUntilReady <= 0)
+            if (current != null && now >= currentUntil) {
+                current = null;
+                try {
+                    if (popup != null)
+                        popup.Hide();
+                }
+                catch { popup = null; }
+            }
+
+            if (!ready || current != null || queued.Count == 0)
                 return;
 
-            framesUntilReady--;
-            if (framesUntilReady > 0)
+            DequeueNext();
+        }
+
+        public static void Send(Notification notification) {
+            if (notification == null)
+                return;
+            if (string.IsNullOrEmpty(notification.Message) && string.IsNullOrEmpty(notification.Title))
                 return;
 
-            ready = true;
-            for (int i = 0; i < queued.Count; i++)
-                Deliver(queued[i]);
-            queued.Clear();
+            if (!string.IsNullOrEmpty(notification.Tag))
+                Cancel(notification.Tag);
+
+            if (notification.SaveToMenu)
+                AddToInbox(notification);
+
+            queued.Add(notification);
         }
 
         public static void Show(string text, float seconds = 4f) {
@@ -87,63 +99,93 @@ namespace Entanglement.UI
         public static void Show(string text, float seconds, Kind kind, string tag = null, bool saveToInbox = true) {
             if (string.IsNullOrEmpty(text))
                 return;
-
-            var pending = new Pending {
-                text = text,
-                seconds = seconds,
-                kind = kind,
-                tag = tag,
-                saveToInbox = saveToInbox,
-            };
-
-            if (!string.IsNullOrEmpty(tag))
-                CancelTag(tag);
-
-            if (!ready) {
-                queued.Add(pending);
-                return;
-            }
-
-            Deliver(pending);
+            Send(new Notification {
+                Title = "Entanglement",
+                Message = text,
+                Type = kind,
+                Tag = tag,
+                PopupLength = seconds,
+                ShowPopup = true,
+                SaveToMenu = saveToInbox,
+            });
         }
 
-        public static void CancelTag(string tag) {
+        public static void ShowTitle(string title, string message, float seconds = 4f, Kind kind = Kind.Info, string tag = null, bool saveToInbox = true) {
+            Send(new Notification {
+                Title = title ?? "Entanglement",
+                Message = message,
+                Type = kind,
+                Tag = tag,
+                PopupLength = seconds,
+                ShowPopup = true,
+                SaveToMenu = saveToInbox,
+            });
+        }
+
+        public static void Cancel(string tag) {
             if (string.IsNullOrEmpty(tag))
                 return;
             for (int i = queued.Count - 1; i >= 0; i--) {
-                if (queued[i].tag == tag)
+                if (queued[i].Tag == tag)
                     queued.RemoveAt(i);
             }
-            for (int i = live.Count - 1; i >= 0; i--) {
-                if (live[i].tag == tag)
-                    live.RemoveAt(i);
+            if (current != null && current.Tag == tag) {
+                current = null;
+                currentUntil = 0f;
+                try { popup?.Hide(); }
+                catch { popup = null; }
             }
         }
 
-        static void Deliver(Pending pending) {
-            string line = pending.text.Replace("\r", " ").Replace("\n", " ").Trim();
+        public static void CancelAll() {
+            queued.Clear();
+            current = null;
+            currentUntil = 0f;
+            try { popup?.Hide(); }
+            catch { popup = null; }
+        }
+
+        public static void CancelTag(string tag) => Cancel(tag);
+
+        static void AddToInbox(Notification notification) {
+            inbox.Insert(0, notification);
+            while (inbox.Count > InboxCap)
+                inbox.RemoveAt(inbox.Count - 1);
+        }
+
+        static void DequeueNext() {
+            if (queued.Count == 0)
+                return;
+
+            current = queued[0];
+            queued.RemoveAt(0);
+            currentUntil = Time.unscaledTime + Mathf.Max(DefaultDuration, current.PopupLength);
+
+            if (!current.ShowPopup)
+                return;
+
+            string shown = FormatPopup(current);
+            DeliverPopup(shown, current.PopupLength);
+        }
+
+        static string FormatPopup(Notification n) {
+            string line = n.DisplayLine.Replace("\r", " ").Replace("\n", " ").Trim();
+            string prefix = Prefix(n.Type);
+            // Avoid doubling if Title already carries the kind marker.
+            if (!string.IsNullOrEmpty(prefix) && (string.IsNullOrEmpty(n.Title) || n.Title.Trim().Length == 0))
+                line = prefix + line;
+            else if (!string.IsNullOrEmpty(prefix) && n.Title != null && n.Title.StartsWith("["))
+                { /* title already typed */ }
+            else if (n.Type != Kind.Info && (string.IsNullOrEmpty(n.Title) || n.Title == "Entanglement"))
+                line = prefix + (n.Message ?? line);
+
             if (line.Length > 90)
                 line = line.Substring(0, 87) + "...";
+            return line;
+        }
 
-            string prefix = Prefix(pending.kind);
-            string shown = string.IsNullOrEmpty(prefix) ? line : prefix + line;
-
-            pending.text = shown;
-            pending.showUntil = Time.unscaledTime + Mathf.Max(2f, pending.seconds);
-            live.Add(pending);
-
-            if (pending.saveToInbox) {
-                inbox.Insert(0, new InboxItem {
-                    text = shown,
-                    kind = pending.kind,
-                    tag = pending.tag,
-                    at = Time.unscaledTime,
-                });
-                while (inbox.Count > InboxCap)
-                    inbox.RemoveAt(inbox.Count - 1);
-            }
-
-            // 1) Native PopupText (closest to Fusion headTitles on BONELAB)
+        static void DeliverPopup(string shown, float seconds) {
+            // 1) Native PopupText (closest to Fusion / BONELAB headTitles)
             try {
                 if (popup == null)
                     popup = UnityEngine.Object.FindObjectOfType<PopupText>();
@@ -161,18 +203,18 @@ namespace Entanglement.UI
                 if (subtitles == null)
                     subtitles = UnityEngine.Object.FindObjectOfType<UI_Subtitle_Control>();
                 if (subtitles != null) {
-                    subtitles.AddSubtitles(shown, Mathf.Max(2f, pending.seconds), AudioSync.SubtitlePlacement.Top);
+                    subtitles.AddSubtitles(shown, Mathf.Max(DefaultDuration, seconds), AudioSync.SubtitlePlacement.Top);
                     return;
                 }
             }
             catch (Exception e) {
                 subtitles = null;
-                EntangleLogger.Warn($"[GameNotify] Subtitle banner unavailable: {e.Message}");
+                EntangleLogger.Warn("[GameNotify] Subtitle banner unavailable: " + e.Message);
             }
 
-            // 3) Last resort: ModThatIsNotMod (BoneMenu-adjacent) notifications
+            // 3) Last resort: ModThatIsNotMod notifications
             try {
-                Notifications.SendNotification(shown, pending.seconds);
+                Notifications.SendNotification(shown, seconds);
             }
             catch { }
         }

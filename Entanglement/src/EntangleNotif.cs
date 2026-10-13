@@ -1,48 +1,55 @@
 using System;
 
-using ModThatIsNotMod;
-
 using Entanglement.Network;
+using Entanglement.UI;
 
 namespace Entanglement
 {
+    /// <summary>
+    /// Thin join/leave helpers — all player-facing text goes through GameNotify
+    /// (Boneworks PopupText / subtitle path, Fusion Notifier ideology).
+    /// </summary>
     public static class EntangleNotif {
         public static void PlayerJoin(string username) {
-            Notifications.SendNotification($"{username} has joined!", 4f);
+            GameNotify.ShowTitle("Joined", username + " has joined!", 4f, GameNotify.Kind.Success, "join:" + username);
         }
 
         public static void PlayerLeave(string username) {
-            Notifications.SendNotification($"{username} left.", 4f);
+            GameNotify.ShowTitle("Left", username + " left.", 4f, GameNotify.Kind.Info, "leave:" + username);
         }
 
         public static void PlayerDisconnect(DisconnectReason reason, string additionalReason = "") {
             if (reason == DisconnectReason.MissingMods && !string.IsNullOrEmpty(additionalReason))
-                Notifications.SendNotification($"You are missing mods:\n{additionalReason}", 8f);
+                GameNotify.ShowTitle("Missing mods", additionalReason, 8f, GameNotify.Kind.Error, "disconnect");
             else if (!string.IsNullOrEmpty(additionalReason))
-                Notifications.SendNotification($"Disconnected: {reason}\n{additionalReason}", 6f);
+                GameNotify.ShowTitle("Disconnected", reason + " — " + additionalReason, 6f, GameNotify.Kind.Warning, "disconnect");
             else
-                Notifications.SendNotification($"Disconnected: {reason}", 4f);
+                GameNotify.ShowTitle("Disconnected", reason.ToString(), 4f, GameNotify.Kind.Warning, "disconnect");
         }
 
         public static void MissingMods(string missingMods) {
-            Notifications.SendNotification($"Cannot join, you are missing mods:\n{missingMods}", 8f);
+            GameNotify.ShowTitle("Cannot join", "Missing mods:\n" + missingMods, 8f, GameNotify.Kind.Error, "missingmods");
         }
 
         public static void LobbyStarted() {
-            Notifications.SendNotification("Lobby has been created!", 4f);
+            GameNotify.ShowTitle("Lobby", "Lobby has been created!", 4f, GameNotify.Kind.Success, "lobby");
         }
 
         public static void JoinServer(string username) {
-            Notifications.SendNotification($"Joined {username}'s game.", 4f);
+            GameNotify.ShowTitle("Joined", "Joined " + username + "'s game.", 4f, GameNotify.Kind.Success, "joinserver");
         }
 
         public static void LeftServer() {
-            Notifications.SendNotification("You have left", 4f);
+            GameNotify.ShowTitle("Left", "You have left.", 4f, GameNotify.Kind.Info, "leftserver");
         }
 
         public static void InvalidSteam() {
-            Notifications.SendNotification("Steam did not start up, so Entanglement is off.\nCheck Steam is running and launch the game through it.\nFor Meta Horizon Link use Net: SteamVR in Settings.", 6f);
+            GameNotify.ShowTitle(
+                "Steam",
+                "Steam did not start. Launch through Steam. For Meta Horizon Link use Net: SteamVR in Settings.",
+                6f,
+                GameNotify.Kind.Error,
+                "invalidsteam");
         }
-
     }
 }

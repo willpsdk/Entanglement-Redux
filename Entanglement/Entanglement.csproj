@@ -574,6 +574,7 @@
     <Compile Include="src\Patching\Patches\GunSlidePatches.cs" />
     <Compile Include="src\Sync\Thunderstore.cs" />
     <Compile Include="src\Sync\ThunderstoreIndex.cs" />
+    <Compile Include="src\UI\Notification.cs" />
     <Compile Include="src\UI\GameNotify.cs" />
     <Compile Include="src\UI\GameRadial.cs" />
     <Compile Include="src\UpdateCheck.cs" />
