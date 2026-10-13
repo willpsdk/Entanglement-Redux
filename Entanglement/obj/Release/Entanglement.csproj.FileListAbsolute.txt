@@ -1,7 +1,0 @@
-/workspace/bin/Release/EntanglementRedux.dll
-/workspace/bin/Release/EntanglementRedux.pdb
-/workspace/Entanglement/obj/Release/Entanglement.csproj.AssemblyReference.cache
-/workspace/Entanglement/obj/Release/Entanglement.csproj.CoreCompileInputs.cache
-/workspace/Entanglement/obj/Release/Entangle.DFA37320.Up2Date
-/workspace/Entanglement/obj/Release/EntanglementRedux.dll
-/workspace/Entanglement/obj/Release/EntanglementRedux.pdb

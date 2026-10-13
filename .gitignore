@@ -2,3 +2,8 @@
 
 # Local BONEWORKS MelonLoader refs (game Managed assemblies — do not commit)
 refs/MelonLoader/
+
+# Build outputs
+bin/
+Entanglement/obj/
+Entanglement/bin/
