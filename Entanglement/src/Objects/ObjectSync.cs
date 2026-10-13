@@ -35,6 +35,7 @@ namespace Entanglement.Objects
             // Grant numbers belong to this level's spawn ids (and this lobby's host).
             NpcOwnership.Clear();
             // Wipe NetworkEntity stack for this scene's spawn ids, then rebind living player entities.
+            Entanglement.Entities.NetworkProp.Clear();
             Entanglement.Entities.NpcEntity.Clear();
             Entanglement.Entities.NetworkPlayer.Clear();
             Entanglement.Entities.NetworkEntityManager.Clear();
@@ -67,12 +68,22 @@ namespace Entanglement.Objects
         }
 
         public static void MoveSyncable(Syncable syncable, ushort newId) {
-            syncedObjects.Remove(syncable.objectId);
+            ushort oldId = syncable.objectId;
+            syncedObjects.Remove(oldId);
             syncedObjects.Remove(newId);
 
             syncedObjects.Add(newId, syncable);
 
             syncable.objectId = newId;
+
+            try {
+                TransformSyncable asTransform = syncable as TransformSyncable;
+                if (asTransform != null) {
+                    Entanglement.Entities.NetworkProp.Unregister(oldId);
+                    Entanglement.Entities.NetworkProp.Register(asTransform);
+                }
+            }
+            catch { }
         }
 
         public static void RegisterSyncable(Syncable syncable, ushort objectId) {
@@ -88,6 +99,13 @@ namespace Entanglement.Objects
 
             syncedObjects.Add(objectId, syncable);
             lastId = objectId;
+
+            try {
+                TransformSyncable asTransform = syncable as TransformSyncable;
+                if (asTransform != null)
+                    Entanglement.Entities.NetworkProp.Register(asTransform);
+            }
+            catch { }
         }
 
         public static ushort GetNextObjectId() {

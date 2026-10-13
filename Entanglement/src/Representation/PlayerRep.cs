@@ -1222,6 +1222,9 @@ namespace Entanglement.Representation
             talk.localPosition = new Vector3(x, 0f, 0f);
         }
 
+        /// <summary>RigPuppet teardown entry — destroys the physics body (Fusion DestroyPuppet).</summary>
+        public void TeardownPhysicsPuppet() => DestroyEnemyTarget();
+
         void DestroyEnemyTarget() {
             // Out of every NPC's vision first, while the collider still exists to say so.
             if (enemyTargetProxy != null) {
@@ -1306,7 +1309,7 @@ namespace Entanglement.Representation
                 physicsPuppet.Build(host, PhysicalRepMass(), skull, HeadRadius, hitLayer);
 
                 Rigidbody body = physicsPuppet.Pelvis;
-                Collider[] hits = new Collider[] { physicsPuppet.HeadCollider, physicsPuppet.TorsoCollider };
+                Collider[] hits = CollectPuppetColliders(physicsPuppet);
                 enemyHead = physicsPuppet.HeadCollider;
                 enemyTorso = physicsPuppet.TorsoCollider;
                 enemyTargetBody = body;
@@ -1420,11 +1423,24 @@ namespace Entanglement.Representation
 
                 Vector3 leftHand = repTransforms[1] ? repTransforms[1].position : target + Vector3.left * 0.3f;
                 Vector3 rightHand = repTransforms[2] ? repTransforms[2].position : target + Vector3.right * 0.3f;
+                Vector3 chest = target + rot * new Vector3(0f, -0.35f, 0.05f);
                 // Feet from visual Ford when present; otherwise under the pelvis.
                 Vector3 leftFoot = target + new Vector3(-0.12f, -1.55f, 0f);
                 Vector3 rightFoot = target + new Vector3(0.12f, -1.55f, 0f);
                 try {
                     if (repRoot) {
+                        Transform localChest = null;
+                        try {
+                            TriggerRefProxy local = PlayerScripts.LocalProxy();
+                            if (local != null)
+                                localChest = local.chestTran;
+                        }
+                        catch { }
+                        Transform chestBone = MatchRepBone(localChest);
+                        if (!chestBone) chestBone = FindDeep(repRoot, "Chest");
+                        if (!chestBone) chestBone = FindDeep(repRoot, "Spine");
+                        if (chestBone) chest = chestBone.position;
+
                         Transform lNamed = FindDeep(repRoot, "Foot (left)");
                         Transform rNamed = FindDeep(repRoot, "Foot (right)");
                         if (!lNamed) lNamed = FindDeep(repRoot, "heel.L");
@@ -1449,11 +1465,36 @@ namespace Entanglement.Representation
                     return;
                 }
 
-                physicsPuppet.Drive(target, rot, headVel, leftHand, rightHand, leftFoot, rightFoot, pressingLocal, parked);
+                var pose = new PhysicsRigPuppet.PoseTargets {
+                    pelvis = target,
+                    pelvisRot = rot,
+                    pelvisVel = headVel,
+                    chest = chest,
+                    leftHand = leftHand,
+                    rightHand = rightHand,
+                    leftFoot = leftFoot,
+                    rightFoot = rightFoot,
+                };
+                physicsPuppet.Drive(pose, pressingLocal, parked);
                 if (!parked && repRoot)
                     physicsPuppet.FollowVisual(repRoot, 0.4f);
             }
             catch { }
+        }
+
+        static Collider[] CollectPuppetColliders(PhysicsRigPuppet puppet) {
+            if (puppet == null)
+                return Array.Empty<Collider>();
+            var list = new System.Collections.Generic.List<Collider>(8);
+            void Add(Collider c) { if (c) list.Add(c); }
+            Add(puppet.HeadCollider);
+            Add(puppet.TorsoCollider);
+            if (puppet.Chest) Add(puppet.Chest.GetComponent<Collider>());
+            if (puppet.LeftHand) Add(puppet.LeftHand.GetComponent<Collider>());
+            if (puppet.RightHand) Add(puppet.RightHand.GetComponent<Collider>());
+            if (puppet.LeftFoot) Add(puppet.LeftFoot.GetComponent<Collider>());
+            if (puppet.RightFoot) Add(puppet.RightFoot.GetComponent<Collider>());
+            return list.ToArray();
         }
 
         PhysicsRigPuppet physicsPuppet;
@@ -1497,7 +1538,9 @@ namespace Entanglement.Representation
             if (local == null)
                 return;
 
-            Collider[] target = { enemyHead, enemyTorso };
+            Collider[] target = CollectPuppetColliders(physicsPuppet);
+            if (target.Length == 0)
+                target = new Collider[] { enemyHead, enemyTorso };
             for (int t = 0; t < target.Length; t++) {
                 Collider mine = target[t];
                 if (!mine)

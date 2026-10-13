@@ -2,17 +2,20 @@ using System;
 
 using UnityEngine;
 
+using StressLevelZero.Combat;
+
 using Entanglement.Data;
 
 namespace Entanglement.Representation
 {
     /// <summary>
-    /// Full Boneworks physics puppet (Fusion RigManager ideology): dynamic PD pelvis, hands, and
-    /// feet in world space. Visual Ford is kinematic IK and soft-follows the pelvis.
+    /// Boneworks physics body for a remote player — Fusion RigManager/physicsRig equivalent.
+    /// Dynamic PD segments in world space; visual Ford stays kinematic IK and soft-follows pelvis.
     /// </summary>
     public sealed class PhysicsRigPuppet
     {
         public Rigidbody Pelvis { get; private set; }
+        public Rigidbody Chest { get; private set; }
         public Rigidbody LeftHand { get; private set; }
         public Rigidbody RightHand { get; private set; }
         public Rigidbody LeftFoot { get; private set; }
@@ -22,6 +25,7 @@ namespace Entanglement.Representation
         public GameObject Root { get; private set; }
 
         readonly PDController pelvisPD = new PDController();
+        readonly PDController chestPD = new PDController();
         readonly PDController leftHandPD = new PDController();
         readonly PDController rightHandPD = new PDController();
         readonly PDController leftFootPD = new PDController();
@@ -30,12 +34,25 @@ namespace Entanglement.Representation
         const float FreeAccelCap = 120f;
         const float ContactAccelCap = 36f;
         const float LimbAccelCap = 180f;
+        const float ChestAccelCap = 100f;
         const float SpeedLimit = 12f;
         const float LimbSpeedLimit = 18f;
         const float MaxDownAccel = 19.6f;
         const float SnapDistanceSqr = 4f;
 
-        public bool IsValid => Root && Pelvis && LeftHand && RightHand;
+        public bool IsValid => Root && Pelvis && Chest && LeftHand && RightHand && LeftFoot && RightFoot;
+
+        public struct PoseTargets
+        {
+            public Vector3 pelvis;
+            public Quaternion pelvisRot;
+            public Vector3 pelvisVel;
+            public Vector3 chest;
+            public Vector3 leftHand;
+            public Vector3 rightHand;
+            public Vector3 leftFoot;
+            public Vector3 rightFoot;
+        }
 
         public void Build(GameObject host, float mass, Vector3 skullOffset, float headRadius, int layer) {
             Root = host;
@@ -56,17 +73,33 @@ namespace Entanglement.Representation
                 torso = host.AddComponent<CapsuleCollider>();
             torso.isTrigger = false;
             torso.radius = 0.18f;
-            torso.height = 1.3f;
-            torso.center = new Vector3(0f, -0.85f, skullOffset.z);
+            torso.height = 1.05f;
+            torso.center = new Vector3(0f, -0.55f, skullOffset.z);
             TorsoCollider = torso;
 
-            // World-space limbs (not parented) so PD targets are absolute like Fusion's physics rig.
+            Chest = SpawnLimb("PhysChest", host.transform.position, mass * 0.35f, 0.16f, layer, capsule: true);
             LeftHand = SpawnLimb("PhysHand.L", host.transform.position, mass * 0.08f, 0.07f, layer);
             RightHand = SpawnLimb("PhysHand.R", host.transform.position, mass * 0.08f, 0.07f, layer);
             LeftFoot = SpawnLimb("PhysFoot.L", host.transform.position, mass * 0.1f, 0.08f, layer);
             RightFoot = SpawnLimb("PhysFoot.R", host.transform.position, mass * 0.1f, 0.08f, layer);
 
+            MarkHittable(host);
+            MarkHittable(Chest.gameObject);
+            MarkHittable(LeftHand.gameObject);
+            MarkHittable(RightHand.gameObject);
+            MarkHittable(LeftFoot.gameObject);
+            MarkHittable(RightFoot.gameObject);
+
             IgnoreSelfCollisions();
+        }
+
+        static void MarkHittable(GameObject go) {
+            if (!go)
+                return;
+            ImpactProperties impact = go.GetComponent<ImpactProperties>();
+            if (!impact)
+                impact = go.AddComponent<ImpactProperties>();
+            impact.FireResistance = 1f;
         }
 
         static Rigidbody ConfigureBody(GameObject go, float mass, bool freezeRotation) {
@@ -85,22 +118,32 @@ namespace Entanglement.Representation
             return rb;
         }
 
-        static Rigidbody SpawnLimb(string name, Vector3 at, float mass, float radius, int layer) {
+        static Rigidbody SpawnLimb(string name, Vector3 at, float mass, float radius, int layer, bool capsule = false) {
             GameObject go = new GameObject(name);
             go.layer = layer;
             go.transform.position = at;
-            Rigidbody rb = ConfigureBody(go, Mathf.Clamp(mass, 1.2f, 8f), freezeRotation: true);
+            Rigidbody rb = ConfigureBody(go, Mathf.Clamp(mass, 1.2f, 30f), freezeRotation: true);
             rb.drag = 1f;
             rb.angularDrag = 1f;
-            SphereCollider col = go.AddComponent<SphereCollider>();
-            col.isTrigger = false;
-            col.radius = radius;
+            if (capsule) {
+                CapsuleCollider col = go.AddComponent<CapsuleCollider>();
+                col.isTrigger = false;
+                col.radius = radius;
+                col.height = radius * 3.2f;
+                col.direction = 1;
+            }
+            else {
+                SphereCollider col = go.AddComponent<SphereCollider>();
+                col.isTrigger = false;
+                col.radius = radius;
+            }
             return rb;
         }
 
         void IgnoreSelfCollisions() {
             Collider[] parts = {
                 HeadCollider, TorsoCollider,
+                Chest ? Chest.GetComponent<Collider>() : null,
                 LeftHand ? LeftHand.GetComponent<Collider>() : null,
                 RightHand ? RightHand.GetComponent<Collider>() : null,
                 LeftFoot ? LeftFoot.GetComponent<Collider>() : null,
@@ -118,12 +161,7 @@ namespace Entanglement.Representation
             }
         }
 
-        public void Drive(
-            Vector3 pelvisTarget, Quaternion pelvisRot, Vector3 pelvisVel,
-            Vector3 leftHandTarget, Vector3 rightHandTarget,
-            Vector3 leftFootTarget, Vector3 rightFootTarget,
-            bool softContact, bool parked)
-        {
+        public void Drive(PoseTargets pose, bool softContact, bool parked) {
             if (!IsValid)
                 return;
 
@@ -133,14 +171,14 @@ namespace Entanglement.Representation
             }
 
             float pelvisCap = softContact ? ContactAccelCap : FreeAccelCap;
-            DriveBody(Pelvis, pelvisPD, pelvisTarget, pelvisRot, pelvisVel, pelvisCap, SpeedLimit, true);
-            DriveBody(LeftHand, leftHandPD, leftHandTarget, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
-            DriveBody(RightHand, rightHandPD, rightHandTarget, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
-            DriveBody(LeftFoot, leftFootPD, leftFootTarget, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
-            DriveBody(RightFoot, rightFootPD, rightFootTarget, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
+            DriveBody(Pelvis, pelvisPD, pose.pelvis, pose.pelvisRot, pose.pelvisVel, pelvisCap, SpeedLimit, true);
+            DriveBody(Chest, chestPD, pose.chest, pose.pelvisRot, Vector3.zero, ChestAccelCap, SpeedLimit, true);
+            DriveBody(LeftHand, leftHandPD, pose.leftHand, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
+            DriveBody(RightHand, rightHandPD, pose.rightHand, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
+            DriveBody(LeftFoot, leftFootPD, pose.leftFoot, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
+            DriveBody(RightFoot, rightFootPD, pose.rightFoot, Quaternion.identity, Vector3.zero, LimbAccelCap, LimbSpeedLimit, false);
         }
 
-        /// <summary>Soft-follow visual Ford root to the physical pelvis (IK bones stay relative).</summary>
         public void FollowVisual(Transform visualRoot, float blend = 0.35f) {
             if (!Pelvis || !visualRoot)
                 return;
@@ -158,8 +196,7 @@ namespace Entanglement.Representation
             if (body.isKinematic)
                 body.isKinematic = false;
 
-            Vector3 error = target - body.position;
-            if (error.sqrMagnitude > SnapDistanceSqr) {
+            if ((target - body.position).sqrMagnitude > SnapDistanceSqr) {
                 body.position = target;
                 if (yawOnly)
                     body.rotation = rot;
@@ -184,11 +221,13 @@ namespace Entanglement.Representation
 
         void ParkAll() {
             Park(Pelvis);
+            Park(Chest);
             Park(LeftHand);
             Park(RightHand);
             Park(LeftFoot);
             Park(RightFoot);
             pelvisPD.Reset();
+            chestPD.Reset();
             leftHandPD.Reset();
             rightHandPD.Reset();
             leftFootPD.Reset();
@@ -204,11 +243,13 @@ namespace Entanglement.Representation
 
         public void Destroy() {
             ParkAll();
+            DestroyLimb(Chest);
             DestroyLimb(LeftHand);
             DestroyLimb(RightHand);
             DestroyLimb(LeftFoot);
             DestroyLimb(RightFoot);
             Pelvis = null;
+            Chest = null;
             LeftHand = null;
             RightHand = null;
             LeftFoot = null;

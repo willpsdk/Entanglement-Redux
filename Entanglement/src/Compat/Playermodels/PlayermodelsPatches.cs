@@ -18,7 +18,7 @@ using UnityEngine;
 
 using MelonLoader;
 
-using Entanglement.Compat;
+using ModThatIsNotMod.BoneMenu;
 
 namespace Entanglement.Compat.Playermodels
 {
@@ -130,16 +130,15 @@ namespace Entanglement.Compat.Playermodels
 
         public static void AddMissingToMenu() {
             try {
+                MenuCategory category = FindPlayerModelsCategory();
+                if (category == null) {
+                    GameNotify.Show("Player Models is not loaded yet. Restart and the model will show up.", 8f);
+                    return;
+                }
+
                 string folder = playerModelsPath;
                 if (!Directory.Exists(folder))
                     return;
-
-                // Optional BoneMenu listing — skins still apply to remotes without MTINM/BoneMenu.
-                object category = BoneMenuReflect.FindCategory("Player Models");
-                if (category == null) {
-                    EntangleLogger.Debug("[PlayerModel] No BoneMenu 'Player Models' category; files are on disk for sync/apply.");
-                    return;
-                }
 
                 string[] files = Directory.GetFiles(folder);
                 int added = 0;
@@ -147,18 +146,17 @@ namespace Entanglement.Compat.Playermodels
                     string label = Path.GetFileName(files[i]);
                     if (string.IsNullOrEmpty(label) || !label.EndsWith(".body", StringComparison.OrdinalIgnoreCase))
                         continue;
-                    if (BoneMenuReflect.CategoryHas(category, label))
+                    if (MenuHas(category, label))
                         continue;
 
                     string captured = files[i];
-                    if (!BoneMenuReflect.CreateFunction(category, label, Color.grey, () => {
+                    category.CreateFunctionElement(label, Color.grey, () => {
                         try { WearPath(captured); }
                         catch (Exception wear) {
                             EntangleLogger.Warn("Could not wear " + label + ": " + wear.Message);
                             GameNotify.Show("Could not put on " + label + ".", 6f);
                         }
-                    }))
-                        continue;
+                    });
                     added++;
                 }
 
@@ -168,8 +166,35 @@ namespace Entanglement.Compat.Playermodels
                     GameNotify.Show("Added " + added + " models to Player Models.", 6f);
             }
             catch (Exception e) {
-                EntangleLogger.Warn("Could not add model to Player Models menu: " + e.Message);
+                EntangleLogger.Warn("Could not add model to Player Models: " + e.Message);
+                GameNotify.Show("Model saved, but it is not listed yet. A restart should sort it.", 8f);
             }
+        }
+
+        static bool MenuHas(MenuCategory category, string label) {
+            if (category == null || category.elements == null)
+                return false;
+            for (int i = 0; i < category.elements.Count; i++) {
+                MenuElement element = category.elements[i];
+                if (element != null && element.displayText == label)
+                    return true;
+            }
+            return false;
+        }
+
+        static MenuCategory FindPlayerModelsCategory() {
+            FieldInfo field = typeof(MenuManager).GetField("categories", BindingFlags.Static | BindingFlags.NonPublic);
+            if (field == null)
+                return null;
+            System.Collections.IList list = field.GetValue(null) as System.Collections.IList;
+            if (list == null)
+                return null;
+            for (int i = 0; i < list.Count; i++) {
+                MenuCategory category = list[i] as MenuCategory;
+                if (category != null && category.displayText == "Player Models")
+                    return category;
+            }
+            return null;
         }
 
         public static void Wear(string fileName) {

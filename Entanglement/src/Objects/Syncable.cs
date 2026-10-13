@@ -95,6 +95,15 @@ namespace Entanglement.Objects
             NoteOwnerChange(was);
             if (traceOwner) NpcTrace.Owner(this, was, staleOwner, "ForceOwner");
             UpdateOwner(checkForMag);
+            try {
+                TransformSyncable asTransform = this as TransformSyncable;
+                if (asTransform != null) {
+                    Entanglement.Entities.NetworkProp prop = Entanglement.Entities.NetworkProp.Of(asTransform);
+                    if (prop != null)
+                        prop.SyncOwnerFromSyncable();
+                }
+            }
+            catch { }
         }
 
         public virtual void SendEnqueue() { }

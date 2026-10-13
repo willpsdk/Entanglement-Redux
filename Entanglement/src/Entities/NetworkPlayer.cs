@@ -80,10 +80,12 @@ namespace Entanglement.Entities
             if (Puppet == null)
                 Puppet = new RigPuppet();
             Puppet.Attach(rep);
+            Puppet.CreatePuppet();
         }
 
         void Teardown() {
             if (Puppet != null) {
+                Puppet.DestroyPuppet();
                 Puppet.Detach();
                 Puppet = null;
             }

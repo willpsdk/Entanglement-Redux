@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 namespace Entanglement.Entities
 {
+    public delegate void NetworkEntityDelegate(NetworkEntity entity);
+
     /// <summary>
     /// Fusion NetworkEntity for Boneworks: synced id, ownership, and extender hooks.
     /// </summary>
@@ -14,6 +16,7 @@ namespace Entanglement.Entities
 
         long _ownerId;
         bool _ownerLocked;
+        NetworkEntityDelegate _registeredCallback;
 
         public long OwnerId => _ownerId;
         public bool HasOwner => _ownerId != 0;
@@ -38,6 +41,20 @@ namespace Entanglement.Entities
             Id = id;
             IsRegistered = true;
             IsDestroyed = false;
+            NetworkEntityDelegate cb = _registeredCallback;
+            _registeredCallback = null;
+            try { cb?.Invoke(this); }
+            catch (Exception e) { EntangleLogger.Warn("[NetworkEntity] HookOnRegistered: " + e.Message); }
+        }
+
+        /// <summary>Fusion HookOnRegistered — invoke now if registered, else queue until Register.</summary>
+        public void HookOnRegistered(NetworkEntityDelegate registeredCallback) {
+            if (registeredCallback == null)
+                return;
+            if (IsRegistered)
+                registeredCallback(this);
+            else
+                _registeredCallback += registeredCallback;
         }
 
         internal void Unregister() {
@@ -45,6 +62,7 @@ namespace Entanglement.Entities
                 return;
             IsRegistered = false;
             IsDestroyed = true;
+            _registeredCallback = null;
             try { OnUnregistered?.Invoke(this); }
             catch { }
             _extenders.Clear();

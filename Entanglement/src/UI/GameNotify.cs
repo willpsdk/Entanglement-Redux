@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 
+using ModThatIsNotMod;
+
 using StressLevelZero.UI;
 
 using UnityEngine;
@@ -215,8 +217,13 @@ namespace Entanglement.UI
                 EntangleLogger.Warn("[GameNotify] Subtitle banner unavailable: " + e.Message);
             }
 
-            // 3) Log-only fallback — no BoneMenu / ModThatIsNotMod dependency.
-            EntangleLogger.Log("[Notify] " + shown);
+            // 3) ModThatIsNotMod / BoneMenu notification toast
+            try {
+                Notifications.SendNotification(shown, seconds);
+            }
+            catch {
+                EntangleLogger.Log("[Notify] " + shown);
+            }
         }
 
         static string Prefix(Kind kind) {

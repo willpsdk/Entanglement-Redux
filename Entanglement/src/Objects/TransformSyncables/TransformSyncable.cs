@@ -439,6 +439,9 @@ namespace Entanglement.Objects
         }
 
         protected void OnDestroy() {
+            try { Entanglement.Entities.NetworkProp.Unregister(this); }
+            catch { }
+
             try {
                 Syncable current;
                 if (objectId != 0 && ObjectSync.syncedObjects.TryGetValue(objectId, out current) && ReferenceEquals(current, this))
@@ -719,6 +722,8 @@ namespace Entanglement.Objects
                 syncObj.isValid = true;
                 ObjectSync.RegisterSyncable(syncObj, id);
             }
+            try { Entanglement.Entities.NetworkProp.Register(syncObj); }
+            catch { }
             return syncObj;
         }
 

@@ -9,7 +9,7 @@ using Entanglement.UI;
 
 using MelonLoader;
 
-using Entanglement.Compat;
+using ModThatIsNotMod.BoneMenu;
 
 using HarmonyLib;
 
@@ -165,36 +165,40 @@ namespace Entanglement.Compat.CustomMaps {
                     register.Invoke(mod, null);
 
                 FieldInfo catField = mod.GetType().GetField("rootCategory", BindingFlags.Instance | BindingFlags.NonPublic);
-                object category = catField != null ? catField.GetValue(mod) : null;
-                if (category == null) {
-                    // Fall back to BoneMenu category lookup if CustomMaps exposes one there.
-                    category = BoneMenuReflect.FindCategory("Custom Maps");
-                }
+                MenuCategory category = catField != null ? catField.GetValue(mod) as MenuCategory : null;
                 if (category == null) {
                     GameNotify.Show("Saved " + label + ". Restart and it will be in the list.", 8f);
                     return;
                 }
-                if (BoneMenuReflect.CategoryHas(category, label))
+                if (MenuHas(category, label))
                     return;
 
                 string captured = label;
                 bool archive = label.EndsWith(".cma", StringComparison.OrdinalIgnoreCase);
-                if (!BoneMenuReflect.CreateFunction(category, label, archive ? Color.white : Color.grey, () => {
+                category.CreateFunctionElement(label, archive ? Color.white : Color.grey, () => {
                     try { TryLoadMap(captured); }
                     catch (Exception load) {
                         EntangleLogger.Warn("Could not load " + captured + ": " + load.Message);
                         GameNotify.Show("Could not load " + captured + ".", 6f);
                     }
-                })) {
-                    GameNotify.Show("Saved " + label + ". Restart and it will be in the list.", 8f);
-                    return;
-                }
+                });
                 GameNotify.Show(label + " has been downloaded & will be in Custom Maps!", 6f);
             }
             catch (Exception e) {
                 EntangleLogger.Warn("Could not add map to Custom Maps: " + e.Message);
                 GameNotify.Show("Map saved, but it is not listed yet. A restart should sort it.", 8f);
             }
+        }
+
+        static bool MenuHas(MenuCategory category, string label) {
+            if (category == null || category.elements == null)
+                return false;
+            for (int i = 0; i < category.elements.Count; i++) {
+                MenuElement element = category.elements[i];
+                if (element != null && element.displayText == label)
+                    return true;
+            }
+            return false;
         }
 
         static object FindCustomMapsMod() {
