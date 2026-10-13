@@ -197,59 +197,109 @@ namespace Entanglement.Compat.Playermodels
                 rep.currentSkinBundle = null;
             // Clear Model
             ClearNow(rep);
-            // Save skin
-            rep.currentSkinPath = path;
-
-            rep.currentSkinBundle = bundle;
-            rep.isCustomSkinned = true;
 
             // Make sure the rep has been created
-            if (!rep.repFord)
+            if (!rep.repFord) {
+                rep.currentSkinPath = path;
+                rep.currentSkinBundle = bundle;
+                rep.isCustomSkinned = true;
                 return;
+            }
 
-            if (loadedModel == null)
-                loadedModel = rep.currentSkinBundle.LoadAsset<GameObject>(PrefabPath);
-            if (loadedModel == null)
+            if (loadedModel == null) {
+                try { loadedModel = bundle.LoadAsset<GameObject>(PrefabPath); }
+                catch (Exception e) {
+                    EntangleLogger.Warn("[PlayerModel] LoadAsset failed for " + Path.GetFileName(path) + ": " + e.Message);
+                }
+            }
+            if (loadedModel == null) {
+                EntangleLogger.Warn("[PlayerModel] Prefab missing in " + Path.GetFileName(path) + " (" + PrefabPath + ")");
+                CloseIfUnused(bundle);
                 return;
+            }
 
-            rep.currentSkinObject = GameObject.Instantiate(loadedModel);
-            ShaderFix.FixObjectShaders(rep.currentSkinObject);
-            rep.currentSkinObject.name = rep.repFord.name;
-            rep.skinAnimator = rep.currentSkinObject.GetComponent<Animator>();
-            rep.skinAnimator.runtimeAnimatorController = rep.repAnimator.runtimeAnimatorController;
-            rep.skinAnimator.enabled = false;
+            GameObject instance;
+            try { instance = GameObject.Instantiate(loadedModel); }
+            catch (Exception e) {
+                EntangleLogger.Warn("[PlayerModel] Instantiate failed: " + e.Message);
+                CloseIfUnused(bundle);
+                return;
+            }
 
-            rep.repAnimationManager.animator = rep.skinAnimator;
-            rep.activeAnimator = rep.skinAnimator;
-            rep.repBody.ArtToBlender.bones = rep.repBody.ArtToBlender.bones.FillBones(rep.skinAnimator.transform, rep.skinAnimator);
-            FetchFingerTransforms(rep);
+            try { ShaderFix.FixObjectShaders(instance); }
+            catch (Exception e) { EntangleLogger.Warn("[PlayerModel] ShaderFix: " + e.Message); }
 
-            rep.repBody.OnStart();
+            Animator skinAnimator = instance.GetComponent<Animator>();
+            if (skinAnimator == null)
+                skinAnimator = instance.GetComponentInChildren<Animator>(true);
+            if (skinAnimator == null || rep.repAnimator == null) {
+                EntangleLogger.Warn("[PlayerModel] No Animator on " + Path.GetFileName(path));
+                GameObject.Destroy(instance);
+                CloseIfUnused(bundle);
+                return;
+            }
 
-            rep.repGeo.gameObject.SetActive(false);
-            rep.repSHJnt.gameObject.SetActive(false);
+            // Commit skin state only after the instance is valid.
+            rep.currentSkinPath = path;
+            rep.currentSkinBundle = bundle;
+            rep.currentSkinObject = instance;
+            rep.isCustomSkinned = true;
+            rep.skinAnimator = skinAnimator;
+
+            instance.name = rep.repFord.name;
+            skinAnimator.runtimeAnimatorController = rep.repAnimator.runtimeAnimatorController;
+            skinAnimator.enabled = false;
+
+            rep.repAnimationManager.animator = skinAnimator;
+            rep.activeAnimator = skinAnimator;
+            try {
+                rep.repBody.ArtToBlender.bones = rep.repBody.ArtToBlender.bones.FillBones(skinAnimator.transform, skinAnimator);
+                FetchFingerTransforms(rep);
+                rep.repBody.OnStart();
+            }
+            catch (Exception e) {
+                EntangleLogger.Warn("[PlayerModel] Bone bind failed: " + e.Message);
+            }
+
+            if (rep.repGeo)
+                rep.repGeo.gameObject.SetActive(false);
+            if (rep.repSHJnt)
+                rep.repSHJnt.gameObject.SetActive(false);
 
             // Get Renderers
-            Renderer[] renderers = rep.currentSkinObject.GetComponentsInChildren<Renderer>();
+            Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(true);
             bool hasHead = false;
             // Find Head
-            foreach (Renderer rend in renderers)
-                if (rend.name.ToLower().Contains("head")) {
-                    if (rend.material && !rend.material.shader.name.Contains("ShadowOnly") && rend.shadowCastingMode != ShadowCastingMode.ShadowsOnly) {
+            for (int i = 0; i < renderers.Length; i++) {
+                Renderer rend = renderers[i];
+                if (!rend || rend.name == null || !rend.name.ToLower().Contains("head"))
+                    continue;
+                try {
+                    if (rend.material && rend.material.shader && !rend.material.shader.name.Contains("ShadowOnly")
+                        && rend.shadowCastingMode != ShadowCastingMode.ShadowsOnly) {
                         hasHead = true;
                         break;
                     }
                 }
+                catch { }
+            }
             // Replace ShadowCasts
             if (!hasHead) {
-                foreach (Renderer rend in renderers) {
-                    if (rend.material && rend.material.shader.name.Contains("ShadowOnly"))
-                        rend.material = rep.repHologram;
-                    else if (rend.shadowCastingMode == ShadowCastingMode.ShadowsOnly)
-                        rend.shadowCastingMode = ShadowCastingMode.On;
+                for (int i = 0; i < renderers.Length; i++) {
+                    Renderer rend = renderers[i];
+                    if (!rend)
+                        continue;
+                    try {
+                        if (rend.material && rend.material.shader && rend.material.shader.name.Contains("ShadowOnly"))
+                            rend.material = rep.repHologram;
+                        else if (rend.shadowCastingMode == ShadowCastingMode.ShadowsOnly)
+                            rend.shadowCastingMode = ShadowCastingMode.On;
+                    }
+                    catch { }
                 }
             }
-            rep.OnModelChanged();
+            try { rep.OnModelChanged(); }
+            catch { }
         }
 
         // Unloads currently loaded bundles
@@ -296,26 +346,44 @@ namespace Entanglement.Compat.Playermodels
 
         public static void FetchFingerTransforms(PlayerRepresentation rep)
         {
-            //Left Hand
-            Transform leftBone = rep.activeAnimator.GetBoneTransform(HumanBodyBones.LeftHand);
-            Transform leftHand = TransformDeepChildExtension.FindDeepChild(leftBone, "l_Hand_2SHJnt");
-            Transform leftHandle = TransformDeepChildExtension.FindDeepChild(leftHand, "l_GripPoint_AuxSHJnt");
-            Transform leftOpen = TransformDeepChildExtension.FindDeepChild(leftHand.parent, "l_Hand_2SHJnt_open");
-            rep.repAnimationManager.leftHandTransform = leftHand;
-            rep.repAnimationManager.leftHandleTransform = leftHandle;
-            rep.repAnimationManager.leftOpenHandTransform = leftOpen;
-            rep.repAnimationManager.leftClosedHandTransform = leftHand;
-            //Right Hand
-            Transform rightBone = rep.activeAnimator.GetBoneTransform(HumanBodyBones.RightHand);
-            Transform rightHand = TransformDeepChildExtension.FindDeepChild(rightBone, "r_Hand_2SHJnt");
-            Transform rightHandle = TransformDeepChildExtension.FindDeepChild(rightHand, "r_GripPoint_AuxSHJnt");
-            Transform rightOpen = TransformDeepChildExtension.FindDeepChild(rightHand.parent, "r_Hand_2SHJnt_open");
-            rep.repAnimationManager.rightHandTransform = rightHand;
-            rep.repAnimationManager.rightHandleTransform = rightHandle;
-            rep.repAnimationManager.rightOpenHandTransform = rightOpen;
-            rep.repAnimationManager.rightClosedHandTransform = rightHand;
-            //Calculate
-            rep.repAnimationManager.CalculateHandPoseRefs();
+            if (rep == null || !rep.activeAnimator || rep.repAnimationManager == null)
+                return;
+            try {
+                //Left Hand
+                Transform leftBone = rep.activeAnimator.GetBoneTransform(HumanBodyBones.LeftHand);
+                if (leftBone) {
+                    Transform leftHand = TransformDeepChildExtension.FindDeepChild(leftBone, "l_Hand_2SHJnt");
+                    if (leftHand) {
+                        Transform leftHandle = TransformDeepChildExtension.FindDeepChild(leftHand, "l_GripPoint_AuxSHJnt");
+                        Transform leftOpen = leftHand.parent
+                            ? TransformDeepChildExtension.FindDeepChild(leftHand.parent, "l_Hand_2SHJnt_open")
+                            : null;
+                        rep.repAnimationManager.leftHandTransform = leftHand;
+                        rep.repAnimationManager.leftHandleTransform = leftHandle;
+                        rep.repAnimationManager.leftOpenHandTransform = leftOpen;
+                        rep.repAnimationManager.leftClosedHandTransform = leftHand;
+                    }
+                }
+                //Right Hand
+                Transform rightBone = rep.activeAnimator.GetBoneTransform(HumanBodyBones.RightHand);
+                if (rightBone) {
+                    Transform rightHand = TransformDeepChildExtension.FindDeepChild(rightBone, "r_Hand_2SHJnt");
+                    if (rightHand) {
+                        Transform rightHandle = TransformDeepChildExtension.FindDeepChild(rightHand, "r_GripPoint_AuxSHJnt");
+                        Transform rightOpen = rightHand.parent
+                            ? TransformDeepChildExtension.FindDeepChild(rightHand.parent, "r_Hand_2SHJnt_open")
+                            : null;
+                        rep.repAnimationManager.rightHandTransform = rightHand;
+                        rep.repAnimationManager.rightHandleTransform = rightHandle;
+                        rep.repAnimationManager.rightOpenHandTransform = rightOpen;
+                        rep.repAnimationManager.rightClosedHandTransform = rightHand;
+                    }
+                }
+                rep.repAnimationManager.CalculateHandPoseRefs();
+            }
+            catch (Exception e) {
+                EntangleLogger.Warn("[PlayerModel] FetchFingerTransforms: " + e.Message);
+            }
         }
     }
 }

@@ -74,7 +74,8 @@ namespace Entanglement.Compat.Playermodels
                     PlayerSkinLoader.ClearPlayermodel(PlayerRepresentation.representations[userId]);
             }
             else {
-                string fullPath = Path.Combine(PlayermodelsPatch.playerModelsPath, modelPath);
+                string fileName = Path.GetFileName(modelPath);
+                string fullPath = Path.Combine(PlayermodelsPatch.playerModelsPath, fileName);
                 if (File.Exists(fullPath)) {
                     if (PlayerRepresentation.representations.ContainsKey(userId))
                         PlayerSkinLoader.ApplyPlayermodel(PlayerRepresentation.representations[userId], fullPath);
@@ -82,7 +83,7 @@ namespace Entanglement.Compat.Playermodels
                         MelonLoader.MelonCoroutines.Start(RetryApplyModel(userId, fullPath));
                 }
                 else
-                    Entanglement.Sync.PlayermodelSync.RequestModelIfMissing(userId, modelPath, userId);
+                    Entanglement.Sync.PlayermodelSync.RequestModelIfMissing(userId, fileName, userId);
             }
 
             if (Server.instance != null)

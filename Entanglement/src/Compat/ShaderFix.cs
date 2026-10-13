@@ -71,7 +71,11 @@ namespace Entanglement.Compat
                         Material mat = mats[m];
                         if (mat == null || mat.shader == null)
                             continue;
+                        if (mat.shader == null)
+                            continue;
                         string name = mat.shader.name;
+                        if (string.IsNullOrEmpty(name))
+                            continue;
                         string replacement;
                         if (Replacements.TryGetValue(name, out replacement)) {
                             Shader found = Shader.Find(replacement);

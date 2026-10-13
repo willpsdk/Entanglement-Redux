@@ -61,6 +61,16 @@ namespace Entanglement.Sync
             if (initialized) return;
             initialized = true;
 
+            // Always register — remotes must see skins even without the PlayerModels Melon.
+            try { NetworkMessage.RegisterHandler<LoadCustomPlayerMessageHandler>(); }
+            catch (Exception e) { EntangleLogger.Warn("[PlayermodelSync] Handler register: " + e.Message); }
+
+            try {
+                if (!Directory.Exists(PlayermodelsPatch.playerModelsPath))
+                    Directory.CreateDirectory(PlayermodelsPatch.playerModelsPath);
+            }
+            catch { }
+
             FileTransferManager.RegisterCategoryHandler(FileTransferCategory.Playermodel, OnModelFileReceived, OnModelFileFailed);
             Thunderstore.RegisterInstaller(FileTransferCategory.Playermodel, OnThunderstoreReady);
         }
