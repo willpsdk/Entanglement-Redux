@@ -51,10 +51,6 @@
       <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\MelonLoader.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="ModThatIsNotMod">
-      <HintPath>dependencies\ModThatIsNotMod.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Steamworks.NET">
       <HintPath>dependencies\Steamworks.NET.dll</HintPath>
       <Private>False</Private>
@@ -379,6 +375,9 @@
     <Compile Include="src\Data\Containers\PhysicsData.cs" />
     <Compile Include="src\Data\Containers\PDController.cs" />
     <Compile Include="src\Data\Containers\PlayerScripts.cs" />
+    <Compile Include="src\Data\LocalPlayer.cs" />
+    <Compile Include="src\Compat\ShaderFix.cs" />
+    <Compile Include="src\Compat\BoneMenuReflect.cs" />
     <Compile Include="src\Data\Containers\SimplifiedHand.cs" />
     <Compile Include="src\Data\Containers\SimplifiedQuaternion.cs" />
     <Compile Include="src\Data\Containers\SimplifiedTransform.cs" />

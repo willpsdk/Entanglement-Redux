@@ -1,11 +1,11 @@
 ﻿using Entanglement.Representation;
 using Entanglement.Extensions;
 using Entanglement.Network;
+using Entanglement.Compat;
 
 using UnityEngine;
 using UnityEngine.Rendering;
 
-using ModThatIsNotMod;
 
 using System;
 using System.Collections;
@@ -213,7 +213,7 @@ namespace Entanglement.Compat.Playermodels
                 return;
 
             rep.currentSkinObject = GameObject.Instantiate(loadedModel);
-            CustomItems.FixObjectShaders(rep.currentSkinObject);
+            ShaderFix.FixObjectShaders(rep.currentSkinObject);
             rep.currentSkinObject.name = rep.repFord.name;
             rep.skinAnimator = rep.currentSkinObject.GetComponent<Animator>();
             rep.skinAnimator.runtimeAnimatorController = rep.repAnimator.runtimeAnimatorController;

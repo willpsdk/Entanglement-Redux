@@ -18,7 +18,7 @@ using UnityEngine;
 
 namespace Entanglement.Network
 {
-    // Maps onto Steam's ELobbyType, kept as its own enum so BoneMenu can display it
+    // Maps onto Steam's ELobbyType, kept as its own enum for radial UI labels
     public enum ServerVisibility : byte {
         Private,
         FriendsOnly,

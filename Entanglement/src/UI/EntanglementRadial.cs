@@ -2,8 +2,6 @@ using System;
 
 using HarmonyLib;
 
-using ModThatIsNotMod;
-
 using Entanglement.Data;
 
 using StressLevelZero.UI;
@@ -20,7 +18,7 @@ namespace Entanglement.UI
         static bool added;
         static int framesUntilTry = int.MaxValue;
 
-        // Don't take northwest. That's BoneMenu's slot.
+        // Prefer not to steal northwest (BoneMenu uses it when present).
         static readonly string[] spareRegions = {
             "button_Region_S",
             "button_Region_SW",
@@ -56,7 +54,7 @@ namespace Entanglement.UI
                 if (PlayerScripts.playerRig)
                     rig = PlayerScripts.playerRig.gameObject;
                 if (!rig)
-                    rig = Player.GetRigManager();
+                    rig = LocalPlayer.GetRigManager();
                 if (!rig)
                     return;
 

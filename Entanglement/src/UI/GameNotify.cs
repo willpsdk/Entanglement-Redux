@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 
-using ModThatIsNotMod;
-
 using StressLevelZero.UI;
 
 using UnityEngine;
@@ -169,15 +167,20 @@ namespace Entanglement.UI
         }
 
         static string FormatPopup(Notification n) {
-            string line = n.DisplayLine.Replace("\r", " ").Replace("\n", " ").Trim();
+            // Boneworks PopupText is one line — title + body like Fusion headTitles.
+            string body = (n.Message ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+            string title = (n.Title ?? "").Replace("\r", " ").Replace("\n", " ").Trim();
+            string line;
+            if (string.IsNullOrEmpty(title) || title == "Entanglement")
+                line = body;
+            else if (string.IsNullOrEmpty(body))
+                line = title;
+            else
+                line = title + " — " + body;
+
             string prefix = Prefix(n.Type);
-            // Avoid doubling if Title already carries the kind marker.
-            if (!string.IsNullOrEmpty(prefix) && (string.IsNullOrEmpty(n.Title) || n.Title.Trim().Length == 0))
+            if (!string.IsNullOrEmpty(prefix))
                 line = prefix + line;
-            else if (!string.IsNullOrEmpty(prefix) && n.Title != null && n.Title.StartsWith("["))
-                { /* title already typed */ }
-            else if (n.Type != Kind.Info && (string.IsNullOrEmpty(n.Title) || n.Title == "Entanglement"))
-                line = prefix + (n.Message ?? line);
 
             if (line.Length > 90)
                 line = line.Substring(0, 87) + "...";
@@ -212,11 +215,8 @@ namespace Entanglement.UI
                 EntangleLogger.Warn("[GameNotify] Subtitle banner unavailable: " + e.Message);
             }
 
-            // 3) Last resort: ModThatIsNotMod notifications
-            try {
-                Notifications.SendNotification(shown, seconds);
-            }
-            catch { }
+            // 3) Log-only fallback — no BoneMenu / ModThatIsNotMod dependency.
+            EntangleLogger.Log("[Notify] " + shown);
         }
 
         static string Prefix(Kind kind) {

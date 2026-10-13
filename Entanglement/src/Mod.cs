@@ -24,8 +24,6 @@ using Entanglement.Data;
 using Entanglement.Network.Layers;
 using Entanglement.Entities;
 
-using ModThatIsNotMod;
-
 using UnityEngine;
 
 namespace Entanglement {
@@ -373,6 +371,7 @@ namespace Entanglement {
             PlayerRepresentation.GetPlayerTransforms();
             menuWait = 180;
             uiUnlocked = false;
+            LocalPlayer.ClearSceneCache();
             EntanglementRadial.OnSceneWasInitialized();
             GameRadial.OnSceneWasInitialized();
             DownloadUI.OnSceneWasInitialized();

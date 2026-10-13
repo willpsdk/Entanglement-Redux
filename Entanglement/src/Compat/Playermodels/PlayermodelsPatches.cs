@@ -18,7 +18,7 @@ using UnityEngine;
 
 using MelonLoader;
 
-using ModThatIsNotMod.BoneMenu;
+using Entanglement.Compat;
 
 namespace Entanglement.Compat.Playermodels
 {
@@ -98,7 +98,8 @@ namespace Entanglement.Compat.Playermodels
 
         public static void AddMissingToMenu() {
             try {
-                MenuCategory category = FindPlayerModelsCategory();
+                // Optional BoneMenu (ModThatIsNotMod) — reflection only, no compile dependency.
+                object category = BoneMenuReflect.FindCategory("Player Models");
                 if (category == null) {
                     GameNotify.Show("Player Models is not loaded yet. Restart and the model will show up.", 8f);
                     return;
@@ -114,17 +115,18 @@ namespace Entanglement.Compat.Playermodels
                     string label = Path.GetFileName(files[i]);
                     if (string.IsNullOrEmpty(label) || !label.EndsWith(".body", StringComparison.OrdinalIgnoreCase))
                         continue;
-                    if (MenuHas(category, label))
+                    if (BoneMenuReflect.CategoryHas(category, label))
                         continue;
 
                     string captured = files[i];
-                    category.CreateFunctionElement(label, Color.grey, () => {
+                    if (!BoneMenuReflect.CreateFunction(category, label, Color.grey, () => {
                         try { WearPath(captured); }
                         catch (Exception wear) {
                             EntangleLogger.Warn("Could not wear " + label + ": " + wear.Message);
                             GameNotify.Show("Could not put on " + label + ".", 6f);
                         }
-                    });
+                    }))
+                        continue;
                     added++;
                 }
 
@@ -153,32 +155,6 @@ namespace Entanglement.Compat.Playermodels
                 throw new MissingMethodException("Player Models has no ApplyPlayerModel");
             apply.Invoke(null, new object[] { fullPath });
             GameNotify.Show("Now wearing " + Path.GetFileName(fullPath) + ".", 4f);
-        }
-
-        static bool MenuHas(MenuCategory category, string label) {
-            if (category == null || category.elements == null)
-                return false;
-            for (int i = 0; i < category.elements.Count; i++) {
-                MenuElement element = category.elements[i];
-                if (element != null && element.displayText == label)
-                    return true;
-            }
-            return false;
-        }
-
-        static MenuCategory FindPlayerModelsCategory() {
-            FieldInfo field = typeof(MenuManager).GetField("categories", BindingFlags.Static | BindingFlags.NonPublic);
-            if (field == null)
-                return null;
-            System.Collections.IList list = field.GetValue(null) as System.Collections.IList;
-            if (list == null)
-                return null;
-            for (int i = 0; i < list.Count; i++) {
-                MenuCategory category = list[i] as MenuCategory;
-                if (category != null && category.displayText == "Player Models")
-                    return category;
-            }
-            return null;
         }
     }
 }

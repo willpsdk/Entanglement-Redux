@@ -32,8 +32,6 @@ using StressLevelZero.Player;
 using StressLevelZero.SFX;
 using StressLevelZero.Interaction;
 
-using ModThatIsNotMod;
-
 namespace Entanglement.Representation
 {
     public class PlayerRepresentation {

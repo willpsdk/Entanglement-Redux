@@ -216,7 +216,7 @@ namespace Entanglement.Sync
         internal static void OnBeginReceived(long sender, FileTransferBeginData data) {
             if (!SyncPrefs.allowPeerFiles.Value) {
                 EntangleLogger.Warn("[FileTransfer] Rejected " + data.fileName + " from " + sender + ". Files have to come from Thunderstore, not another player.");
-                ModThatIsNotMod.Notifications.SendNotification("Blocked a file from another player. Maps and mods come from Thunderstore.", 6f);
+                Entanglement.UI.GameNotify.Show("Blocked a file from another player. Maps and mods come from Thunderstore.", 6f, Entanglement.UI.GameNotify.Kind.Warning);
                 return;
             }
 

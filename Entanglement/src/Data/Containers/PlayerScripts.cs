@@ -2,8 +2,6 @@
 
 using UnhollowerBaseLib;
 
-using ModThatIsNotMod;
-
 using StressLevelZero.Rig;
 using StressLevelZero.Interaction;
 using StressLevelZero.VRMK;
@@ -32,7 +30,10 @@ namespace Entanglement.Data
         public static Il2CppStringArray playerHandPoses = null;
 
         public static void GetPlayerScripts() {
-            playerRig = Player.GetRigManager().GetComponent<RigManager>();
+            GameObject rigGo = LocalPlayer.GetRigManager();
+            playerRig = rigGo ? rigGo.GetComponent<RigManager>() : null;
+            if (playerRig == null)
+                return;
             playerHealth = playerRig.playerHealth;
 
             reloadLevelOnDeath = playerHealth.reloadLevelOnDeath;

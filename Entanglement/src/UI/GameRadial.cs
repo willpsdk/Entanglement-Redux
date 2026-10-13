@@ -103,7 +103,7 @@ namespace Entanglement.UI
             if (PlayerScripts.playerRig)
                 rig = PlayerScripts.playerRig.gameObject;
             if (!rig)
-                rig = ModThatIsNotMod.Player.GetRigManager();
+                rig = LocalPlayer.GetRigManager();
             if (!rig)
                 return false;
 
