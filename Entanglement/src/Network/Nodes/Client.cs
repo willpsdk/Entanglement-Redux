@@ -97,16 +97,6 @@ namespace Entanglement.Network {
                 return;
             }
 
-            if (SteamIntegration.usesProxy) {
-                var proxy = Layers.NetworkLayerManager.Layer as Layers.Proxy.ProxyNetworkLayer;
-                if (proxy == null || !proxy.IsLoggedIn) {
-                    EntangleLogger.Error("Proxy SteamVR not connected — start PC companion (SteamVR/Meta) first.");
-                    return;
-                }
-                proxy.RequestJoinServer(lobbyId.m_SteamID);
-                return;
-            }
-
             if (DownloadGate.TryDeferJoin(lobbyId))
                 return;
 

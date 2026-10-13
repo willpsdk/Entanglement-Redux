@@ -8,6 +8,7 @@ using StabPoint = StressLevelZero.Combat.StabSlash.StabPoint;
 using Entanglement.Network;
 using Entanglement.Network.Combat;
 using Entanglement.Objects;
+using Entanglement.Entities;
 using Entanglement.Gamemodes;
 
 using HarmonyLib;
@@ -29,8 +30,8 @@ namespace Entanglement.Patching
                     if (cachedTransform && !cachedTransform.IsOwner()) return;
                 }
 
-                // A blade in an NPC someone else runs: claim OwnedEntity so PuppetMaster fights us.
-                OwnedEntity entity = OwnedEntity.OfTransform(surfaceProperties.transform);
+                // A blade in an NPC someone else runs: claim NpcEntity so PuppetMaster fights us.
+                NpcEntity entity = NpcEntity.OfTransform(surfaceProperties.transform);
                 if (entity != null) {
                     entity.ClaimFight();
                     return;

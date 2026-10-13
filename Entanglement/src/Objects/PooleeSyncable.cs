@@ -196,7 +196,7 @@ namespace Entanglement.Objects
             NewLife();
             if (spawnId != 0) {
                 _PooleeLookup[spawnId] = this;
-                OwnedEntity.Register(this);
+                Entanglement.Entities.NpcEntity.Register(this);
             }
             // Searched before it had an id: its behaviours were left off the hit list.
             if (searchedPuppet)
@@ -207,7 +207,7 @@ namespace Entanglement.Objects
             if (ReferenceEquals(_Cache.Get(gameObject), this))
                 _Cache.Remove(gameObject);
             UnregisterBehaviours();
-            OwnedEntity.Unregister(this);
+            Entanglement.Entities.NpcEntity.Unregister(this);
 
             // Only remove the entry if it still points at us, a duplicate id may have overwritten it
             if (_PooleeLookup.TryGetValue(id, out PooleeSyncable current) && current == this)
@@ -249,8 +249,8 @@ namespace Entanglement.Objects
                     continue;
                 sync.ForceOwner(ownerId, false);
             }
-            // Fusion NetworkEntity façade — keep PuppetMaster ownership view in sync.
-            OwnedEntity.Register(this)?.RefreshPuppet();
+            // Fusion NetworkEntity stack — keep NpcEntity / PuppetMaster ownership in sync.
+            Entanglement.Entities.NpcEntity.Register(this)?.RefreshPuppet();
         }
 
         private PuppetMasta.PuppetMaster puppetMaster;
@@ -1245,8 +1245,8 @@ namespace Entanglement.Objects
         }
 
 
-        /// <summary>Fusion-style owned entity for this poolee (creates if missing).</summary>
-        public OwnedEntity Entity => OwnedEntity.Of(this);
+        /// <summary>Fusion-style NetworkEntity extender for this poolee (creates if missing).</summary>
+        public Entanglement.Entities.NpcEntity Entity => Entanglement.Entities.NpcEntity.Of(this);
         void CacheDefaults() {
             if (cachedDefaults || !Live(puppetMaster))
                 return;

@@ -1,18 +1,11 @@
-using System;
-
 namespace Entanglement.Network.Layers
 {
     /// <summary>
-    /// Fusion-style transport abstraction.
-    /// Steam (Boneworks), SteamVR/Meta (Horizon Link AppID 250820 + Quest companion host),
-    /// Proxy SteamVR (Quest client → that host). Meta never falls back to native Steam.
+    /// Transport abstraction: Steam (Boneworks) or SteamVR (Meta Horizon Link AppID 250820).
     /// </summary>
     public interface INetworkLayer
     {
-        /// <summary>Human-readable name, e.g. "Steam", "Meta", "Proxy".</summary>
         string Title { get; }
-
-        /// <summary>Platform id for bans / identity, e.g. "Steam", "Meta".</summary>
         string Platform { get; }
 
         bool IsAvailable { get; }
@@ -30,7 +23,6 @@ namespace Entanglement.Network.Layers
         void Shutdown();
 
         bool Send(long userId, NetworkChannel channel, byte[] data);
-        /// <summary>Drain available packets. Returns false when no more this channel.</summary>
         bool TryReceive(NetworkChannel channel, out long senderId, out byte[] data);
 
         bool IsPacketAvailable(NetworkChannel channel, out uint size);

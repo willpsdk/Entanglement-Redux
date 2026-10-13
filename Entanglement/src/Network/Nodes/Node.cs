@@ -129,6 +129,8 @@ namespace Entanglement.Network {
 
             Entanglement.Objects.BossClawSync.OnUserLeft(userId);
             Entanglement.Objects.SpawnCatchUp.OnUserLeft(userId);
+            try { Entanglement.Entities.NetworkEntityManager.OnPlayerLeft(userId); }
+            catch { }
 
             userNames.Remove(userId);
             connectedUsers.Remove(userId);
@@ -304,10 +306,6 @@ namespace Entanglement.Network {
 
                     long senderId;
                     byte[] buffer;
-                    if (Entanglement.Network.Layers.Proxy.ProxyCompanionHost.OwnsSteamDrain
-                        && !(layer is Entanglement.Network.Layers.Proxy.ProxyNetworkLayer))
-                        break;
-
                     if (layer != null) {
                         if (!layer.TryReceive(channel, out senderId, out buffer))
                             break;

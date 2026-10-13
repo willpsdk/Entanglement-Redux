@@ -17,9 +17,6 @@ namespace Entanglement.Network {
 
         public static bool isInvalid;
 
-        /// <summary>Quest Proxy SteamVR: no local SteamAPI; identity/P2P come from the PC companion.</summary>
-        public static bool usesProxy;
-
         /// <summary>Active Steam AppID after init (0 if unknown / game default).</summary>
         public static uint activeAppId;
 
@@ -30,22 +27,11 @@ namespace Entanglement.Network {
         // The lobby we are currently inside of (hosting or connected), CSteamID.Nil when not in one
         public static CSteamID lobby = CSteamID.Nil;
 
-        // Proxy companion lobby flags (no local SteamMatchmaking handle on Quest)
-        static bool proxyInLobby;
-        static bool proxyIsHost;
-        static long proxyLobbyOwnerId;
+        public static bool hasLobby => lobby.m_SteamID != 0;
 
-        public static bool hasLobby => usesProxy ? proxyInLobby : lobby.m_SteamID != 0;
+        public static long lobbyOwnerId => hasLobby ? (long)SteamMatchmaking.GetLobbyOwner(lobby).m_SteamID : 0L;
 
-        public static long lobbyOwnerId {
-            get {
-                if (usesProxy)
-                    return proxyInLobby ? proxyLobbyOwnerId : 0L;
-                return hasLobby ? (long)SteamMatchmaking.GetLobbyOwner(lobby).m_SteamID : 0L;
-            }
-        }
-
-        public static bool isHost => usesProxy ? (proxyInLobby && proxyIsHost) : (hasLobby && lobbyOwnerId == currentUserId);
+        public static bool isHost => hasLobby && lobbyOwnerId == currentUserId;
 
         public static bool isConnected => hasLobby && !isHost;
 
@@ -213,7 +199,6 @@ namespace Entanglement.Network {
         /// pass 0 to use the Steam client's game AppID (Boneworks).
         /// </summary>
         public static void Initialize(uint appId = 0) {
-            usesProxy = false;
             try {
                 if (appId != 0)
                     PrepareAppId(appId);
@@ -269,45 +254,6 @@ namespace Entanglement.Network {
             }
         }
 
-        /// <summary>Quest boot: skip local SteamAPI; companion will supply SteamID / P2P.</summary>
-        public static void EnterProxyMode(object proxyLayer) {
-            usesProxy = true;
-            isInvalid = false;
-            activeAppId = Entanglement.Network.Layers.SteamAppIds.SteamVR;
-            currentUserId = 0;
-            currentUserName = "Proxy";
-            lobby = CSteamID.Nil;
-            EntangleLogger.Log("[Steam] Proxy mode — waiting for PC Steam companion (SteamVR AppID "
-                + activeAppId + ")");
-        }
-
-        public static void OnProxySteamReady(long steamId, string username) {
-            usesProxy = true;
-            isInvalid = false;
-            currentUserId = steamId;
-            if (!string.IsNullOrEmpty(username))
-                currentUserName = username;
-            EntangleLogger.Log("[Steam] Proxy identity ready: " + currentUserName + " (" + steamId + ")");
-        }
-
-        public static void OnProxyLoggedOut() {
-            currentUserId = 0;
-            currentUserName = "Proxy";
-            lobby = CSteamID.Nil;
-            proxyInLobby = false;
-            proxyIsHost = false;
-            proxyLobbyOwnerId = 0;
-        }
-
-        public static void OnProxyLobbyChanged(bool inLobby, bool host, long ownerId) {
-            proxyInLobby = inLobby;
-            proxyIsHost = inLobby && host;
-            proxyLobbyOwnerId = inLobby ? (ownerId != 0 ? ownerId : currentUserId) : 0;
-            // Keep lobby non-nil while proxied so legacy hasLobby-style checks that read the field still see a session.
-            lobby = inLobby && proxyLobbyOwnerId != 0
-                ? new CSteamID((ulong)proxyLobbyOwnerId)
-                : CSteamID.Nil;
-        }
 
         // Only accept P2P sessions from users that are inside of our lobby
         private static void OnSessionRequest(P2PSessionRequest_t request) {
@@ -427,11 +373,6 @@ namespace Entanglement.Network {
         }
 
         public static bool SendPacket(long userId, NetworkChannel channel, byte[] data) {
-            if (usesProxy) {
-                var layer = Entanglement.Network.Layers.NetworkLayerManager.Layer;
-                return layer != null && layer.Send(userId, channel, data);
-            }
-
             // Every channel except Unreliable expects ordered & lossless delivery
             EP2PSend sendType = channel == NetworkChannel.Unreliable ? EP2PSend.k_EP2PSendUnreliable : EP2PSend.k_EP2PSendReliable;
 
@@ -439,10 +380,6 @@ namespace Entanglement.Network {
         }
 
         public static void CloseSession(long userId) {
-            if (usesProxy) {
-                Entanglement.Network.Layers.NetworkLayerManager.Layer?.CloseSession(userId);
-                return;
-            }
             SteamNetworking.CloseP2PSessionWithUser(new CSteamID((ulong)userId));
         }
 
@@ -609,44 +546,32 @@ namespace Entanglement.Network {
         static float nextPresenceRefresh;
 
         public static void Tick() {
-            if (!usesProxy) {
-                SteamAPI.RunCallbacks();
-                DiscordInvite.DrainJoins();
-            }
+            SteamAPI.RunCallbacks();
+            DiscordInvite.DrainJoins();
 
-            if (!usesProxy && hasLobby && !isHost && UnityEngine.Time.realtimeSinceStartup >= nextPresenceRefresh) {
+            if (hasLobby && !isHost && UnityEngine.Time.realtimeSinceStartup >= nextPresenceRefresh) {
                 nextPresenceRefresh = UnityEngine.Time.realtimeSinceStartup + 10f;
                 try { UpdateActivity(); }
                 catch (Exception e) { EntangleLogger.Debug("[Discord] Presence refresh: " + e.Message); }
             }
 
-            // Resolve persona fetches Steam never answered, so a stranger still gets a rep.
-            if (!usesProxy)
-                TickUserFetches();
+            TickUserFetches();
 
-            // Backstop against reps left behind by a joiner who bounced out mid-handshake.
             if (hasLobby && UnityEngine.Time.realtimeSinceStartup >= nextGhostSweep) {
                 nextGhostSweep = UnityEngine.Time.realtimeSinceStartup + 5f;
                 try { Node.SweepGhostReps(); }
                 catch (Exception e) { EntangleLogger.Warn("[Join] Ghost sweep: " + e.Message); }
             }
 
-            // When Quest peers tunnel through this PC, the companion owns Steam P2P drain.
-            if (Entanglement.Network.Layers.Proxy.ProxyCompanionHost.OwnsSteamDrain)
-                return;
-
-            if (hasLobby || usesProxy)
+            if (hasLobby)
                 Node.activeNode?.ReceiveMessages();
         }
 
         public static void Shutdown() {
-            if (!usesProxy) {
-                DiscordInvite.Stop();
-                try { SteamFriends.ClearRichPresence(); }
-                catch { }
-                SteamAPI.Shutdown();
-            }
-            usesProxy = false;
+            DiscordInvite.Stop();
+            try { SteamFriends.ClearRichPresence(); }
+            catch { }
+            SteamAPI.Shutdown();
         }
     }
 }

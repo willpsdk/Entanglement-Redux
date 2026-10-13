@@ -34,7 +34,19 @@ namespace Entanglement.Objects
         public static void OnCleanup() {
             // Grant numbers belong to this level's spawn ids (and this lobby's host).
             NpcOwnership.Clear();
-            OwnedEntity.Clear();
+            // Wipe NetworkEntity stack for this scene's spawn ids, then rebind living player entities.
+            Entanglement.Entities.NpcEntity.Clear();
+            Entanglement.Entities.NetworkPlayer.Clear();
+            Entanglement.Entities.NetworkEntityManager.Clear();
+            try {
+                foreach (Entanglement.Representation.PlayerRepresentation rep in Entanglement.Representation.PlayerRepresentation.representations.Values) {
+                    if (rep != null)
+                        Entanglement.Entities.NetworkPlayer.Register(rep);
+                }
+                if (Entanglement.Representation.PlayerRepresentation.debugRepresentation != null)
+                    Entanglement.Entities.NetworkPlayer.Register(Entanglement.Representation.PlayerRepresentation.debugRepresentation);
+            }
+            catch { }
             TransformCollisionMessageHandler.Clear();
             HolsterSync.Clear();
             Entanglement.Patching.GunSlideSync.Clear();

@@ -11,7 +11,7 @@ namespace Entanglement.Network.Layers
         /// <summary>0 = use the Steam client's game AppID (Boneworks when launched via Steam).</summary>
         public virtual uint ApplicationID => 0;
 
-        public bool IsAvailable => !SteamIntegration.isInvalid && !SteamIntegration.usesProxy;
+        public bool IsAvailable => !SteamIntegration.isInvalid;
         public bool IsLoggedIn => !SteamIntegration.isInvalid && SteamIntegration.currentUserId != 0;
         public bool HasLobby => SteamIntegration.hasLobby;
         public bool IsHost => SteamIntegration.isHost;

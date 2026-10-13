@@ -168,7 +168,7 @@ namespace Entanglement.Patching
             if (!HitLayout.Ok)
                 return true;
 
-            OwnedEntity entity = OwnedEntity.Of(npc);
+            Entanglement.Entities.NpcEntity entity = Entanglement.Entities.NpcEntity.Of(npc);
             HitSource.Side side = RemoteShot.active ? HitSource.Side.Remote : HitSource.current;
             if (side == HitSource.Side.Unknown)
                 side = HitSource.SideOf(*(IntPtr*)((byte*)hit + HitLayout.attack + HitLayout.proxy));

@@ -673,7 +673,7 @@ namespace Entanglement.UI
                 new Entry("Banned", () => { bannedPage = 0; ShowBanned(); }),
                 new Entry(TransportLabel(), () => {
                     string next = Entanglement.Network.Layers.NetworkLayerManager.CyclePreferredTitle();
-                    GameNotify.Show("Transport → " + next + ". Restart the game to apply AppID / Quest proxy changes.", 5f, GameNotify.Kind.Info);
+                    GameNotify.Show("Transport → " + next + ". Restart the game to apply AppID changes.", 5f, GameNotify.Kind.Info);
                     ShowSettings();
                 }),
                 new Entry("Debug", ShowDebug)
@@ -683,16 +683,9 @@ namespace Entanglement.UI
         static string TransportLabel() {
             string active = Entanglement.Network.Layers.NetworkLayerManager.ActiveTitle;
             string preferred = Entanglement.Network.Layers.NetworkPrefs.ResolvedLayerTitle();
-            string label = !string.Equals(active, preferred, StringComparison.OrdinalIgnoreCase)
-                ? "Net: " + active + " → " + preferred
-                : "Net: " + active;
-            try {
-                int peers = Entanglement.Network.Layers.Proxy.ProxyCompanionHost.PeerCount;
-                if (peers > 0)
-                    label += " +Q" + peers;
-            }
-            catch { }
-            return label;
+            if (!string.Equals(active, preferred, StringComparison.OrdinalIgnoreCase))
+                return "Net: " + active + " → " + preferred;
+            return "Net: " + active;
         }
 
         static int bannedPage;

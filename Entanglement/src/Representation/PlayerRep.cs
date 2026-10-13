@@ -12,6 +12,7 @@ using Entanglement.Extensions;
 using Entanglement.Compat.Playermodels;
 using Entanglement.Managers;
 using Entanglement.Objects;
+using Entanglement.Entities;
 
 using UnityEngine;
 
@@ -455,7 +456,12 @@ namespace Entanglement.Representation
             this.playerId = playerId;
             previewOnly = preview;
             RecreateRepresentations();
+            if (!previewOnly)
+                NetworkPlayer.Register(this);
         }
+
+        /// <summary>Physics rig puppet (Fusion RigPuppet / RigManager-shaped) for this remote.</summary>
+        public PhysicsRigPuppet PhysicsPuppet => physicsPuppet;
 
         public void DeleteRepresentations(bool fadeAway = false) {
             if (grabCollisionIgnored)
@@ -464,6 +470,9 @@ namespace Entanglement.Representation
 
             ClearPoseCache();
             StopFade();
+
+            if (!previewOnly)
+                NetworkPlayer.Unregister(this);
 
             GameObject.Destroy(repCanvas);
             DestroyEnemyTarget();
@@ -487,6 +496,7 @@ namespace Entanglement.Representation
             heldByLocalPlayer = false;
             heldReleaseUntil = 0f;
             DestroyEnemyTarget();
+            // NetworkPlayer stays registered across recreate; rebind puppet after Ford is built.
             hasNetTarget = false;
             ClearPoseCache();
             overlapIgnored = false;
@@ -2644,13 +2654,16 @@ namespace Entanglement.Representation
                     try { rep.DampLocalHoldVertical(); }
                     catch { }
                 }
-                rep.DriveEnemyTarget();
+                // Registered NetworkPlayers are PD-driven by NetworkEntityManager → RigPuppet.
+                if (!NetworkPlayer.IsRegistered(rep.playerId))
+                    rep.DriveEnemyTarget();
             }
 
             if (debugRepresentation != null) {
                 try { debugRepresentation.UpdateLocalGrabState(); }
                 catch { }
-                debugRepresentation.DriveEnemyTarget();
+                if (!NetworkPlayer.IsRegistered(debugRepresentation.playerId))
+                    debugRepresentation.DriveEnemyTarget();
             }
 
             TickLocalGrabPull();

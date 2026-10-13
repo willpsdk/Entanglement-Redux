@@ -41,7 +41,7 @@ namespace Entanglement
         }
 
         public static void InvalidSteam() {
-            Notifications.SendNotification("Steam did not start up, so Entanglement is off.\nCheck Steam is running and launch the game through it.\nFor Meta Horizon Link use Net: SteamVR in Settings; Quest uses Proxy SteamVR + PC helper.", 6f);
+            Notifications.SendNotification("Steam did not start up, so Entanglement is off.\nCheck Steam is running and launch the game through it.\nFor Meta Horizon Link use Net: SteamVR in Settings.", 6f);
         }
 
     }

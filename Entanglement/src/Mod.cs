@@ -22,7 +22,7 @@ using Entanglement.Managers;
 using Entanglement.Gamemodes;
 using Entanglement.Data;
 using Entanglement.Network.Layers;
-using Entanglement.Utilities;
+using Entanglement.Entities;
 
 using ModThatIsNotMod;
 
@@ -39,8 +39,8 @@ namespace Entanglement {
         public const byte minVersionMajorSupported = 2;
         public const byte minVersionMinorSupported = 1;
 
-        // 24: finished puppet/companion/combat/OwnedEntity (no half-baked stubs).
-        public const byte protocolRevision = 24;
+        // 25: Quest companion removed; full NetworkEntity + RigPuppet stack.
+        public const byte protocolRevision = 25;
 
         public static ulong BuildId {
             get {
@@ -113,23 +113,16 @@ namespace Entanglement {
             EntangleLogger.Log("Entanglement Debug Build!", ConsoleColor.Blue);
 #endif
 
-            // Fusion ideology: pick transport first (Steam / SteamVR Horizon Link / Quest Proxy).
             NetworkLayerManager.PreferredLayerName = NetworkPrefs.ResolvedLayerTitle();
             string layerTitle = NetworkLayerManager.PreferredLayerName;
-            EntangleLogger.Log($"Network layer preference: {layerTitle} ({PlatformHelper.GetPlatformName()})");
+            EntangleLogger.Log($"Network layer preference: {layerTitle}");
 
-            if (NetworkLayerManager.IsProxyTitle(layerTitle)) {
-                // Quest: no local Steamworks — companion on PC owns SteamVR AppID.
-                SteamIntegration.EnterProxyMode(null);
-            }
-            else {
-                uint appId = NetworkLayerManager.SteamAppIdForTitle(layerTitle);
-                SteamIntegration.Initialize(appId);
+            uint appId = NetworkLayerManager.SteamAppIdForTitle(layerTitle);
+            SteamIntegration.Initialize(appId);
 
-                if (SteamIntegration.isInvalid) {
-                    EntangleNotif.InvalidSteam();
-                    return;
-                }
+            if (SteamIntegration.isInvalid) {
+                EntangleNotif.InvalidSteam();
+                return;
             }
 
             NetworkLayerManager.Initialize();
@@ -295,6 +288,10 @@ namespace Entanglement {
             // Updates the VRIK of all the players
             SafeTick("UpdatePlayerReps", PlayerRepresentation.UpdatePlayerReps);
 
+            // NetworkEntity fixed updatables (NetworkPlayer → RigPuppet PD drive).
+            SafeTick("NetworkEntityManager", NetworkEntityManager.OnFixedUpdate);
+
+            // Grab helpers + fallback drive for reps without a NetworkPlayer.
             SafeTick("DriveRepPhysics", PlayerRepresentation.DriveRepPhysics);
 
             SafeTick("SoloDebug", Entanglement.Objects.SoloDebug.FixedTick);
