@@ -3,8 +3,8 @@ using System;
 namespace Entanglement.Network.Layers
 {
     /// <summary>
-    /// Fusion-style transport abstraction. Steam is the first implementation; Meta/Oculus/Quest
-    /// (or Photon/LiteNetLib) can plug in later without rewriting gameplay messages.
+    /// Fusion-style transport abstraction.
+    /// Steam (Boneworks), SteamVR (Meta Horizon Link AppID 250820), Proxy SteamVR (Quest → PC helper).
     /// </summary>
     public interface INetworkLayer
     {

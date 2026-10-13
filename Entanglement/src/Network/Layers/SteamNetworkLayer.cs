@@ -2,24 +2,26 @@ using Steamworks;
 
 namespace Entanglement.Network.Layers
 {
-    /// <summary>Current production transport. Wraps existing SteamIntegration P2P.</summary>
-    public sealed class SteamNetworkLayer : INetworkLayer
+    /// <summary>Native Boneworks Steam transport (game AppID via Steam launch).</summary>
+    public class SteamNetworkLayer : INetworkLayer
     {
-        public string Title => "Steam";
-        public string Platform => "Steam";
+        public virtual string Title => "Steam";
+        public virtual string Platform => "Steam";
 
-        public bool IsAvailable => !SteamIntegration.isInvalid;
+        /// <summary>0 = use the Steam client's game AppID (Boneworks when launched via Steam).</summary>
+        public virtual uint ApplicationID => 0;
+
+        public bool IsAvailable => !SteamIntegration.isInvalid && !SteamIntegration.usesProxy;
         public bool IsLoggedIn => !SteamIntegration.isInvalid && SteamIntegration.currentUserId != 0;
         public bool HasLobby => SteamIntegration.hasLobby;
         public bool IsHost => SteamIntegration.isHost;
-        public bool IsClient => SteamIntegration.hasLobby;
+        public bool IsClient => SteamIntegration.hasLobby && !SteamIntegration.isHost;
         public long LocalUserId => SteamIntegration.currentUserId;
         public string LocalUserName => SteamIntegration.currentUserName;
         public long LobbyOwnerId => SteamIntegration.lobbyOwnerId;
 
-        public void Initialize() {
-            // SteamIntegration.Initialize() is still called from Mod for lobby/callbacks.
-            EntangleLogger.Log("[NetLayer] Active transport: Steam (Quest/Meta layer can replace this later)");
+        public virtual void Initialize() {
+            EntangleLogger.Log("[NetLayer] Active transport: Steam (native Boneworks AppID)");
         }
 
         public void Tick() {
@@ -27,7 +29,7 @@ namespace Entanglement.Network.Layers
         }
 
         public void Shutdown() {
-            SteamAPI.Shutdown();
+            // SteamAPI lifetime owned by SteamIntegration.Shutdown.
         }
 
         public bool Send(long userId, NetworkChannel channel, byte[] data) {

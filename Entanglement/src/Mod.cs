@@ -22,6 +22,7 @@ using Entanglement.Managers;
 using Entanglement.Gamemodes;
 using Entanglement.Data;
 using Entanglement.Network.Layers;
+using Entanglement.Utilities;
 
 using ModThatIsNotMod;
 
@@ -38,8 +39,8 @@ namespace Entanglement {
         public const byte minVersionMajorSupported = 2;
         public const byte minVersionMinorSupported = 1;
 
-        // 21: INetworkLayer (Quest-ready), grab/release sync, gamemode state sync, physical root follow.
-        public const byte protocolRevision = 21;
+        // 22: SteamVR (Meta Horizon Link) + Proxy SteamVR (Quest) transport layers.
+        public const byte protocolRevision = 22;
 
         public static ulong BuildId {
             get {
@@ -112,15 +113,25 @@ namespace Entanglement {
             EntangleLogger.Log("Entanglement Debug Build!", ConsoleColor.Blue);
 #endif
 
-            SteamIntegration.Initialize();
+            // Fusion ideology: pick transport first (Steam / SteamVR Horizon Link / Quest Proxy).
+            NetworkLayerManager.PreferredLayerName = NetworkPrefs.ResolvedLayerTitle();
+            string layerTitle = NetworkLayerManager.PreferredLayerName;
+            EntangleLogger.Log($"Network layer preference: {layerTitle} ({PlatformHelper.GetPlatformName()})");
 
-            // This checks if Steam has an invalid instance, so that the game can proceed without freezing
-            if (SteamIntegration.isInvalid) {
-                EntangleNotif.InvalidSteam();
-                return; 
+            if (NetworkLayerManager.IsProxyTitle(layerTitle)) {
+                // Quest: no local Steamworks — companion on PC owns SteamVR AppID.
+                SteamIntegration.EnterProxyMode(null);
+            }
+            else {
+                uint appId = NetworkLayerManager.SteamAppIdForTitle(layerTitle);
+                SteamIntegration.Initialize(appId);
+
+                if (SteamIntegration.isInvalid) {
+                    EntangleNotif.InvalidSteam();
+                    return;
+                }
             }
 
-            // Fusion ideology: gameplay talks to INetworkLayer. Steam today; Meta/Quest later.
             NetworkLayerManager.Initialize();
 
             Patcher.Initialize();
@@ -477,6 +488,7 @@ namespace Entanglement {
             ModuleHandler.OnApplicationQuit();
 
             Node.activeNode.Shutdown();
+            NetworkLayerManager.Shutdown();
             SteamIntegration.Shutdown();
         }
     }

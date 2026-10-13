@@ -351,6 +351,42 @@
     <Reference Include="System.IO.Compression.FileSystem" />
   </ItemGroup>
   <ItemGroup>
+    <!-- LiteNetLib (MIT) — Quest Proxy SteamVR companion transport -->
+    <Compile Include="dependencies\LiteNetLib\BaseChannel.cs" />
+    <Compile Include="dependencies\LiteNetLib\ConnectionRequest.cs" />
+    <Compile Include="dependencies\LiteNetLib\INetEventListener.cs" />
+    <Compile Include="dependencies\LiteNetLib\InternalPackets.cs" />
+    <Compile Include="dependencies\LiteNetLib\Layers\Crc32cLayer.cs" />
+    <Compile Include="dependencies\LiteNetLib\Layers\PacketLayerBase.cs" />
+    <Compile Include="dependencies\LiteNetLib\Layers\XorEncryptLayer.cs" />
+    <Compile Include="dependencies\LiteNetLib\NatPunchModule.cs" />
+    <Compile Include="dependencies\LiteNetLib\NativeSocket.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetConstants.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetDebug.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetManager.HashSet.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetManager.PacketPool.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetManager.Socket.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetManager.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetPacket.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetPeer.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetStatistics.cs" />
+    <Compile Include="dependencies\LiteNetLib\NetUtils.cs" />
+    <Compile Include="dependencies\LiteNetLib\PausedSocketFix.cs" />
+    <Compile Include="dependencies\LiteNetLib\PooledPacket.cs" />
+    <Compile Include="dependencies\LiteNetLib\ReliableChannel.cs" />
+    <Compile Include="dependencies\LiteNetLib\SequencedChannel.cs" />
+    <Compile Include="dependencies\LiteNetLib\Trimming.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\CRC32C.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\FastBitConverter.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\INetSerializable.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\NetDataReader.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\NetDataWriter.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\NetPacketProcessor.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\NetSerializer.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\NtpPacket.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\NtpRequest.cs" />
+    <Compile Include="dependencies\LiteNetLib\Utils\Preserve.cs" />
+
     <Compile Include="src\AssemblyInfo.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -387,6 +423,13 @@
     <Compile Include="src\Gamemodes\BuiltIn\DeathmatchGamemode.cs" />
     <Compile Include="src\Network\Layers\INetworkLayer.cs" />
     <Compile Include="src\Network\Layers\SteamNetworkLayer.cs" />
+    <Compile Include="src\Utilities\PlatformHelper.cs" />
+    <Compile Include="src\Network\Layers\SteamAppIds.cs" />
+    <Compile Include="src\Network\Layers\NetworkPrefs.cs" />
+    <Compile Include="src\Network\Layers\SteamVRNetworkLayer.cs" />
+    <Compile Include="src\Network\Layers\Proxy\ProxyMessageTypes.cs" />
+    <Compile Include="src\Network\Layers\Proxy\ProxyNetworkLayer.cs" />
+    <Compile Include="src\Network\Layers\Proxy\ProxySteamVRNetworkLayer.cs" />
     <Compile Include="src\Network\Layers\NetworkLayerManager.cs" />
     <Compile Include="src\Network\Messages\Representation\PlayerRepGrabMessage.cs" />
     <Compile Include="src\Network\Messages\Gamemodes\GamemodeStateMessage.cs" />

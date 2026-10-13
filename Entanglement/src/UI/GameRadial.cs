@@ -671,9 +671,21 @@ namespace Entanglement.UI
                 new Entry("Voice", ShowVoice),
                 new Entry("File Sync", ShowSync),
                 new Entry("Banned", () => { bannedPage = 0; ShowBanned(); }),
-                new Entry("Transport: " + Entanglement.Network.Layers.NetworkLayerManager.ActiveTitle, ShowSettings, true),
+                new Entry(TransportLabel(), () => {
+                    string next = Entanglement.Network.Layers.NetworkLayerManager.CyclePreferredTitle();
+                    GameNotify.Show("Transport → " + next + ". Restart the game to apply AppID / Quest proxy changes.", 5f, GameNotify.Kind.Info);
+                    ShowSettings();
+                }),
                 new Entry("Debug", ShowDebug)
             ), false);
+        }
+
+        static string TransportLabel() {
+            string active = Entanglement.Network.Layers.NetworkLayerManager.ActiveTitle;
+            string preferred = Entanglement.Network.Layers.NetworkPrefs.ResolvedLayerTitle();
+            if (!string.Equals(active, preferred, StringComparison.OrdinalIgnoreCase))
+                return "Net: " + active + " → " + preferred;
+            return "Net: " + active;
         }
 
         static int bannedPage;
