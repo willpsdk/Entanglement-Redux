@@ -1,1 +1,2 @@
 *.eres filter=lfs diff=lfs merge=lfs -text
+E-RDUX/Entanglement/resources/playerrep.eres filter=lfs diff=lfs merge=lfs -text
