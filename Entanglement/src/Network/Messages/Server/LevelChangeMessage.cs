@@ -1,0 +1,59 @@
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using StressLevelZero;
+
+namespace Entanglement.Network {
+    public class LevelChangeMessageHandler : NetworkMessageHandler<LevelChangeMessageData> {
+        public override byte? MessageIndex => BuiltInMessageType.LevelChange;
+
+        public override NetworkMessage CreateMessage(LevelChangeMessageData data) {
+            NetworkMessage message = new NetworkMessage();
+
+            message.messageData = new byte[] { data.sceneIndex, Convert.ToByte(data.sceneReload), };
+
+            return message;
+        }
+
+        public override void HandleMessage(NetworkMessage message, long sender) {
+            if (message.messageData.Length <= 0)
+                throw new IndexOutOfRangeException();
+
+            byte index = message.messageData[0];
+
+            bool reload = Convert.ToBoolean(message.messageData[1]);
+
+            if (index == Client.instance.currentScene && !reload) {
+                // Already in this scene, so no load fires; still send the ready handshake
+                if (SteamIntegration.hasLobby && !Node.isServer && Node.activeNode != null) {
+                    NetworkMessage readyMessage = NetworkMessage.CreateMessage(BuiltInMessageType.ClientReady, new EmptyMessageData());
+                    if (readyMessage != null)
+                        Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, readyMessage.GetBytes());
+                }
+                return;
+            }
+
+            if (sender != SteamIntegration.lobbyOwnerId)
+                return;
+
+            // Hold the load while downloads for this scene are still going, same as a fresh join.
+            if (DownloadGate.TryHoldScene(index, reload))
+                return;
+
+            if (Client.instance != null)
+                Client.instance.pendingScene = index;
+            Entanglement.Patching.ClientSceneGate.AllowNetworkLoad();
+
+            StressLevelZero.Utilities.BoneworksSceneManager.LoadScene(index);
+        }
+    }
+
+    public class LevelChangeMessageData : NetworkMessageData {
+        public byte sceneIndex;
+        public bool sceneReload;
+    }
+}

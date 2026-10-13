@@ -1,0 +1,184 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Reflection;
+using System.IO;
+
+using HarmonyLib;
+
+using Entanglement.Representation;
+using Entanglement.Patching;
+using Entanglement.Network;
+using Entanglement.Extensions;
+using Entanglement.UI;
+
+using UnityEngine;
+
+using MelonLoader;
+
+using ModThatIsNotMod.BoneMenu;
+
+namespace Entanglement.Compat.Playermodels
+{
+    [OptionalAssemblyTarget("PlayerModels")]
+    public class PlayermodelsPatch : OptionalAssemblyPatch {
+
+        //Rtas: Path.Combine() doesn't seem to work correctly in this scenario - this commented out version
+        //of the function seems to only return "\PlayerModels\", at-least on my build environment
+        //Path.Combine(MelonUtils.UserDataDirectory, @"\PlayerModels\");
+        
+        //I've opted to substitute it with String.Join instead
+        public static string playerModelsPath => String.Join("", MelonUtils.UserDataDirectory, @"\PlayerModels\");
+
+        public static Type skinLoadingType;
+        public static FieldInfo currentBundleInfo;
+        public static string lastLoadedPath = null;
+
+        public override void DoPatches(Assembly target) {
+            skinLoadingType = target.GetType("PlayerModels.SkinLoading");
+
+            currentBundleInfo = skinLoadingType.GetField("currentLoadedBundle", BindingFlags.Public | BindingFlags.Static);
+
+            MethodBase applyModelMethod = skinLoadingType.GetMethod("ApplyPlayerModel", BindingFlags.Public | BindingFlags.Static);
+            MethodInfo applyPostfixMethod = typeof(PlayermodelsPatch).GetMethod("ApplyPlayerModel_Postfix", BindingFlags.Public | BindingFlags.Static);
+            MethodInfo applyPrefixMethod = typeof(PlayermodelsPatch).GetMethod("ApplyPlayerModel_Prefix", BindingFlags.Public | BindingFlags.Static);
+
+            MethodBase clearModelMethod = skinLoadingType.GetMethod("ClearPlayerModel", BindingFlags.Public | BindingFlags.Static);
+            MethodInfo clearPrefixMethod = typeof(PlayermodelsPatch).GetMethod("ClearPlayerModel_Prefix", BindingFlags.Public | BindingFlags.Static);
+
+            Patcher.Patch(applyModelMethod, new HarmonyMethod(applyPrefixMethod), new HarmonyMethod(applyPostfixMethod));
+            Patcher.Patch(clearModelMethod, new HarmonyMethod(clearPrefixMethod));
+
+            NetworkMessage.RegisterHandler<LoadCustomPlayerMessageHandler>();
+        }
+
+        public static void ClearPlayerModel_Prefix() {
+            //Unload Without Destroying Assets
+            object obj = currentBundleInfo.GetValue(null);
+            if (obj != null)
+                ((AssetBundle)obj)?.Unload(false);
+            //Broadcast
+            BroadcastPlayermodel(" ");
+            //Remove
+            lastLoadedPath = null;
+#if DEBUG
+            if (PlayerRepresentation.debugRepresentation != null) PlayerSkinLoader.ClearPlayermodel(PlayerRepresentation.debugRepresentation);
+#endif
+        }
+
+        public static void ApplyPlayerModel_Prefix(string path) => AssetBundleUtilities.TryUnloadBundle(path, false);
+
+        public static void ApplyPlayerModel_Postfix(string path) {
+            //Rename to Path Name
+            lastLoadedPath = path;
+            string fileName = Path.GetFileName(path).ToLower();
+            object obj = currentBundleInfo.GetValue(null);
+            if (obj != null) {
+                AssetBundle loadedBundle = (AssetBundle)obj;
+                loadedBundle.name = fileName;
+            }
+            //Broadcast
+            BroadcastPlayermodel(path);
+#if DEBUG
+            if (PlayerRepresentation.debugRepresentation != null) PlayerSkinLoader.ApplyPlayermodel(PlayerRepresentation.debugRepresentation, Path.Combine(playerModelsPath, path));
+#endif
+        }
+
+        public static void BroadcastPlayermodel(string path) {
+            if (Node.activeNode == null)
+                return;
+            LoadCustomPlayerMessageData msgData = new LoadCustomPlayerMessageData();
+            msgData.userId = SteamIntegration.currentUserId;
+            msgData.modelPath = Path.GetFileName(path);
+
+            Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, NetworkMessage.CreateMessage(CompatMessageType.PlayerModel, msgData).GetBytes());
+        }
+
+        public static void AddMissingToMenu() {
+            try {
+                MenuCategory category = FindPlayerModelsCategory();
+                if (category == null) {
+                    GameNotify.Show("Player Models is not loaded yet. Restart and the model will show up.", 8f);
+                    return;
+                }
+
+                string folder = playerModelsPath;
+                if (!Directory.Exists(folder))
+                    return;
+
+                string[] files = Directory.GetFiles(folder);
+                int added = 0;
+                for (int i = 0; i < files.Length; i++) {
+                    string label = Path.GetFileName(files[i]);
+                    if (string.IsNullOrEmpty(label) || !label.EndsWith(".body", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (MenuHas(category, label))
+                        continue;
+
+                    string captured = files[i];
+                    category.CreateFunctionElement(label, Color.grey, () => {
+                        try { WearPath(captured); }
+                        catch (Exception wear) {
+                            EntangleLogger.Warn("Could not wear " + label + ": " + wear.Message);
+                            GameNotify.Show("Could not put on " + label + ".", 6f);
+                        }
+                    });
+                    added++;
+                }
+
+                if (added == 1)
+                    GameNotify.Show("Added a model to Player Models.", 6f);
+                else if (added > 1)
+                    GameNotify.Show("Added " + added + " models to Player Models.", 6f);
+            }
+            catch (Exception e) {
+                EntangleLogger.Warn("Could not add model to Player Models: " + e.Message);
+                GameNotify.Show("Model saved, but it is not listed yet. A restart should sort it.", 8f);
+            }
+        }
+
+        public static void Wear(string fileName) {
+            if (string.IsNullOrEmpty(fileName))
+                return;
+            WearPath(playerModelsPath + Path.GetFileName(fileName));
+        }
+
+        public static void WearPath(string fullPath) {
+            if (skinLoadingType == null)
+                throw new InvalidOperationException("Player Models is not loaded");
+            MethodInfo apply = skinLoadingType.GetMethod("ApplyPlayerModel", BindingFlags.Public | BindingFlags.Static);
+            if (apply == null)
+                throw new MissingMethodException("Player Models has no ApplyPlayerModel");
+            apply.Invoke(null, new object[] { fullPath });
+            GameNotify.Show("Now wearing " + Path.GetFileName(fullPath) + ".", 4f);
+        }
+
+        static bool MenuHas(MenuCategory category, string label) {
+            if (category == null || category.elements == null)
+                return false;
+            for (int i = 0; i < category.elements.Count; i++) {
+                MenuElement element = category.elements[i];
+                if (element != null && element.displayText == label)
+                    return true;
+            }
+            return false;
+        }
+
+        static MenuCategory FindPlayerModelsCategory() {
+            FieldInfo field = typeof(MenuManager).GetField("categories", BindingFlags.Static | BindingFlags.NonPublic);
+            if (field == null)
+                return null;
+            System.Collections.IList list = field.GetValue(null) as System.Collections.IList;
+            if (list == null)
+                return null;
+            for (int i = 0; i < list.Count; i++) {
+                MenuCategory category = list[i] as MenuCategory;
+                if (category != null && category.displayText == "Player Models")
+                    return category;
+            }
+            return null;
+        }
+    }
+}

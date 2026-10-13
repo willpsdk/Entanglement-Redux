@@ -1,0 +1,584 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{490E160D-251D-4AB4-A3BB-F473961FF8A1}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <!-- RootNamespace MUST stay "Entanglement": embedded resource manifest names derive from it
+         (Entanglement.resources.*), and the Steamworks resolver + player-rep bundle load them by
+         that literal path. Only AssemblyName changes, so the output DLL is EntanglementRedux.dll. -->
+    <RootNamespace>Entanglement</RootNamespace>
+    <AssemblyName>EntanglementRedux</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="0Harmony, Version=2.9.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\Il2Cppmscorlib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MelonLoader">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\MelonLoader.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ModThatIsNotMod">
+      <HintPath>dependencies\ModThatIsNotMod.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Steamworks.NET">
+      <HintPath>dependencies\Steamworks.NET.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xml" />
+    <Reference Include="TextMeshPro-1.0.55.2017.2.0b12">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\TextMeshPro-1.0.55.2017.2.0b12.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnhollowerBaseLib">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnhollowerBaseLib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnhollowerRuntimeLib">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnhollowerRuntimeLib.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.Analytics.DataPrivacy">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\Unity.Analytics.DataPrivacy.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AccessibilityModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.AccessibilityModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AIModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.AIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ARModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.ARModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.BaselibModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.BaselibModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ClothModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.ClothModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ClusterInputModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.ClusterInputModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ClusterRendererModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.ClusterRendererModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CrashReportingModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.CrashReportingModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.DirectorModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.DirectorModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.FileSystemHttpModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.FileSystemHttpModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.GameCenterModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.GameCenterModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.GridModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.GridModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.HotReloadModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.HotReloadModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Il2CppAssetBundleManager">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.Il2CppAssetBundleManager.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Il2CppImageConversionManager">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.Il2CppImageConversionManager.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.InputModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.LocalizationModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.LocalizationModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Networking">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.Networking.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PerformanceReportingModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.PerformanceReportingModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.Physics2DModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ProfilerModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.ProfilerModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.ScreenCaptureModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.SharedInternalsModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.SharedInternalsModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.SpatialTracking">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.SpatialTracking.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.SpriteMaskModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.SpriteMaskModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.SpriteShapeModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.SpriteShapeModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.StreamingModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.StreamingModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.StyleSheetsModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.StyleSheetsModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.SubstanceModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.SubstanceModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TerrainModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.TerrainModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TerrainPhysicsModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.TerrainPhysicsModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextCoreModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.TextCoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TilemapModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.TilemapModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Timeline">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.Timeline.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TimelineModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.TimelineModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TLSModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.TLSModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIElementsModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UIElementsModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UmbraModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UmbraModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UNETModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UNETModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityAnalyticsModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UnityAnalyticsModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityConnectModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UnityConnectModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityTestProtocolModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UnityTestProtocolModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAssetBundleModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UnityWebRequestAssetBundleModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestTextureModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UnityWebRequestTextureModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.VehiclesModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.VehiclesModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.VFXModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.VFXModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.VideoModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.VRModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.VRModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.WindModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.WindModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.XRModule">
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\BONEWORKS\BONEWORKS\MelonLoader\Managed\UnityEngine.XRModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="src\AssemblyInfo.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>AssemblyInfo.tt</DependentUpon>
+    </Compile>
+    <Compile Include="src\Compat\CompatMessageTypes.cs" />
+    <Compile Include="src\Compat\CustomMaps\CustomMapsPatches.cs" />
+    <Compile Include="src\Compat\CustomMaps\LoadCustomMapMessage.cs" />
+    <Compile Include="src\Compat\Playermodels\LoadCustomPlayerMessage.cs" />
+    <Compile Include="src\Sync\SyncPrefs.cs" />
+    <Compile Include="src\Sync\CustomItemSync.cs" />
+    <Compile Include="src\Sync\PlayermodelSync.cs" />
+    <Compile Include="src\Sync\CustomMapSync.cs" />
+    <Compile Include="src\Network\Messages\Sync\ItemSyncRequestMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\ItemSyncUnavailableMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\ItemSyncFileIncomingMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\PlayermodelSyncRequestMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\MapSyncRequestMessage.cs" />
+    <Compile Include="src\Compat\Playermodels\PlayerSkinLoader.cs" />
+    <Compile Include="src\Data\Files\BanList.cs" />
+    <Compile Include="src\Data\Files\EmbeddedResource.cs" />
+    <Compile Include="src\Data\Files\EmebeddedAssetBundle.cs" />
+    <Compile Include="src\Data\Files\GameSDK.cs" />
+    <Compile Include="src\Data\Files\PersistentData.cs" />
+    <Compile Include="src\Data\Containers\PhysicsData.cs" />
+    <Compile Include="src\Data\Containers\PlayerScripts.cs" />
+    <Compile Include="src\Data\Containers\SimplifiedHand.cs" />
+    <Compile Include="src\Data\Containers\SimplifiedQuaternion.cs" />
+    <Compile Include="src\Data\Containers\SimplifiedTransform.cs" />
+    <Compile Include="src\Data\Containers\SpawnableData.cs" />
+    <Compile Include="src\Data\Validation\ChecksumTool.cs" />
+    <Compile Include="src\EntangleLogger.cs" />
+    <Compile Include="src\DebugLog.cs" />
+    <Compile Include="src\EntangleNotif.cs" />
+    <Compile Include="src\Exceptions\ExpectedClientException.cs" />
+    <Compile Include="src\Exceptions\ExpectedServerException.cs" />
+    <Compile Include="src\Extensions\Array.cs" />
+    <Compile Include="src\Extensions\AssetBundleUtilities.cs" />
+    <Compile Include="src\Extensions\ComponentCache.cs" />
+    <Compile Include="src\Extensions\ConfigurableJoint.cs" />
+    <Compile Include="src\Extensions\Dictionary.cs" />
+    <Compile Include="src\Extensions\IEnumerable.cs" />
+    <Compile Include="src\Extensions\List.cs" />
+    <Compile Include="src\Extensions\SearchUtilities.cs" />
+    <Compile Include="src\Extensions\SyncUtilities.cs" />
+    <Compile Include="src\Extensions\Transform.cs" />
+    <Compile Include="src\Extensions\UnityComparer.cs" />
+    <Compile Include="src\Extensions\Vector3.cs" />
+    <Compile Include="src\Extensions\XElement.cs" />
+    <Compile Include="src\Managers\PlayerDeathManager.cs" />
+    <Compile Include="src\Managers\RagdollBehaviour.cs" />
+    <Compile Include="src\Modularity\DllTools.cs" />
+    <Compile Include="src\Modularity\Module.cs" />
+    <Compile Include="src\Modularity\ModuleHandler.cs" />
+    <Compile Include="src\Modularity\ModuleInfo.cs" />
+    <Compile Include="src\Modularity\ModuleLogger.cs" />
+    <Compile Include="src\Network\Messages\Arena\Fantasy Arena\FantasyChallengeMessage.cs" />
+    <Compile Include="src\Network\Messages\Arena\Fantasy Arena\FantasyDifficultyMessage.cs" />
+    <Compile Include="src\Network\Messages\Arena\Fantasy Arena\FantasyEnemyCountMessage.cs" />
+    <Compile Include="src\Network\Messages\Arena\Zombie Warehouse\ZombieDifficultyMessage.cs" />
+    <Compile Include="src\Network\Messages\Arena\Zombie Warehouse\ZombieLoadoutMessage.cs" />
+    <Compile Include="src\Network\Messages\Arena\Zombie Warehouse\ZombieModeMessage.cs" />
+    <Compile Include="src\Network\Messages\Arena\Zombie Warehouse\ZombieStartMessage.cs" />
+    <Compile Include="src\Network\Messages\Attacks\BalloonShotMessage.cs" />
+    <Compile Include="src\Network\Messages\FileTransfer\FileTransferBeginMessage.cs" />
+    <Compile Include="src\Network\Messages\FileTransfer\FileTransferChunkMessage.cs" />
+    <Compile Include="src\Sync\FileTransfer.cs" />
+    <Compile Include="src\Network\Messages\Destruction\ObjectDestroyMessage.cs" />
+    <Compile Include="src\Network\Messages\EmptyMessageData.cs" />
+    <Compile Include="src\Network\Messages\Objects\GripEventMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\IDCallbackMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\MagazinePlugMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\TransformCollisionMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\TransformCreateMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\TransformQueueMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\TransformSyncBatchMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\TransformSyncMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\SceneEventMessage.cs" />
+    <Compile Include="src\Network\Messages\Pools\SpawnClientMessage.cs" />
+    <Compile Include="src\Network\Messages\Pools\SpawnRequestMessage.cs" />
+    <Compile Include="src\Network\Messages\Pools\SpawnTransferMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\PlayerEventMessage.cs" />
+    <Compile Include="src\Network\Messages\Server\DisconnectMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\GripRadiusMessage.cs" />
+    <Compile Include="src\Network\Messages\Attacks\GunShotMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\HandPoseChangeMessage.cs" />
+    <Compile Include="src\Network\Messages\Server\HeartbeatMessage.cs" />
+    <Compile Include="src\Network\Messages\Server\LevelChangeMessage.cs" />
+    <Compile Include="src\Network\Messages\Attacks\PowerPunchMessage.cs" />
+    <Compile Include="src\Network\Messages\Attacks\PlayerAttackMessage.cs" />
+    <Compile Include="src\Network\Messages\Representation\PlayerRepSyncMessage.cs" />
+    <Compile Include="src\Network\Messages\Server\ShortIdMessage.cs" />
+    <Compile Include="src\Network\Messages\Server\SpawnObjectMessage.cs" />
+    <Compile Include="src\Data\Containers\DataCorruptionException.cs" />
+    <Compile Include="src\Network\Net.cs" />
+    <Compile Include="src\Network\NetworkMessageTypes.cs" />
+    <Compile Include="src\Network\Nodes\Client.cs" />
+    <Compile Include="src\Network\Nodes\Node.cs" />
+    <Compile Include="src\Objects\ObjectBlacklist.cs" />
+    <Compile Include="src\Objects\ObjectSync.cs" />
+    <Compile Include="src\Objects\PooleeSyncable.cs" />
+    <Compile Include="src\Objects\SpawnManager.cs" />
+    <Compile Include="src\Objects\Syncable.cs" />
+    <Compile Include="src\Objects\TransformSyncables\TransformDestruction.cs" />
+    <Compile Include="src\Objects\TransformSyncables\TransformGripEvents.cs" />
+    <Compile Include="src\Objects\TransformSyncables\TransformSyncable.cs" />
+    <Compile Include="src\Patching\NativeHook.cs" />
+    <Compile Include="src\Patching\GameCalls.cs" />
+    <Compile Include="src\Patching\Patches\NpcHitPatches.cs" />
+    <Compile Include="src\Patching\Patches\NpcMeleePatches.cs" />
+    <Compile Include="src\Extensions\FastMath.cs" />
+    <Compile Include="src\Patching\Patcher.cs" />
+    <Compile Include="src\Compat\OptionalAssemblyPatch.cs" />
+    <Compile Include="src\Compat\Playermodels\PlayermodelsPatches.cs" />
+    <Compile Include="src\Patching\Patches\DestructablePatches.cs" />
+    <Compile Include="src\Patching\Patches\FantasyArenaPatches.cs" />
+    <Compile Include="src\Patching\Patches\GadgetPatches.cs" />
+    <Compile Include="src\Patching\Patches\GameControlPatches.cs" />
+    <Compile Include="src\Patching\Patches\GripPatches.cs" />
+    <Compile Include="src\Patching\Patches\GunPatches.cs" />
+    <Compile Include="src\Patching\Patches\MagazinePatches.cs" />
+    <Compile Include="src\Patching\Patches\MeleePatches.cs" />
+    <Compile Include="src\Patching\Patches\PoolPatches.cs" />
+    <Compile Include="src\Patching\Patches\PuzzlePatches.cs" />
+    <Compile Include="src\Patching\Patches\SpawnGunPatches.cs" />
+    <Compile Include="src\Patching\Patches\PlayerPatches.cs" />
+    <Compile Include="src\Mod.cs" />
+    <Compile Include="src\Patching\Patches\WeaponSlotPatches.cs" />
+    <Compile Include="src\Patching\Patches\ZombieArenaPatches.cs" />
+    <Compile Include="src\Patching\Patches\ZonePatches.cs" />
+    <Compile Include="src\Representation\PlayerRep.cs" />
+    <Compile Include="src\Representation\RepFade.cs" />
+    <Compile Include="src\Network\SteamIntegration.cs" />
+    <Compile Include="src\Network\NetworkSanity.cs" />
+    <Compile Include="src\Network\ModDependency.cs" />
+    <Compile Include="src\Network\NetStats.cs" />
+    <Compile Include="src\Network\Messages\Server\ClientReadyMessage.cs" />
+    <Compile Include="src\Network\Messages\Server\ConnectionMessage.cs" />
+    <Compile Include="src\Network\NetworkMessage.cs" />
+    <Compile Include="src\Network\NetworkMessageHandler.cs" />
+    <Compile Include="src\Network\Nodes\Server.cs" />
+    <Compile Include="src\UI\LoadingScreen.cs" />
+    <Compile Include="src\UI\DownloadUI.cs" />
+    <Compile Include="src\UI\EntanglementRadial.cs" />
+    <Compile Include="src\Network\DownloadGate.cs" />
+
+    <Compile Include="src\Voice\VoiceManager.cs" />
+    <Compile Include="src\Network\Messages\Voice\VoiceDataMessage.cs" />
+    <Compile Include="src\Data\Files\SteamworksEmbed.cs" />
+    <Compile Include="src\Network\DiscordInvite.cs" />
+    <Compile Include="src\Network\Messages\FileTransfer\FileTransferEndMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\ClawTargetMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\FlashlightMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\NpcStateMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\MonoMatStateMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\GunRackMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\GunSlideMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\NpcOwnerMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\NpcHealthMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\NpcHitMessage.cs" />
+    <Compile Include="src\Network\Messages\Objects\SyncOwnerMessage.cs" />
+    <Compile Include="src\Network\Messages\Server\SlowMoMessage.cs" />
+    <Compile Include="src\Network\Messages\Sync\ThunderstoreOfferMessage.cs" />
+    <Compile Include="src\Objects\BossClawSync.cs" />
+    <Compile Include="src\Objects\FollowDrive.cs" />
+    <Compile Include="src\Objects\SoloDebug.cs" />
+    <Compile Include="src\Objects\CorpseCleanup.cs" />
+    <Compile Include="src\Objects\LargePropSync.cs" />
+    <Compile Include="src\Objects\NpcStateSync.cs" />
+    <Compile Include="src\Objects\RepCollisionGuard.cs" />
+    <Compile Include="src\Objects\TurretSync.cs" />
+    <Compile Include="src\Objects\SpawnCatchUp.cs" />
+    <Compile Include="src\Objects\RepTargetEmulator.cs" />
+    <Compile Include="src\Objects\NpcPoolGuard.cs" />
+    <Compile Include="src\Objects\SceneNpcSync.cs" />
+    <Compile Include="src\Objects\RepHitProbe.cs" />
+    <Compile Include="src\Objects\NpcDespawnSync.cs" />
+    <Compile Include="src\Objects\NpcTrace.cs" />
+    <Compile Include="src\Objects\NpcPending.cs" />
+    <Compile Include="src\Objects\NpcOwnerWatch.cs" />
+    <Compile Include="src\Objects\NpcOwnership.cs" />
+    <Compile Include="src\Objects\HolsterSync.cs" />
+    <Compile Include="src\Objects\NpcConfigSync.cs" />
+    <Compile Include="src\Objects\BreakPieces.cs" />
+    <Compile Include="src\Objects\HeldGripGuard.cs" />
+    <Compile Include="src\Objects\LocalBodyContact.cs" />
+    <Compile Include="src\Objects\RemoteZonePresence.cs" />
+    <Compile Include="src\Patching\Patches\BossClawPatches.cs" />
+    <Compile Include="src\Patching\PatchGuard.cs" />
+    <Compile Include="src\Patching\Patches\FlashlightPatches.cs" />
+    <Compile Include="src\Patching\Patches\GarageDoorPatches.cs" />
+    <Compile Include="src\Patching\Patches\ReclaimPatches.cs" />
+    <Compile Include="src\Patching\Patches\StoryInteractPatches.cs" />
+    <Compile Include="src\Patching\Patches\TurretPatches.cs" />
+    <Compile Include="src\Patching\Patches\MonoMatPatches.cs" />
+    <Compile Include="src\Patching\Patches\ManipulatorPatches.cs" />
+    <Compile Include="src\Patching\Patches\GunRackPatches.cs" />
+    <Compile Include="src\Patching\Patches\GunSlidePatches.cs" />
+    <Compile Include="src\Sync\Thunderstore.cs" />
+    <Compile Include="src\Sync\ThunderstoreIndex.cs" />
+    <Compile Include="src\UI\GameNotify.cs" />
+    <Compile Include="src\UI\GameRadial.cs" />
+    <Compile Include="src\UpdateCheck.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="managed\" />
+    <Folder Include="Properties\" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="resources\steam_api64.dll" />
+    <EmbeddedResource Include="resources\Steamworks.NET.dll" />
+    <Content Include="src\AssemblyInfo.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>AssemblyInfo.cs</LastGenOutput>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="resources\playerrep.eres" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="resources\logo.eres" />
+    <EmbeddedResource Include="resources\cube.rgba" />
+    <EmbeddedResource Include="resources\microphone.rgba" />
+    <EmbeddedResource Include="resources\skull.rgba" />
+    <EmbeddedResource Include="resources\tester.rgba" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
