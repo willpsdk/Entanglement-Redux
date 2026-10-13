@@ -388,6 +388,7 @@
     <Compile Include="src\Gamemodes\Gamemode.cs" />
     <Compile Include="src\Gamemodes\GamemodeManager.cs" />
     <Compile Include="src\Gamemodes\BuiltIn\DeathmatchGamemode.cs" />
+    <Compile Include="src\Gamemodes\BuiltIn\TeamDeathmatchGamemode.cs" />
     <Compile Include="src\Network\Layers\INetworkLayer.cs" />
     <Compile Include="src\Network\Layers\SteamNetworkLayer.cs" />
     <Compile Include="src\Network\Layers\SteamAppIds.cs" />
@@ -579,6 +580,7 @@
     <Compile Include="src\Sync\ThunderstoreIndex.cs" />
     <Compile Include="src\UI\Notification.cs" />
     <Compile Include="src\UI\GameNotify.cs" />
+    <Compile Include="src\UI\MenuGamemode.cs" />
     <Compile Include="src\UI\GameRadial.cs" />
     <Compile Include="src\UpdateCheck.cs" />
   </ItemGroup>

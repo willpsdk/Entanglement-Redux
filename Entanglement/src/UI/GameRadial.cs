@@ -225,35 +225,28 @@ namespace Entanglement.UI
             Show(PageBack(ShowHub, entries.ToArray()), false);
         }
 
-        static void ShowGamemodes() {
-            var entries = new List<Entry>();
-            string active = GamemodeManager.Active != null
-                ? GamemodeManager.Active.Title + (GamemodeManager.Active.IsStarted ? " (live)" : " (selected)")
-                : "Sandbox";
-            entries.Add(new Entry(active, null, true));
+        /// <summary>Fusion MenuGamemode overview (radial).</summary>
+        static void ShowGamemodes() => MenuGamemode.Show(ShowHub);
 
-            for (int i = 0; i < GamemodeManager.Gamemodes.Count; i++) {
-                Gamemode mode = GamemodeManager.Gamemodes[i];
-                entries.Add(new Entry(mode.Title, () => {
-                    GamemodeManager.Select(mode);
-                    ShowGamemodes();
-                }));
+        /// <summary>Shared page builder for Fusion-shaped menu modules (MenuGamemode, etc.).</summary>
+        public struct MenuEntry {
+            public string label;
+            public Action action;
+            public bool wide;
+            public MenuEntry(string label, Action action, bool wide = false) {
+                this.label = label;
+                this.action = action;
+                this.wide = wide;
             }
+        }
 
-            entries.Add(new Entry("Start Mode", () => {
-                GamemodeManager.StartActive();
-                ShowGamemodes();
-            }));
-            entries.Add(new Entry("Stop Mode", () => {
-                GamemodeManager.Stop();
-                ShowGamemodes();
-            }));
-            entries.Add(new Entry("Clear", () => {
-                GamemodeManager.Deselect();
-                ShowGamemodes();
-            }));
-
-            Show(PageBack(ShowHub, entries.ToArray()), false);
+        public static void OpenBackPage(Action back, List<MenuEntry> entries, bool animate = false) {
+            if (entries == null)
+                entries = new List<MenuEntry>();
+            var mapped = new Entry[entries.Count];
+            for (int i = 0; i < entries.Count; i++)
+                mapped[i] = new Entry(entries[i].label, entries[i].action, entries[i].wide);
+            Show(PageBack(back ?? ShowHub, mapped), animate);
         }
 
         static void ShowLobby() {

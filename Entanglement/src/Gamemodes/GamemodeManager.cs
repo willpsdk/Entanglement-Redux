@@ -20,9 +20,19 @@ namespace Entanglement.Gamemodes
 
         public static bool HasActive => Active != null && Active.IsStarted;
 
+        /// <summary>Fusion IsGamemodeStarted.</summary>
+        public static bool IsGamemodeStarted => Active != null && Active.IsStarted;
+        /// <summary>Fusion IsGamemodeReady.</summary>
+        public static bool IsGamemodeReady => Active != null && Active.IsReady;
+        /// <summary>Fusion StartTimerActive.</summary>
+        public static bool StartTimerActive => StartTimer >= 0f && Active != null && Active.IsReady && !Active.IsStarted;
+
         public static event Action<Gamemode> OnGamemodeChanged;
         public static event Action<Gamemode> OnGamemodeStarted;
         public static event Action<Gamemode> OnGamemodeStopped;
+        public static event Action OnGamemodeReady;
+        public static event Action OnGamemodeUnready;
+        public static event Action<float> OnStartTimerChanged;
 
         // Fusion-style ready countdown (host).
         public static float StartTimer = -1f;
@@ -119,6 +129,7 @@ namespace Entanglement.Gamemodes
             if (SteamIntegration.isHost || !SteamIntegration.hasLobby)
                 StartTimer = DefaultCountdown;
             GameNotify.Show(Active.Title + " ready — starting soon", 2f, GameNotify.Kind.Info, "Gamemode");
+            try { OnGamemodeReady?.Invoke(); } catch { }
             BroadcastState();
         }
 
@@ -129,6 +140,7 @@ namespace Entanglement.Gamemodes
             StartTimer = -1f;
             try { Active.OnUnready(); }
             catch { }
+            try { OnGamemodeUnready?.Invoke(); } catch { }
             BroadcastState();
         }
 
@@ -175,10 +187,12 @@ namespace Entanglement.Gamemodes
                 Ready();
 
             if ((SteamIntegration.isHost || !SteamIntegration.hasLobby) && Active.IsReady && !Active.IsStarted && StartTimer >= 0f) {
+                float before = StartTimer;
                 StartTimer -= Time.unscaledDeltaTime;
+                try { OnStartTimerChanged?.Invoke(StartTimer); } catch { }
                 if (StartTimer <= 0f)
                     StartActive();
-                else if (StartTimer <= 5f && Mathf.FloorToInt(StartTimer + Time.unscaledDeltaTime) != Mathf.FloorToInt(StartTimer))
+                else if (StartTimer <= 5f && Mathf.FloorToInt(before) != Mathf.FloorToInt(StartTimer))
                     GameNotify.Show(Mathf.CeilToInt(StartTimer).ToString(), 1f, GameNotify.Kind.Warning, "Gamemode");
             }
         }
