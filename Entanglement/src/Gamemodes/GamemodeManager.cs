@@ -5,6 +5,8 @@ using System.Reflection;
 using Entanglement.Network;
 using Entanglement.UI;
 
+using UnityEngine;
+
 namespace Entanglement.Gamemodes
 {
     /// <summary>
@@ -21,6 +23,10 @@ namespace Entanglement.Gamemodes
         public static event Action<Gamemode> OnGamemodeChanged;
         public static event Action<Gamemode> OnGamemodeStarted;
         public static event Action<Gamemode> OnGamemodeStopped;
+
+        // Fusion-style ready countdown (host).
+        public static float StartTimer = -1f;
+        public const float DefaultCountdown = 30f;
 
         public static void LoadFromAssembly(Assembly assembly) {
             if (assembly == null)
@@ -83,6 +89,7 @@ namespace Entanglement.Gamemodes
             catch { }
             GameNotify.Show("Gamemode: " + Active.Title, 3f, GameNotify.Kind.Success, "Gamemode");
             OnGamemodeChanged?.Invoke(Active);
+            BroadcastState();
         }
 
         public static void Deselect() {
@@ -97,7 +104,9 @@ namespace Entanglement.Gamemodes
             Active.IsSelected = false;
             GameNotify.Show("Sandbox", 2f, GameNotify.Kind.Info, "Gamemode");
             Active = null;
+            StartTimer = -1f;
             OnGamemodeChanged?.Invoke(null);
+            BroadcastState();
         }
 
         public static void Ready() {
@@ -106,15 +115,20 @@ namespace Entanglement.Gamemodes
             Active.IsReady = true;
             try { Active.OnReady(); }
             catch { }
-            GameNotify.Show(Active.Title + " ready", 2f, GameNotify.Kind.Info, "Gamemode");
+            if (SteamIntegration.isHost || !SteamIntegration.hasLobby)
+                StartTimer = DefaultCountdown;
+            GameNotify.Show(Active.Title + " ready — starting soon", 2f, GameNotify.Kind.Info, "Gamemode");
+            BroadcastState();
         }
 
         public static void Unready() {
             if (Active == null || !Active.IsReady)
                 return;
             Active.IsReady = false;
+            StartTimer = -1f;
             try { Active.OnUnready(); }
             catch { }
+            BroadcastState();
         }
 
         public static void StartActive() {
@@ -126,13 +140,16 @@ namespace Entanglement.Gamemodes
             }
             if (!Active.IsSelected)
                 Active.IsSelected = true;
+            Active.IsReady = true;
             Active.IsStarted = true;
+            StartTimer = -1f;
             try { Active.OnStarted(); }
             catch { }
             try { Active.OnLevelReady(); }
             catch { }
             GameNotify.Show(Active.Title + " started!", 4f, GameNotify.Kind.Success, "Gamemode");
             OnGamemodeStarted?.Invoke(Active);
+            BroadcastState();
         }
 
         public static void Stop() {
@@ -143,6 +160,7 @@ namespace Entanglement.Gamemodes
             catch { }
             GameNotify.Show(Active.Title + " ended", 3f, GameNotify.Kind.Info, "Gamemode");
             OnGamemodeStopped?.Invoke(Active);
+            BroadcastState();
         }
 
         public static void Tick() {
@@ -153,6 +171,96 @@ namespace Entanglement.Gamemodes
 
             if (Active.IsSelected && !Active.IsStarted && !Active.ManualReady && Active.CheckReadyConditions() && !Active.IsReady)
                 Ready();
+
+            if ((SteamIntegration.isHost || !SteamIntegration.hasLobby) && Active.IsReady && !Active.IsStarted && StartTimer >= 0f) {
+                StartTimer -= Time.unscaledDeltaTime;
+                if (StartTimer <= 0f)
+                    StartActive();
+                else if (StartTimer <= 5f && Mathf.FloorToInt(StartTimer + Time.unscaledDeltaTime) != Mathf.FloorToInt(StartTimer))
+                    GameNotify.Show(Mathf.CeilToInt(StartTimer).ToString(), 1f, GameNotify.Kind.Warning, "Gamemode");
+            }
+        }
+
+        public static void BroadcastState() {
+            if (!SteamIntegration.isHost || !SteamIntegration.hasLobby || Node.activeNode == null)
+                return;
+            var data = new GamemodeStateMessageData {
+                gamemodeId = Active != null ? Active.Id : "",
+                selected = Active != null && Active.IsSelected,
+                ready = Active != null && Active.IsReady,
+                started = Active != null && Active.IsStarted,
+            };
+            NetworkMessage msg = NetworkMessage.CreateMessage(BuiltInMessageType.GamemodeState, data);
+            if (msg != null)
+                Node.activeNode.BroadcastMessage(NetworkChannel.Reliable, msg.GetBytes());
+        }
+
+        /// <summary>Client apply from host GamemodeState message.</summary>
+        public static void ApplyRemoteState(string id, bool selected, bool ready, bool started) {
+            if (string.IsNullOrEmpty(id) || !selected) {
+                if (Active != null) {
+                    if (Active.IsStarted) {
+                        Active.IsStarted = false;
+                        try { Active.OnStopped(); } catch { }
+                    }
+                    Active.IsReady = false;
+                    Active.IsSelected = false;
+                    try { Active.OnDeselected(); } catch { }
+                    Active = null;
+                    OnGamemodeChanged?.Invoke(null);
+                }
+                return;
+            }
+
+            Gamemode mode = Find(id);
+            if (mode == null)
+                return;
+
+            if (!ReferenceEquals(Active, mode)) {
+                if (Active != null)
+                    DeselectLocalOnly();
+                Active = mode;
+                Active.IsSelected = true;
+                try { Active.OnSelected(); } catch { }
+                OnGamemodeChanged?.Invoke(Active);
+                GameNotify.Show("Gamemode: " + Active.Title, 3f, GameNotify.Kind.Success, "Gamemode");
+            }
+
+            if (ready && !Active.IsReady) {
+                Active.IsReady = true;
+                try { Active.OnReady(); } catch { }
+            }
+            else if (!ready && Active.IsReady) {
+                Active.IsReady = false;
+                try { Active.OnUnready(); } catch { }
+            }
+
+            if (started && !Active.IsStarted) {
+                Active.IsStarted = true;
+                try { Active.OnStarted(); } catch { }
+                try { Active.OnLevelReady(); } catch { }
+                GameNotify.Show(Active.Title + " started!", 4f, GameNotify.Kind.Success, "Gamemode");
+                OnGamemodeStarted?.Invoke(Active);
+            }
+            else if (!started && Active.IsStarted) {
+                Active.IsStarted = false;
+                try { Active.OnStopped(); } catch { }
+                GameNotify.Show(Active.Title + " ended", 3f, GameNotify.Kind.Info, "Gamemode");
+                OnGamemodeStopped?.Invoke(Active);
+            }
+        }
+
+        static void DeselectLocalOnly() {
+            if (Active == null)
+                return;
+            if (Active.IsStarted) {
+                Active.IsStarted = false;
+                try { Active.OnStopped(); } catch { }
+            }
+            Active.IsReady = false;
+            Active.IsSelected = false;
+            try { Active.OnDeselected(); } catch { }
+            Active = null;
         }
 
         public static void OnSceneLoad() {

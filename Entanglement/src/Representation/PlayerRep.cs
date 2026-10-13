@@ -2027,19 +2027,35 @@ namespace Entanglement.Representation
             hasNetTarget = true;
         }
 
-        // Glides the rep toward the latest network state, run once per tick
+        // Glides the rep toward the latest network state, run once per tick.
+        // Fusion ideology: root follows the PD physics body when present; limbs still track net pose.
         public void ApplyNetSmoothing(float dt) {
             if (!hasNetTarget || !repRoot) return;
 
             float age = Mathf.Min(Time.time - netReceiveTime, repExtrapolationLimit);
             Vector3 predictedRoot = netRootPosition + netRootVelocity * age;
 
-            // Standing on a lift or a moving platform: stand on it here (RideOffset).
+            // Physical lead: visual root tracks the PD hit body (not pure transform teleport).
+            if (enemyTargetBody && !parked && deadHidden == null) {
+                Vector3 phys = enemyTargetBody.position;
+                // Head proxy sits above root; map back toward feet/root.
+                Vector3 physRoot = phys;
+                physRoot.y -= 1.6f;
+                predictedRoot = Vector3.Lerp(predictedRoot, physRoot, 0.65f);
+            }
+
             float ride = RideOffset(predictedRoot, dt);
             predictedRoot.y += ride;
             Vector3 rideLift = new Vector3(0f, ride, 0f);
 
-            // Local grab: clamp steps so network pose doesn't rip the joint apart (Fusion grab ideology).
+            // Remote networked grab: soft-follow grabber hand (Fusion grab ideology).
+            if (remoteGrabberId != 0 && TryRemoteGrabTarget(out Vector3 grabTarget)) {
+                predictedRoot = Vector3.Lerp(predictedRoot, grabTarget, 0.55f);
+                if (enemyTargetBody)
+                    enemyTargetBody.MovePosition(Vector3.Lerp(enemyTargetBody.position, grabTarget + Vector3.up * 1.6f, 0.35f));
+            }
+
+            // Local grab: clamp steps so network pose doesn't rip the joint apart.
             if (heldByLocalPlayer) {
                 ApplyHeldStep(repRoot, predictedRoot, true);
                 for (int r = 0; r < repTransforms.Length; r++) {
@@ -2068,6 +2084,63 @@ namespace Entanglement.Representation
 
             UpdateNametagPosition();
             UpdateTalkingIndicator();
+        }
+
+        long remoteGrabberId;
+        byte remoteGrabHand;
+        byte remoteGrabAttach;
+        static long localGrabberId;
+        static byte localGrabHand;
+
+        public void ApplyRemoteGrab(long grabberId, byte hand, byte attach) {
+            remoteGrabberId = grabberId;
+            remoteGrabHand = hand;
+            remoteGrabAttach = attach;
+        }
+
+        public void ClearRemoteGrab(long grabberId, byte hand) {
+            if (remoteGrabberId == grabberId && (hand == 255 || hand == remoteGrabHand))
+                remoteGrabberId = 0;
+        }
+
+        public static void ApplyRemoteGrabOnLocal(long grabberId, byte hand, byte attach) {
+            localGrabberId = grabberId;
+            localGrabHand = hand;
+            // Soft pull the local phys body toward the grabber's hand each FixedUpdate via DriveRepPhysics.
+        }
+
+        public static void ClearRemoteGrabOnLocal(long grabberId, byte hand) {
+            if (localGrabberId == grabberId && (hand == 255 || hand == localGrabHand))
+                localGrabberId = 0;
+        }
+
+        bool TryRemoteGrabTarget(out Vector3 target) {
+            target = default(Vector3);
+            if (remoteGrabberId == 0)
+                return false;
+            if (!representations.TryGetValue(remoteGrabberId, out PlayerRepresentation grabber) || grabber == null)
+                return false;
+            int limb = remoteGrabHand == 0 ? 1 : 2; // left/right hand transforms
+            if (grabber.repTransforms == null || limb >= grabber.repTransforms.Length || !grabber.repTransforms[limb])
+                return false;
+            target = grabber.repTransforms[limb].position;
+            return true;
+        }
+
+        static void TickLocalGrabPull() {
+            if (localGrabberId == 0 || !PlayerScripts.playerPhysBody)
+                return;
+            if (!representations.TryGetValue(localGrabberId, out PlayerRepresentation grabber) || grabber == null)
+                return;
+            int limb = localGrabHand == 0 ? 1 : 2;
+            if (grabber.repTransforms == null || limb >= grabber.repTransforms.Length || !grabber.repTransforms[limb])
+                return;
+            try {
+                Vector3 to = grabber.repTransforms[limb].position - PlayerScripts.playerPhysBody.transform.position;
+                if (to.sqrMagnitude > 0.01f)
+                    PlayerScripts.playerPhysBody.AddImpulseForce(Vector3.ClampMagnitude(to, 2.5f) * 8f);
+            }
+            catch { }
         }
 
         const float RideProbeUp = 0.5f;
@@ -2586,6 +2659,10 @@ namespace Entanglement.Representation
                 catch { }
                 debugRepresentation.DriveEnemyTarget();
             }
+
+            TickLocalGrabPull();
+            try { Entanglement.Network.PlayerRepGrabNet.Tick(); }
+            catch { }
         }
 
         public static void PresentPlayerReps() {

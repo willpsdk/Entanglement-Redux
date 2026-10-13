@@ -51,11 +51,11 @@
             ItemSyncUnavailable = 45,    // "I don't have that item's file either, give up"
             ItemSyncFileIncoming = 46,
             PlayermodelSyncRequest = 47, // "I don't have your playermodel file, please send it"
-            GamemodeState = 48,          // RETIRED with the gamemode system - no sender, no handler
-            GamemodeEvent = 49,          // RETIRED with the gamemode system - no sender, no handler
+            GamemodeState = 48,          // Host sync: selected/ready/started + id
+            GamemodeEvent = 49,          // Reserved for triggers / round events
             MapSyncRequest = 50,
-            PlayerRepGrab = 51,          // RETIRED with the object sync revert - no sender, no handler
-            PlayerRepRelease = 52,       // RETIRED with the object sync revert - no sender, no handler
+            PlayerRepGrab = 51,          // Fusion-style: networked hold of another player
+            PlayerRepRelease = 52,       // Fusion-style: release that hold
             ThunderstoreOffer = 53,      // "Get this published package from Thunderstore, not from me"
             SlowMo = 54,                 // Control_GlobalTime intensity, when lobby slow-mo sync is on
             ClawTarget = 55,

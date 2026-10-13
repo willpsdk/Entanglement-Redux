@@ -21,6 +21,7 @@ using Entanglement.Modularity;
 using Entanglement.Managers;
 using Entanglement.Gamemodes;
 using Entanglement.Data;
+using Entanglement.Network.Layers;
 
 using ModThatIsNotMod;
 
@@ -37,8 +38,8 @@ namespace Entanglement {
         public const byte minVersionMajorSupported = 2;
         public const byte minVersionMinorSupported = 1;
 
-        // 20: Fusion-style PD physics for props/reps, richer PvP (body part + impulse), gamemode gate.
-        public const byte protocolRevision = 20;
+        // 21: INetworkLayer (Quest-ready), grab/release sync, gamemode state sync, physical root follow.
+        public const byte protocolRevision = 21;
 
         public static ulong BuildId {
             get {
@@ -118,6 +119,9 @@ namespace Entanglement {
                 EntangleNotif.InvalidSteam();
                 return; 
             }
+
+            // Fusion ideology: gameplay talks to INetworkLayer. Steam today; Meta/Quest later.
+            NetworkLayerManager.Initialize();
 
             Patcher.Initialize();
             try {
@@ -232,6 +236,7 @@ namespace Entanglement {
                 SafeTick("UpdateCheck", UpdateCheck.Tick);
             }
             SafeTick("GamemodeManager", GamemodeManager.Tick);
+            SafeTick("NetworkLayer", NetworkLayerManager.Tick);
             SafeTick("SyncPlayerReps", PlayerRepresentation.SyncPlayerReps);
             SafeTick("GripRadius", Entanglement.Patching.GripRadiusPatch.Flush);
             SafeTick("UpdatePlayerReps.Frame", PlayerRepresentation.UpdatePlayerRepsPerFrame);

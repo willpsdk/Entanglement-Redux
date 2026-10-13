@@ -385,6 +385,11 @@
     <Compile Include="src\Gamemodes\Gamemode.cs" />
     <Compile Include="src\Gamemodes\GamemodeManager.cs" />
     <Compile Include="src\Gamemodes\BuiltIn\DeathmatchGamemode.cs" />
+    <Compile Include="src\Network\Layers\INetworkLayer.cs" />
+    <Compile Include="src\Network\Layers\SteamNetworkLayer.cs" />
+    <Compile Include="src\Network\Layers\NetworkLayerManager.cs" />
+    <Compile Include="src\Network\Messages\Representation\PlayerRepGrabMessage.cs" />
+    <Compile Include="src\Network\Messages\Gamemodes\GamemodeStateMessage.cs" />
     <Compile Include="src\Data\Validation\ChecksumTool.cs" />
     <Compile Include="src\EntangleLogger.cs" />
     <Compile Include="src\DebugLog.cs" />

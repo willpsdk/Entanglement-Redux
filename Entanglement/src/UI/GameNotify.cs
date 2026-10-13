@@ -28,6 +28,18 @@ namespace Entanglement.UI
         static bool ready;
         static readonly List<Pending> queued = new List<Pending>();
         static readonly List<Pending> live = new List<Pending>();
+        static readonly List<InboxItem> inbox = new List<InboxItem>();
+        const int InboxCap = 32;
+
+        public struct InboxItem {
+            public string text;
+            public Kind kind;
+            public string tag;
+            public float at;
+        }
+
+        /// <summary>Fusion-style persistent notification inbox (radial → Notifications).</summary>
+        public static List<InboxItem> Inbox => inbox;
 
         struct Pending {
             public string text;
@@ -35,6 +47,7 @@ namespace Entanglement.UI
             public Kind kind;
             public string tag;
             public float showUntil;
+            public bool saveToInbox;
         }
 
         public static void OnSceneWasInitialized() {
@@ -44,6 +57,8 @@ namespace Entanglement.UI
             framesUntilReady = 90;
             live.Clear();
         }
+
+        public static void ClearInbox() => inbox.Clear();
 
         public static void Tick() {
             float now = Time.unscaledTime;
@@ -66,10 +81,10 @@ namespace Entanglement.UI
         }
 
         public static void Show(string text, float seconds = 4f) {
-            Show(text, seconds, Kind.Info, null);
+            Show(text, seconds, Kind.Info, null, true);
         }
 
-        public static void Show(string text, float seconds, Kind kind, string tag = null) {
+        public static void Show(string text, float seconds, Kind kind, string tag = null, bool saveToInbox = true) {
             if (string.IsNullOrEmpty(text))
                 return;
 
@@ -78,6 +93,7 @@ namespace Entanglement.UI
                 seconds = seconds,
                 kind = kind,
                 tag = tag,
+                saveToInbox = saveToInbox,
             };
 
             if (!string.IsNullOrEmpty(tag))
@@ -115,6 +131,17 @@ namespace Entanglement.UI
             pending.text = shown;
             pending.showUntil = Time.unscaledTime + Mathf.Max(2f, pending.seconds);
             live.Add(pending);
+
+            if (pending.saveToInbox) {
+                inbox.Insert(0, new InboxItem {
+                    text = shown,
+                    kind = pending.kind,
+                    tag = pending.tag,
+                    at = Time.unscaledTime,
+                });
+                while (inbox.Count > InboxCap)
+                    inbox.RemoveAt(inbox.Count - 1);
+            }
 
             // 1) Native PopupText (closest to Fusion headTitles on BONELAB)
             try {

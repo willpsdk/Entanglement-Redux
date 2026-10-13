@@ -14,6 +14,7 @@ using Entanglement.Compat.Playermodels;
 using Entanglement.Objects;
 using Entanglement.Compat;
 using Entanglement.Data;
+using Entanglement.Network.Layers;
 
 using StressLevelZero.Interaction;
 
@@ -43,14 +44,20 @@ namespace Entanglement.Network {
         public void ClearMessageBuffer() {
             try {
                 int drained = 0;
+                INetworkLayer layer = NetworkLayerManager.Layer;
 
                 foreach (NetworkChannel channel in drainableChannels) {
-                    while (SteamNetworking.IsP2PPacketAvailable(out uint packetSize, (int)channel)) {
-                        byte[] buffer = new byte[packetSize];
-                        if (!SteamNetworking.ReadP2PPacket(buffer, packetSize, out uint bytesRead, out CSteamID remoteId, (int)channel))
-                            break;
-
-                        drained++;
+                    if (layer != null) {
+                        while (layer.TryReceive(channel, out _, out _))
+                            drained++;
+                    }
+                    else {
+                        while (SteamNetworking.IsP2PPacketAvailable(out uint packetSize, (int)channel)) {
+                            byte[] buffer = new byte[packetSize];
+                            if (!SteamNetworking.ReadP2PPacket(buffer, packetSize, out uint bytesRead, out CSteamID remoteId, (int)channel))
+                                break;
+                            drained++;
+                        }
                     }
                 }
 
@@ -287,19 +294,31 @@ namespace Entanglement.Network {
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
             bool budgeted = !SceneLoader.loading;
             int handled = 0;
+            INetworkLayer layer = NetworkLayerManager.Layer;
+
             foreach (NetworkChannel channel in allChannels) {
-                while (SteamNetworking.IsP2PPacketAvailable(out uint packetSize, (int)channel)) {
+                while (true) {
                     // At least 48 a frame whatever the time, so a slow PC's queue still drains.
                     if (budgeted && handled >= 48 && System.Diagnostics.Stopwatch.GetTimestamp() - start > receiveBudgetTicks)
                         return;
+
+                    long senderId;
+                    byte[] buffer;
+                    if (layer != null) {
+                        if (!layer.TryReceive(channel, out senderId, out buffer))
+                            break;
+                    }
+                    else {
+                        if (!SteamNetworking.IsP2PPacketAvailable(out uint packetSize, (int)channel))
+                            break;
+                        buffer = new byte[packetSize];
+                        if (!SteamNetworking.ReadP2PPacket(buffer, packetSize, out uint bytesRead, out CSteamID remoteId, (int)channel))
+                            continue;
+                        senderId = (long)remoteId.m_SteamID;
+                    }
+
                     handled++;
-
-                    byte[] buffer = new byte[packetSize];
-
-                    if (!SteamNetworking.ReadP2PPacket(buffer, packetSize, out uint bytesRead, out CSteamID remoteId, (int)channel))
-                        continue;
-
-                    try { OnMessageReceived((long)remoteId.m_SteamID, buffer); }
+                    try { OnMessageReceived(senderId, buffer); }
                     catch (Exception e) { NoteMessageFailure(e); }
                 }
             }
@@ -333,10 +352,15 @@ namespace Entanglement.Network {
         }
 
         public void SendMessage(long userId, NetworkChannel channel, byte[] data) {
-            if (SteamIntegration.hasLobby) {
-                SteamIntegration.SendPacket(userId, channel, data);
+            if (!SteamIntegration.hasLobby && (NetworkLayerManager.Layer == null || !NetworkLayerManager.Layer.HasLobby))
+                return;
+
+            INetworkLayer layer = NetworkLayerManager.Layer;
+            bool sent = layer != null
+                ? layer.Send(userId, channel, data)
+                : SteamIntegration.SendPacket(userId, channel, data);
+            if (sent)
                 sentByteCount += (uint)data.Length;
-            }
         }
 
         public virtual void BroadcastMessage(NetworkChannel channel, byte[] data) { }

@@ -160,9 +160,32 @@ namespace Entanglement.UI
                 new Entry("Players", ShowPlayers),
                 new Entry("Downloads", ShowDownloads),
                 new Entry("Gamemodes", ShowGamemodes),
-                new Entry("Voice", ShowVoice),
+                new Entry("Notifications", ShowNotifications),
                 new Entry("Settings", ShowSettings)
             ));
+        }
+
+        static void ShowNotifications() {
+            var entries = new List<Entry>();
+            entries.Add(new Entry("Clear All", () => {
+                GameNotify.ClearInbox();
+                ShowNotifications();
+            }));
+            var inbox = GameNotify.Inbox;
+            int shown = 0;
+            for (int i = 0; i < inbox.Count && shown < 5; i++) {
+                GameNotify.InboxItem item = inbox[i];
+                string label = item.text;
+                if (label.Length > 28)
+                    label = label.Substring(0, 25) + "...";
+                entries.Add(new Entry(label, () => GameNotify.Show(item.text, 4f, item.kind, null, false), true));
+                shown++;
+            }
+            if (shown == 0)
+                entries.Add(new Entry("No notifications", null, true));
+            string layer = Entanglement.Network.Layers.NetworkLayerManager.ActiveTitle;
+            entries.Add(new Entry("Net: " + layer, null, true));
+            Show(PageBack(ShowHub, entries.ToArray()), false);
         }
 
         static void ShowGamemodes() {
@@ -645,10 +668,10 @@ namespace Entanglement.UI
                     Client.nameTagsVisible = !Client.nameTagsVisible;
                     ShowSettings();
                 }),
+                new Entry("Voice", ShowVoice),
                 new Entry("File Sync", ShowSync),
                 new Entry("Banned", () => { bannedPage = 0; ShowBanned(); }),
-                new Entry("Net " + NetStats.downKBps.ToString("F0") + "KB/s down, "
-                    + NetStats.upKBps.ToString("F0") + "KB/s up", ShowSettings, true),
+                new Entry("Transport: " + Entanglement.Network.Layers.NetworkLayerManager.ActiveTitle, ShowSettings, true),
                 new Entry("Debug", ShowDebug)
             ), false);
         }
