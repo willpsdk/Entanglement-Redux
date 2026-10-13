@@ -17,7 +17,13 @@ namespace Entanglement.Objects
     {
         public static bool enabled = false;
 
-        public static bool platforms = true;
+        // OFF: Fusion-style PD reps are real physics bodies — they stand on lifts/doors by contact.
+        // Ignoring platforms was a kinematic-puppet workaround and fights physical interaction.
+        public static bool platforms = false;
+
+        // Still ignore buttons: a remote press is networked, and the rep also shoving the local
+        // button would toggle twice (cart went and came straight back).
+        public static bool buttons = true;
 
         const float scanInterval = 0.25f;
         const float scanRadius = 2.5f;
@@ -57,9 +63,9 @@ namespace Entanglement.Objects
         }
 
         public static void Tick() {
-            if ((!enabled && !platforms) || !SteamIntegration.hasLobby)
+            if ((!enabled && !platforms && !buttons) || !SteamIntegration.hasLobby)
                 return;
-            // Mid-load our old rig is gone and the new one is still frozen, which reads as a platform.
+            // Mid-load our old rig is gone and the new one is still frozen.
             if (!LocalRigReady())
                 return;
 
@@ -143,7 +149,9 @@ namespace Entanglement.Objects
                 if (skip)
                     continue;
 
-                if (!enabled && !IsPlatform(body) && !IsButton(body))
+                bool ignorePlatform = platforms && IsPlatform(body);
+                bool ignoreButton = buttons && IsButton(body);
+                if (!enabled && !ignorePlatform && !ignoreButton)
                     continue;
 
                 IgnoreSolid(rep, body);
@@ -189,10 +197,8 @@ namespace Entanglement.Objects
             return button;
         }
 
-        // Something a rep stands on or rides that moves by itself: a lift moved by script, or a body
-        // sliding on a joint like the cart or the claw's arm. A rep's pose lags a little behind it, so
-        // colliding just shoves and shakes it. A hinged / kinematic door is NOT a platform: treating
-        // every isKinematic body as one made reps walk straight through closed doors.
+        // Classifier for lifts / sliding world mounts (ObjectSync, RideOffset). Not used to
+        // IgnoreCollision anymore while platforms=false — physical reps collide with these.
         public static bool IsPlatform(Rigidbody body) {
             int key = body.GetInstanceID();
             bool platform;
